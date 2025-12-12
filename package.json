@@ -10,7 +10,8 @@
     "check-types": "tsc --noEmit",
     "prepare": "husky",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate"
+    "db:migrate": "drizzle-kit migrate",
+    "test:ai-tools": "node test-ai-tools.js"
   },
   "lint-staged": {
     "**/*.{ts,tsx,js,jsx,json,css,md}": [

@@ -55,9 +55,18 @@ export function SyllabusPreviewCard({ data }: SyllabusPreviewCardProps) {
   const handleImport = async () => {
     setIsImporting(true);
     try {
-      await importSyllabusTasks(data);
+      const result = await importSyllabusTasks(data);
       setIsImported(true);
-      toast.success("Syllabus Imported");
+
+      if (result.courseCreated) {
+        toast.success("Syllabus Imported", {
+          description: `Created course ${result.courseCode} and imported ${result.count} tasks`,
+        });
+      } else {
+        toast.success("Syllabus Imported", {
+          description: `Imported ${result.count} tasks to existing course ${result.courseCode}`,
+        });
+      }
     } catch (error) {
       toast.error("Failed to import syllabus", {
         description: error instanceof Error ? error.message : "Unknown error",
