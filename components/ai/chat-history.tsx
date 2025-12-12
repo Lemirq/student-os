@@ -125,7 +125,9 @@ export function ChatHistory({
                         >
                           <div className="flex flex-col gap-1 w-full text-left overflow-hidden pr-6">
                             <span className="truncate font-medium text-xs">
-                              {chat.title}
+                              {chat.title.length > 50
+                                ? chat.title.slice(0, 50) + "..."
+                                : chat.title}
                             </span>
                             <span className="text-[10px] text-muted-foreground truncate">
                               {formatDistanceToNow(new Date(chat.createdAt), {

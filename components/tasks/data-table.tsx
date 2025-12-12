@@ -62,6 +62,12 @@ export function DataTable<TData, TValue>({
   const { removeTask } = useTaskActions();
   const { open } = useCommandStore();
 
+  const [hasMounted, setHasMounted] = React.useState(false);
+
+  React.useEffect(() => {
+    setHasMounted(true);
+  }, []);
+
   const table = useReactTable({
     data,
     columns,
@@ -84,6 +90,10 @@ export function DataTable<TData, TValue>({
       grouping,
     },
   });
+
+  if (!hasMounted) {
+    return null; // or a loading skeleton
+  }
 
   const handleRowKeyDown = (
     e: React.KeyboardEvent<HTMLTableRowElement>,
@@ -266,7 +276,7 @@ export function DataTable<TData, TValue>({
                   key={row.id}
                   id={(row.original as Task).id}
                   data-state={row.getIsSelected() && "selected"}
-                  className="outline-none focus:outline-none focus:ring-1 focus:ring-primary focus:bg-muted/50 transition-colors data-[state=selected]:bg-muted select-none"
+                  className="group outline-none focus:outline-none focus:ring-1 focus:ring-primary focus:bg-muted/50 transition-colors data-[state=selected]:bg-muted select-none focus:relative focus:z-10"
                   tabIndex={0}
                   onKeyDown={(e) => handleRowKeyDown(e, row)}
                   onClick={(e) => {
