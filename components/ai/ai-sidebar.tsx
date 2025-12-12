@@ -74,6 +74,41 @@ export function AICopilotSidebar({
           output: "Task update confirmed to user",
         });
       }
+      if (toolCall.toolName === "showGradeRequirements") {
+        addToolOutput({
+          tool: "showGradeRequirements",
+          toolCallId: toolCall.toolCallId,
+          output: "Grade requirements shown",
+        });
+      }
+      if (toolCall.toolName === "showScheduleUpdate") {
+        addToolOutput({
+          tool: "showScheduleUpdate",
+          toolCallId: toolCall.toolCallId,
+          output: "Schedule update shown",
+        });
+      }
+      if (toolCall.toolName === "showPriorityRebalance") {
+        addToolOutput({
+          tool: "showPriorityRebalance",
+          toolCallId: toolCall.toolCallId,
+          output: "Priority rebalance shown",
+        });
+      }
+      if (toolCall.toolName === "showCreatedTasks") {
+        addToolOutput({
+          tool: "showCreatedTasks",
+          toolCallId: toolCall.toolCallId,
+          output: "Created tasks shown",
+        });
+      }
+      if (toolCall.toolName === "showMissingData") {
+        addToolOutput({
+          tool: "showMissingData",
+          toolCallId: toolCall.toolCallId,
+          output: "Missing data shown",
+        });
+      }
     },
   });
 
@@ -308,6 +343,238 @@ export function AICopilotSidebar({
                                   {part.input.score}%
                                 </div>
                               )}
+                            </div>
+                          );
+                        }
+
+                        if (
+                          part.type === "tool-showGradeRequirements" &&
+                          part.input?.data
+                        ) {
+                          const data = part.input.data;
+                          return (
+                            <div
+                              key={part.toolCallId}
+                              className="bg-muted p-4 rounded-lg my-2 text-sm w-full"
+                            >
+                              {debugTool}
+                              <h4 className="font-semibold mb-2">
+                                Grade Analysis
+                              </h4>
+                              <div className="grid grid-cols-2 gap-2 mb-3">
+                                <div>
+                                  <span className="text-xs text-muted-foreground block">
+                                    Current Grade
+                                  </span>
+                                  <span className="font-medium text-lg">
+                                    {data.current_grade}%
+                                  </span>
+                                </div>
+                                <div>
+                                  <span className="text-xs text-muted-foreground block">
+                                    Goal Grade
+                                  </span>
+                                  <span className="font-medium text-lg">
+                                    {data.goal_grade}%
+                                  </span>
+                                </div>
+                              </div>
+                              <div className="bg-background/50 p-2 rounded border">
+                                <span className="text-xs text-muted-foreground block">
+                                  Required on Remaining ({data.remaining_weight}
+                                  %)
+                                </span>
+                                <div className="flex items-baseline gap-2">
+                                  <span className="font-bold text-xl text-primary">
+                                    {data.required_avg_on_remaining}%
+                                  </span>
+                                  <Badge
+                                    variant={
+                                      data.status === "Impossible"
+                                        ? "destructive"
+                                        : data.status === "Secured"
+                                          ? "default"
+                                          : "outline"
+                                    }
+                                  >
+                                    {data.status}
+                                  </Badge>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        }
+
+                        if (
+                          part.type === "tool-showScheduleUpdate" &&
+                          part.input
+                        ) {
+                          return (
+                            <div
+                              key={part.toolCallId}
+                              className="bg-muted p-4 rounded-lg my-2 text-sm w-full"
+                            >
+                              {debugTool}
+                              <div className="flex items-center gap-2 mb-2 text-green-600">
+                                <Sparkles className="size-4" />
+                                <span className="font-medium">
+                                  {part.input.message}
+                                </span>
+                              </div>
+                              <ul className="space-y-1 text-xs text-muted-foreground">
+                                {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+                                {part.input.updates?.map(
+                                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                                  (u: any, i: number) => (
+                                    <li key={i}>
+                                      📅 <b>{u?.title}</b> &rarr;{" "}
+                                      {format(
+                                        new Date(u?.new_do_date),
+                                        "MMM d",
+                                      )}
+                                    </li>
+                                  ),
+                                )}
+                              </ul>
+                            </div>
+                          );
+                        }
+
+                        if (
+                          part.type === "tool-showPriorityRebalance" &&
+                          part.input
+                        ) {
+                          return (
+                            <div key={part.toolCallId} className="my-2">
+                              {debugTool}
+                              <Badge variant="secondary" className="gap-1 py-1">
+                                <Sparkles className="size-3" />
+                                {part.input.message}
+                              </Badge>
+                            </div>
+                          );
+                        }
+
+                        if (
+                          part.type === "tool-showCreatedTasks" &&
+                          part.input?.tasks
+                        ) {
+                          return (
+                            <div
+                              key={part.toolCallId}
+                              className="bg-muted p-4 rounded-lg my-2 text-sm w-full"
+                            >
+                              {debugTool}
+                              <h4 className="font-medium mb-2">
+                                Tasks Created
+                              </h4>
+                              <ul className="space-y-2">
+                                {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+                                {part.input.tasks.map((t: any, i: number) => (
+                                  <li
+                                    key={i}
+                                    className="flex justify-between items-center text-xs border-b pb-1 last:border-0"
+                                  >
+                                    <span>{t.title}</span>
+                                    <span className="text-muted-foreground">
+                                      {t.dueDate
+                                        ? format(new Date(t.dueDate), "MMM d")
+                                        : "No date"}
+                                    </span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          );
+                        }
+
+                        if (
+                          part.type === "tool-showMissingData" &&
+                          part.input
+                        ) {
+                          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                          const tasks_without_weights =
+                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                            (part.input.tasks_without_weights as any[]) || [];
+                          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                          const tasks_without_dates =
+                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                            (part.input.tasks_without_dates as any[]) || [];
+                          const suggestion = part.input.suggestion;
+
+                          const hasIssues =
+                            tasks_without_weights.length > 0 ||
+                            tasks_without_dates.length > 0;
+
+                          if (!hasIssues)
+                            return (
+                              <div
+                                key={part.toolCallId}
+                                className="text-sm text-green-600 my-2"
+                              >
+                                {debugTool}✅ All data looks clean!
+                              </div>
+                            );
+
+                          return (
+                            <div
+                              key={part.toolCallId}
+                              className="bg-orange-500/10 border border-orange-200 p-4 rounded-lg my-2 text-sm w-full"
+                            >
+                              {debugTool}
+                              <h4 className="font-medium text-orange-800 mb-2">
+                                Missing Data Found
+                              </h4>
+
+                              {tasks_without_weights.length > 0 && (
+                                <div className="mb-3">
+                                  <span className="text-xs font-semibold text-orange-800/80 block mb-1">
+                                    Missing Grade Weights (
+                                    {tasks_without_weights.length})
+                                  </span>
+                                  <ul className="list-disc list-inside text-xs text-orange-800/70">
+                                    {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+                                    {tasks_without_weights
+                                      .slice(0, 3)
+                                      .map((t, i: number) => (
+                                        <li key={i}>{t.title}</li>
+                                      ))}
+                                    {tasks_without_weights.length > 3 && (
+                                      <li>
+                                        ...and{" "}
+                                        {tasks_without_weights.length - 3} more
+                                      </li>
+                                    )}
+                                  </ul>
+                                </div>
+                              )}
+
+                              {tasks_without_dates.length > 0 && (
+                                <div className="mb-2">
+                                  <span className="text-xs font-semibold text-orange-800/80 block mb-1">
+                                    Missing Due Dates (
+                                    {tasks_without_dates.length})
+                                  </span>
+                                  <ul className="list-disc list-inside text-xs text-orange-800/70">
+                                    {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+                                    {tasks_without_dates
+                                      .slice(0, 3)
+                                      .map((t, i: number) => (
+                                        <li key={i}>{t.title}</li>
+                                      ))}
+                                    {tasks_without_dates.length > 3 && (
+                                      <li>
+                                        ...and {tasks_without_dates.length - 3}{" "}
+                                        more
+                                      </li>
+                                    )}
+                                  </ul>
+                                </div>
+                              )}
+
+                              <div className="mt-2 text-xs text-orange-800 italic border-t border-orange-200 pt-2">
+                                {suggestion}
+                              </div>
                             </div>
                           );
                         }
