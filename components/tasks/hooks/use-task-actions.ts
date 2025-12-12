@@ -3,7 +3,7 @@
 import { Task } from "@/types";
 import { updateTask, deleteTask } from "@/actions/tasks";
 import { toast } from "sonner";
-import { TaskStatus, TaskPriority } from "@/types";
+import { TaskStatus } from "@/types";
 
 export const useTaskActions = () => {
   const cycleStatus = async (task: Task) => {
@@ -26,18 +26,6 @@ export const useTaskActions = () => {
     });
   };
 
-  const cyclePriority = async (task: Task) => {
-    const priorities: TaskPriority[] = ["Low", "Medium", "High"];
-    const currentIndex = priorities.indexOf(task.priority as TaskPriority);
-    const nextPriority = priorities[(currentIndex + 1) % priorities.length];
-
-    toast.promise(updateTask(task.id, { priority: nextPriority }), {
-      loading: "Updating priority...",
-      success: `Priority set to ${nextPriority}`,
-      error: "Failed to update priority",
-    });
-  };
-
   const removeTask = async (task: Task) => {
     toast.promise(deleteTask(task.id), {
       loading: "Deleting task...",
@@ -46,5 +34,5 @@ export const useTaskActions = () => {
     });
   };
 
-  return { cycleStatus, setStatus, cyclePriority, removeTask };
+  return { cycleStatus, setStatus, removeTask };
 };

@@ -59,7 +59,7 @@ export function DataTable<TData, TValue>({
   // Track the last focused row index to help with range selection
   const lastFocusedIndexRef = React.useRef<number | null>(null);
 
-  const { cyclePriority, removeTask } = useTaskActions();
+  const { removeTask } = useTaskActions();
   const { open } = useCommandStore();
 
   const table = useReactTable({
@@ -144,24 +144,6 @@ export function DataTable<TData, TValue>({
         }
         break;
       }
-      case "s":
-      case "S":
-        console.log("Setting status");
-        e.preventDefault();
-        // Find the status trigger button within the row and click it
-        const statusTrigger = e.currentTarget.querySelector(
-          '[data-status-trigger="true"]>span',
-        ) as HTMLElement;
-        console.log(statusTrigger);
-        if (statusTrigger) {
-          statusTrigger.click();
-        }
-        break;
-      case "p":
-      case "P":
-        e.preventDefault();
-        cyclePriority(task);
-        break;
       case "Backspace":
       case "Delete":
         e.preventDefault();
@@ -249,7 +231,15 @@ export function DataTable<TData, TValue>({
         </div>
       </div>
 
-      <div className="rounded-md border">
+      <div
+        className="rounded-md border"
+        onBlur={(e) => {
+          // Only reset selection if focus is moving outside the table container
+          if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+            table.resetRowSelection();
+          }
+        }}
+      >
         <Table>
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
@@ -287,6 +277,20 @@ export function DataTable<TData, TValue>({
                     } else {
                       // Optional: Clear selection on single click if not holding modifiers?
                       // For now, let's keep it simple.
+                    }
+                  }}
+                  onContextMenu={(e) => {
+                    e.preventDefault();
+                    if (!row.getIsSelected()) {
+                      table.resetRowSelection();
+                      row.toggleSelected(true);
+                      open(row.original as Task);
+                    } else {
+                      const selectedRows = table.getSelectedRowModel().rows;
+                      const selectedTasks = selectedRows.map(
+                        (r) => r.original as Task,
+                      );
+                      open(selectedTasks);
                     }
                   }}
                 >
