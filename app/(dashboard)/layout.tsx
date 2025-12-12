@@ -1,12 +1,15 @@
 import { cookies } from "next/headers";
+import { Sparkles } from "lucide-react";
 import {
   SidebarProvider,
   SidebarInset,
   SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
+import { AICopilotSidebar } from "@/components/ai/ai-sidebar";
 import { getSidebarData } from "@/actions/sidebar";
 import { GlobalCreateTaskModal } from "@/components/tasks/global-create-task-modal";
+import { Button } from "@/components/ui/button";
 
 export default async function DashboardLayout({
   children,
@@ -21,15 +24,25 @@ export default async function DashboardLayout({
     <SidebarProvider defaultOpen={defaultOpen}>
       <AppSidebar semesters={semesters} />
       <SidebarInset>
-        <header className="flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12">
-          <div className="flex items-center gap-2 px-4">
+        <header className="flex h-16 shrink-0 items-center justify-between gap-2 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12 border-b px-4">
+          <div className="flex items-center gap-2">
             <SidebarTrigger className="-ml-1" />
           </div>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="lg:hidden"
+              title="Toggle AI"
+            >
+              <Sparkles className="size-4" />
+            </Button>
+            <SidebarTrigger side="right" />
+          </div>
         </header>
-        <div className="flex dark flex-1 flex-col gap-4 p-4 pt-0">
-          {children}
-        </div>
+        <div className="flex dark flex-1 flex-col gap-4 p-4">{children}</div>
       </SidebarInset>
+      <AICopilotSidebar />
       <GlobalCreateTaskModal semesters={semesters} />
     </SidebarProvider>
   );

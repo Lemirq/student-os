@@ -81,6 +81,7 @@ export function DataTable<TData, TValue>({
   });
 
   // Keyboard navigation
+  // Note: Wrapped callbacks in useEffect not strictly necessary for useHotkeys but ensures stability
   useHotkeys(
     "down",
     (e) => {
@@ -92,7 +93,7 @@ export function DataTable<TData, TValue>({
         return next;
       });
     },
-    { enableOnFormTags: false },
+    { enableOnFormTags: false, preventDefault: true },
   );
 
   useHotkeys(
@@ -106,23 +107,27 @@ export function DataTable<TData, TValue>({
         return next;
       });
     },
-    { enableOnFormTags: false },
+    { enableOnFormTags: false, preventDefault: true },
   );
 
-  useHotkeys("space", (e) => {
-    e.preventDefault();
-    if (focusedRowIndex !== null) {
-      const rows = table.getRowModel().rows;
-      if (rows && rows[focusedRowIndex]) {
-        const row = rows[focusedRowIndex];
-        if (row.getIsGrouped()) {
-          row.toggleExpanded();
-        } else {
-          row.toggleSelected();
+  useHotkeys(
+    "space",
+    (e) => {
+      e.preventDefault();
+      if (focusedRowIndex !== null) {
+        const rows = table.getRowModel().rows;
+        if (rows && rows[focusedRowIndex]) {
+          const row = rows[focusedRowIndex];
+          if (row.getIsGrouped()) {
+            row.toggleExpanded();
+          } else {
+            row.toggleSelected();
+          }
         }
       }
-    }
-  });
+    },
+    { preventDefault: true },
+  );
 
   // Grouping options
   const groupByOptions = [
@@ -206,7 +211,7 @@ export function DataTable<TData, TValue>({
                   data-state={row.getIsSelected() && "selected"}
                   className={
                     focusedRowIndex === index
-                      ? "bg-muted/50 transition-colors"
+                      ? "bg-muted/50! transition-colors"
                       : "transition-colors"
                   }
                   onClick={() => setFocusedRowIndex(index)}

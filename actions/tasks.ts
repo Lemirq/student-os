@@ -7,7 +7,6 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { eq } from "drizzle-orm";
 import { createClient } from "@/utils/supabase/server";
-import { cookies } from "next/headers";
 
 async function ensureUserExists(userId: string, email: string) {
   // Check if user exists
@@ -27,8 +26,7 @@ async function ensureUserExists(userId: string, email: string) {
 }
 
 export async function createTask(data: z.infer<typeof taskSchema>) {
-  const cookieStore = cookies();
-  const supabase = await createClient(cookieStore);
+  const supabase = await createClient();
 
   const { data: user } = await supabase.auth.getUser();
   if (!user.user) throw new Error("Unauthorized");

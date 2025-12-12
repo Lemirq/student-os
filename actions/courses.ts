@@ -7,7 +7,6 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { createClient } from "@/utils/supabase/server";
-import { cookies } from "next/headers";
 import { eq } from "drizzle-orm";
 
 async function ensureUserExists(userId: string, email: string) {
@@ -28,8 +27,7 @@ async function ensureUserExists(userId: string, email: string) {
 }
 
 export async function createSemester(data: z.infer<typeof semesterSchema>) {
-  const cookieStore = cookies();
-  const supabase = await createClient(cookieStore);
+  const supabase = await createClient();
 
   const { data: user } = await supabase.auth.getUser();
   if (!user.user) throw new Error("Unauthorized");
@@ -53,8 +51,7 @@ export async function createSemester(data: z.infer<typeof semesterSchema>) {
 }
 
 export async function createCourse(data: z.infer<typeof courseSchema>) {
-  const cookieStore = cookies();
-  const supabase = await createClient(cookieStore);
+  const supabase = await createClient();
 
   const { data: user } = await supabase.auth.getUser();
   if (!user.user) throw new Error("Unauthorized");

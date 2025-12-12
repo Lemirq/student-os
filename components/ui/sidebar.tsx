@@ -29,6 +29,7 @@ const SIDEBAR_COOKIE_NAME = "sidebar_state";
 const SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 7;
 const SIDEBAR_WIDTH = "16rem";
 const SIDEBAR_WIDTH_MOBILE = "18rem";
+const SIDEBAR_WIDTH_RIGHT = "22rem";
 const SIDEBAR_WIDTH_ICON = "3rem";
 const SIDEBAR_KEYBOARD_SHORTCUT = "b";
 
@@ -40,6 +41,10 @@ type SidebarContextProps = {
   setOpenMobile: (open: boolean) => void;
   isMobile: boolean;
   toggleSidebar: () => void;
+  rightState: "expanded" | "collapsed";
+  openRight: boolean;
+  setOpenRight: (open: boolean) => void;
+  toggleRightSidebar: () => void;
 };
 
 const SidebarContext = React.createContext<SidebarContextProps | null>(null);
@@ -73,6 +78,17 @@ function SidebarProvider({
   // We use openProp and setOpenProp for control from outside the component.
   const [_open, _setOpen] = React.useState(defaultOpen);
   const open = openProp ?? _open;
+
+  const [_openRight, _setOpenRight] = React.useState(true);
+  const openRight = _openRight;
+  const setOpenRight = React.useCallback(
+    (value: boolean | ((value: boolean) => boolean)) => {
+      const openState = typeof value === "function" ? value(openRight) : value;
+      _setOpenRight(openState);
+    },
+    [openRight],
+  );
+
   const setOpen = React.useCallback(
     (value: boolean | ((value: boolean) => boolean)) => {
       const openState = typeof value === "function" ? value(open) : value;
@@ -93,6 +109,10 @@ function SidebarProvider({
     return isMobile ? setOpenMobile((open) => !open) : setOpen((open) => !open);
   }, [isMobile, setOpen, setOpenMobile]);
 
+  const toggleRightSidebar = React.useCallback(() => {
+    return setOpenRight((open) => !open);
+  }, [setOpenRight]);
+
   // Adds a keyboard shortcut to toggle the sidebar.
   React.useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -112,6 +132,7 @@ function SidebarProvider({
   // We add a state so that we can do data-state="expanded" or "collapsed".
   // This makes it easier to style the sidebar with Tailwind classes.
   const state = open ? "expanded" : "collapsed";
+  const rightState = openRight ? "expanded" : "collapsed";
 
   const contextValue = React.useMemo<SidebarContextProps>(
     () => ({
@@ -122,8 +143,24 @@ function SidebarProvider({
       openMobile,
       setOpenMobile,
       toggleSidebar,
+      rightState,
+      openRight,
+      setOpenRight,
+      toggleRightSidebar,
     }),
-    [state, open, setOpen, isMobile, openMobile, setOpenMobile, toggleSidebar],
+    [
+      state,
+      open,
+      setOpen,
+      isMobile,
+      openMobile,
+      setOpenMobile,
+      toggleSidebar,
+      rightState,
+      openRight,
+      setOpenRight,
+      toggleRightSidebar,
+    ],
   );
 
   return (
@@ -135,6 +172,7 @@ function SidebarProvider({
             {
               "--sidebar-width": SIDEBAR_WIDTH,
               "--sidebar-width-icon": SIDEBAR_WIDTH_ICON,
+              "--sidebar-width-right": SIDEBAR_WIDTH_RIGHT,
               ...style,
             } as React.CSSProperties
           }
@@ -163,14 +201,22 @@ function Sidebar({
   variant?: "sidebar" | "floating" | "inset";
   collapsible?: "offcanvas" | "icon" | "none";
 }) {
-  const { isMobile, state, openMobile, setOpenMobile } = useSidebar();
+  const { isMobile, state, openMobile, setOpenMobile, rightState, openRight } =
+    useSidebar();
 
   if (collapsible === "none") {
+    // If it is a right sidebar, we can use the state to show/hide it.
+    if (side === "right") {
+      if (!openRight) {
+        return null;
+      }
+    }
     return (
       <div
         data-slot="sidebar"
         className={cn(
           "bg-sidebar text-sidebar-foreground flex h-full w-(--sidebar-width) flex-col",
+          side === "right" && "w-(--sidebar-width-right)",
           className,
         )}
         {...props}
@@ -190,7 +236,8 @@ function Sidebar({
           className="bg-sidebar text-sidebar-foreground w-(--sidebar-width) p-0 [&>button]:hidden"
           style={
             {
-              "--sidebar-width": SIDEBAR_WIDTH_MOBILE,
+              "--sidebar-width":
+                side === "right" ? SIDEBAR_WIDTH_RIGHT : SIDEBAR_WIDTH_MOBILE,
             } as React.CSSProperties
           }
           side={side}
@@ -208,7 +255,7 @@ function Sidebar({
   return (
     <div
       className="group peer text-sidebar-foreground hidden md:block"
-      data-state={state}
+      data-state={side === "right" ? rightState : state}
       data-collapsible={state === "collapsed" ? collapsible : ""}
       data-variant={variant}
       data-side={side}
@@ -219,6 +266,7 @@ function Sidebar({
         data-slot="sidebar-gap"
         className={cn(
           "relative w-(--sidebar-width) bg-transparent transition-[width] duration-200 ease-linear",
+          side === "right" && "w-(--sidebar-width-right)",
           "group-data-[collapsible=offcanvas]:w-0",
           "group-data-[side=right]:rotate-180",
           variant === "floating" || variant === "inset"
@@ -232,7 +280,7 @@ function Sidebar({
           "fixed inset-y-0 z-10 hidden h-svh w-(--sidebar-width) transition-[left,right,width] duration-200 ease-linear md:flex",
           side === "left"
             ? "left-0 group-data-[collapsible=offcanvas]:left-[calc(var(--sidebar-width)*-1)]"
-            : "right-0 group-data-[collapsible=offcanvas]:right-[calc(var(--sidebar-width)*-1)]",
+            : "right-0 w-(--sidebar-width-right) group-data-[collapsible=offcanvas]:right-[calc(var(--sidebar-width-right)*-1)]",
           // Adjust the padding for floating and inset variants.
           variant === "floating" || variant === "inset"
             ? "p-2 group-data-[collapsible=icon]:w-[calc(var(--sidebar-width-icon)+(--spacing(4))+2px)]"
@@ -257,8 +305,8 @@ function SidebarTrigger({
   className,
   onClick,
   ...props
-}: React.ComponentProps<typeof Button>) {
-  const { toggleSidebar } = useSidebar();
+}: React.ComponentProps<typeof Button> & { side?: "left" | "right" }) {
+  const { toggleSidebar, toggleRightSidebar } = useSidebar();
 
   return (
     <Button
@@ -269,11 +317,15 @@ function SidebarTrigger({
       className={cn("size-7", className)}
       onClick={(event) => {
         onClick?.(event);
-        toggleSidebar();
+        if (props.side === "right") {
+          toggleRightSidebar();
+        } else {
+          toggleSidebar();
+        }
       }}
       {...props}
     >
-      <PanelLeftIcon />
+      <PanelLeftIcon className={cn(props.side === "right" && "rotate-180")} />
       <span className="sr-only">Toggle Sidebar</span>
     </Button>
   );
@@ -607,9 +659,11 @@ function SidebarMenuSkeleton({
   showIcon?: boolean;
 }) {
   // Random width between 50 to 90%.
-  const width = React.useMemo(() => {
-    return `${Math.floor(Math.random() * 40) + 50}%`;
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const [width, setWidth] = React.useState("70%");
+
+  React.useEffect(() => {
+    setWidth(`${Math.floor(Math.random() * 40) + 50}%`);
+  }, []);
 
   return (
     <div

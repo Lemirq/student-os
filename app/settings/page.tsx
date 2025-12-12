@@ -1,11 +1,9 @@
 import { createClient } from "@/utils/supabase/server";
-import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default async function SettingsPage() {
-  const cookieStore = cookies();
-  const supabase = await createClient(cookieStore);
+  const supabase = await createClient();
 
   const {
     data: { user },
