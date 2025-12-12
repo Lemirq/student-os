@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Kbd } from "@/components/ui/kbd";
 import { Resolver, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { taskSchema } from "@/lib/schemas";
@@ -57,7 +58,7 @@ export function CreateTaskModal({
     return (
       <Button onClick={() => setIsOpen(true)}>
         <Plus className="mr-2 h-4 w-4" />
-        New Task <kbd className="ml-2 text-xs text-muted-foreground">⌘C</kbd>
+        New Task <Kbd className="ml-2">C</Kbd>
       </Button>
     );
   }

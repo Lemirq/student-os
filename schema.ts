@@ -1,4 +1,4 @@
-import { sql } from "drizzle-orm";
+import { relations, sql } from "drizzle-orm";
 import {
   pgTable,
   uuid,
@@ -21,6 +21,12 @@ export const users = pgTable("users", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
 });
 
+export const usersRelations = relations(users, ({ many }) => ({
+  semesters: many(semesters),
+  courses: many(courses),
+  tasks: many(tasks),
+}));
+
 /* SEMESTERS */
 export const semesters = pgTable("semesters", {
   id: uuid("id").defaultRandom().primaryKey(),
@@ -34,6 +40,14 @@ export const semesters = pgTable("semesters", {
   isCurrent: boolean("is_current").default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
 });
+
+export const semestersRelations = relations(semesters, ({ one, many }) => ({
+  user: one(users, {
+    fields: [semesters.userId],
+    references: [users.id],
+  }),
+  courses: many(courses),
+}));
 
 /* COURSES */
 export const courses = pgTable("courses", {
@@ -51,6 +65,15 @@ export const courses = pgTable("courses", {
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
 });
 
+export const coursesRelations = relations(courses, ({ one, many }) => ({
+  semester: one(semesters, {
+    fields: [courses.semesterId],
+    references: [semesters.id],
+  }),
+  gradeWeights: many(gradeWeights),
+  tasks: many(tasks),
+}));
+
 /* GRADE WEIGHTS */
 export const gradeWeights = pgTable("grade_weights", {
   id: uuid("id").defaultRandom().primaryKey(),
@@ -64,6 +87,17 @@ export const gradeWeights = pgTable("grade_weights", {
   }).notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
 });
+
+export const gradeWeightsRelations = relations(
+  gradeWeights,
+  ({ one, many }) => ({
+    course: one(courses, {
+      fields: [gradeWeights.courseId],
+      references: [courses.id],
+    }),
+    tasks: many(tasks),
+  }),
+);
 
 /* TASKS */
 export const tasks = pgTable(
@@ -109,3 +143,14 @@ export const tasks = pgTable(
     ),
   }),
 );
+
+export const tasksRelations = relations(tasks, ({ one }) => ({
+  course: one(courses, {
+    fields: [tasks.courseId],
+    references: [courses.id],
+  }),
+  gradeWeight: one(gradeWeights, {
+    fields: [tasks.gradeWeightId],
+    references: [gradeWeights.id],
+  }),
+}));

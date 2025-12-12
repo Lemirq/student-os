@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { Kbd } from "@/components/ui/kbd";
 import {
   ChevronDown,
   ChevronRight,
@@ -70,9 +71,9 @@ export function Sidebar({ semesters }: SidebarProps) {
           >
             <LayoutDashboard className="h-4 w-4" />
             Dashboard
-            <kbd className="ml-auto pointer-events-none inline-flex h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground opacity-100">
+            <Kbd className="ml-auto">
               <span className="text-xs">G</span>T
-            </kbd>
+            </Kbd>
           </Link>
 
           <div className="mt-4 mb-2 px-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider flex justify-between items-center">
@@ -166,9 +167,9 @@ export function Sidebar({ semesters }: SidebarProps) {
         <Link href="/settings">
           <Button variant="outline" className="w-full justify-start gap-2">
             Settings
-            <kbd className="ml-auto pointer-events-none inline-flex h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground opacity-100">
+            <Kbd className="ml-auto">
               <span className="text-xs">G</span>S
-            </kbd>
+            </Kbd>
           </Button>
         </Link>
       </div>

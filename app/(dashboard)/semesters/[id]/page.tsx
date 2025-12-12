@@ -1,4 +1,5 @@
 import { getSemesterData } from "@/actions/semesters";
+import { getDashboardMetrics } from "@/actions/dashboard";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -13,6 +14,11 @@ import { Plus, ArrowRight } from "lucide-react";
 import { format } from "date-fns";
 import { DataTable } from "@/components/tasks/data-table";
 import { columns } from "@/components/tasks/columns";
+import { SemesterProgress } from "@/components/dashboard/semester-progress";
+import { GradeGapCard } from "@/components/dashboard/grade-gap-card";
+import { WorkloadHeatmap } from "@/components/dashboard/workload-heatmap";
+import { HighStakesList } from "@/components/dashboard/high-stakes-list";
+import { QuickCapture } from "@/components/dashboard/quick-capture";
 
 export default async function SemesterPage({
   params,
@@ -20,7 +26,12 @@ export default async function SemesterPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const semester = await getSemesterData(id);
+
+  // Parallel data fetching
+  const [semester, metrics] = await Promise.all([
+    getSemesterData(id),
+    getDashboardMetrics(id),
+  ]);
 
   if (!semester) {
     notFound();
@@ -28,6 +39,7 @@ export default async function SemesterPage({
 
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">{semester.name}</h1>
@@ -43,44 +55,65 @@ export default async function SemesterPage({
         </Link>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {semester.courses.map((course) => (
-          <Link key={course.id} href={`/courses/${course.id}`}>
-            <Card className="hover:bg-muted/50 transition-colors cursor-pointer h-full">
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-lg font-medium">
-                  <div className="flex items-center gap-2">
-                    <span
-                      className="w-3 h-3 rounded-full"
-                      style={{ backgroundColor: course.color || "#000000" }}
-                    />
-                    {course.code}
-                  </div>
-                </CardTitle>
-                <ArrowRight className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <CardDescription className="text-sm mt-2">
-                  {course.name}
-                </CardDescription>
-                {course.goalGrade && (
-                  <div className="mt-4 text-sm text-muted-foreground">
-                    Goal: {course.goalGrade}%
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </Link>
-        ))}
-        {semester.courses.length === 0 && (
-          <div className="col-span-full text-center py-10 text-muted-foreground border rounded-lg border-dashed">
-            No courses added yet. Click &quot;Add Course&quot; to get started.
-          </div>
-        )}
+      {/* Dashboard Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-12 max-h-[500px] grid-rows-3 gap-4">
+        {/* Top Row: Progress & Quick Capture */}
+        <div className="md:col-span-8 row-span-1">
+          <SemesterProgress data={metrics.semesterProgress} />
+        </div>
+        {/* <div className="md:col-span-4 row-span-2">
+           <QuickCapture />
+        </div> */}
+
+        {/* Middle Row: Heatmap, Grade Gap, High Stakes */}
+        <div className="md:col-span-4 md:row-span-3 h-full">
+          <GradeGapCard data={metrics.gradeGap} />
+        </div>
+        <div className="md:col-span-4 h-[300px]">
+          <WorkloadHeatmap data={metrics.workloadHeatmap} />
+        </div>
+        <div className="md:col-span-4 h-[300px]">
+          <HighStakesList tasks={metrics.highStakesTasks} />
+        </div>
       </div>
 
-      <div className="space-y-4">
-        <h2 className="text-2xl font-bold tracking-tight">Tasks</h2>
+      {/* Course Grid */}
+      <div className="space-y-2">
+        <h2 className="text-xl font-semibold tracking-tight">Courses</h2>
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          {semester.courses.map((course) => (
+            <Link key={course.id} href={`/courses/${course.id}`}>
+              <Card className="hover:bg-muted/50 transition-colors cursor-pointer h-full">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-lg font-medium">
+                    <div className="flex items-center gap-2">
+                      <span
+                        className="w-3 h-3 rounded-full"
+                        style={{ backgroundColor: course.color || "#000000" }}
+                      />
+                      {course.code}
+                    </div>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <CardDescription className="text-sm">
+                    {course.name}
+                  </CardDescription>
+                </CardContent>
+              </Card>
+            </Link>
+          ))}
+          {semester.courses.length === 0 && (
+            <div className="col-span-full text-center py-6 text-muted-foreground border rounded-lg border-dashed">
+              No courses yet.
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Task Table */}
+      <div className="space-y-2">
+        <h2 className="text-xl font-semibold tracking-tight">All Tasks</h2>
         <DataTable columns={columns} data={semester.tasks} />
       </div>
     </div>
