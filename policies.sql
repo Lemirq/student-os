@@ -4,6 +4,7 @@ ALTER TABLE public.semesters ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.courses ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.grade_weights ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.tasks ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.chats ENABLE ROW LEVEL SECURITY;
 
 -- Users Policies
 CREATE POLICY "Users can view their own profile" ON public.users
@@ -147,3 +148,15 @@ CREATE POLICY "Users can delete their own tasks" ON public.tasks
     )
   );
 
+-- Chats Policies
+CREATE POLICY "Users can view their own chats" ON public.chats
+  FOR SELECT USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can insert their own chats" ON public.chats
+  FOR INSERT WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can update their own chats" ON public.chats
+  FOR UPDATE USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can delete their own chats" ON public.chats
+  FOR DELETE USING (auth.uid() = user_id);

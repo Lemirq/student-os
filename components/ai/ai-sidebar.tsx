@@ -22,10 +22,21 @@ import { StudentOSToolCallsMessage } from "@/app/api/chat/route";
 import { SyllabusPreviewCard } from "./syllabus-preview-card";
 import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
+import { ChatHistory } from "./chat-history";
+import { saveChat } from "@/actions/chats";
 
 export function AICopilotSidebar({
   ...props
 }: React.ComponentProps<typeof Sidebar>) {
+  const [chatId, setChatId] = React.useState<string>("");
+  const [mounted, setMounted] = React.useState(false);
+  const [shouldAutoScroll, setShouldAutoScroll] = React.useState(true);
+
+  React.useEffect(() => {
+    setMounted(true);
+    setChatId(crypto.randomUUID());
+  }, []);
+
   const {
     messages,
     setMessages,
@@ -36,6 +47,7 @@ export function AICopilotSidebar({
     regenerate,
     addToolOutput,
   } = useChat<StudentOSToolCallsMessage>({
+    id: chatId,
     transport: new DefaultChatTransport({
       api: "/api/chat",
     }),
@@ -66,12 +78,57 @@ export function AICopilotSidebar({
   });
 
   const scrollRef = React.useRef<HTMLDivElement>(null);
+  const scrollAreaRef = React.useRef<HTMLDivElement>(null);
+
+  // Handle scroll events to determine if user is scrolling up
+  const handleScroll = (event: React.UIEvent<HTMLDivElement>) => {
+    const { scrollTop, scrollHeight, clientHeight } = event.currentTarget;
+    const isAtBottom = Math.abs(scrollHeight - scrollTop - clientHeight) < 50; // 50px threshold
+
+    if (isAtBottom) {
+      setShouldAutoScroll(true);
+    } else {
+      setShouldAutoScroll(false);
+    }
+  };
 
   React.useEffect(() => {
-    if (scrollRef.current) {
+    if (shouldAutoScroll && scrollRef.current) {
       scrollRef.current.scrollIntoView({ behavior: "smooth" });
     }
-  }, [messages, status]);
+  }, [messages, status, shouldAutoScroll]);
+
+  // Autosave chat
+  React.useEffect(() => {
+    if (messages.length > 0 && chatId && mounted) {
+      const timer = setTimeout(async () => {
+        try {
+          await saveChat({
+            id: chatId,
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            messages: messages as any[],
+          });
+        } catch (e) {
+          console.error("Failed to save chat", e);
+        }
+      }, 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [messages, chatId, mounted]);
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const handleSelectChat = (id: string, loadedMessages: any[]) => {
+    setChatId(id);
+    setMessages(loadedMessages as unknown as StudentOSToolCallsMessage[]);
+  };
+
+  const handleNewChat = () => {
+    const newId = crypto.randomUUID();
+    setChatId(newId);
+    setMessages([]);
+  };
+
+  if (!mounted) return null;
 
   return (
     <Sidebar
@@ -87,11 +144,16 @@ export function AICopilotSidebar({
             <span>StudentOS AI</span>
           </div>
           <div className="flex items-center gap-1">
+            <ChatHistory
+              onSelectChat={handleSelectChat}
+              onNewChat={handleNewChat}
+              currentChatId={chatId}
+            />
             <Button
               variant="ghost"
               size="icon"
               title="Clear Chat"
-              onClick={() => setMessages([])}
+              onClick={handleNewChat}
             >
               <Trash2 className="size-4" />
               <span className="sr-only">Clear Chat</span>
@@ -101,7 +163,11 @@ export function AICopilotSidebar({
       </SidebarHeader>
 
       <SidebarContent>
-        <ScrollArea className="h-full">
+        <ScrollArea
+          className="h-full"
+          ref={scrollAreaRef}
+          onScrollCapture={handleScroll} // Using capture to ensure we get the event from the viewport
+        >
           <DottedGlowBackground
             className="pointer-events-none mask-radial-to-90% mask-radial-at-center opacity-20 dark:opacity-100"
             opacity={0.4}
@@ -157,62 +223,71 @@ export function AICopilotSidebar({
                           );
                         }
 
+                        // Debug info for tool calls
+                        const debugTool = (
+                          <div className="text-[10px] text-muted-foreground mb-1 font-mono bg-muted/50 p-1 rounded">
+                            Tool: {part.type.replace("tool-", "")}
+                          </div>
+                        );
+
                         if (
                           part.type === "tool-showSyllabus" &&
                           part.input?.data
                         ) {
                           return (
-                            <SyllabusPreviewCard
-                              key={part.toolCallId}
-                              // @ts-expect-error - Partial input data type mismatch during streaming
-                              data={part.input.data}
-                            />
+                            <div key={part.toolCallId}>
+                              {debugTool}
+                              <SyllabusPreviewCard
+                                // @ts-expect-error - Partial input data type mismatch during streaming
+                                data={part.input.data}
+                              />
+                            </div>
                           );
                         }
 
                         if (part.type === "tool-showSchedule") {
                           return (
-                            <div
-                              key={part.toolCallId}
-                              className="bg-muted p-3 rounded-lg text-sm w-full"
-                            >
-                              <h4 className="font-medium mb-2">
-                                Schedule (
-                                {part.input?.startDate
-                                  ? part.input.startDate
-                                  : "..."}
-                                {" - "}
-                                {part.input?.endDate
-                                  ? part.input.endDate
-                                  : "..."}
-                                )
-                              </h4>
-                              {part.input?.tasks &&
-                              part.input.tasks.length > 0 ? (
-                                <ul className="space-y-2">
-                                  {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-                                  {part.input.tasks.map((task: any) => (
-                                    <li
-                                      key={task.id}
-                                      className="flex justify-between items-center text-xs"
-                                    >
-                                      <span>{task.title}</span>
-                                      <span className="text-muted-foreground">
-                                        {task.dueDate
-                                          ? format(
-                                              new Date(task.dueDate),
-                                              "MMM d",
-                                            )
-                                          : "No date"}
-                                      </span>
-                                    </li>
-                                  ))}
-                                </ul>
-                              ) : (
-                                <div className="text-muted-foreground italic">
-                                  No tasks found.
-                                </div>
-                              )}
+                            <div key={part.toolCallId}>
+                              {debugTool}
+                              <div className="bg-muted p-3 rounded-lg text-sm w-full">
+                                <h4 className="font-medium mb-2">
+                                  Schedule (
+                                  {part.input?.startDate
+                                    ? part.input.startDate
+                                    : "..."}
+                                  {" - "}
+                                  {part.input?.endDate
+                                    ? part.input.endDate
+                                    : "..."}
+                                  )
+                                </h4>
+                                {part.input?.tasks &&
+                                part.input.tasks.length > 0 ? (
+                                  <ul className="space-y-2">
+                                    {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+                                    {part.input.tasks.map((task: any) => (
+                                      <li
+                                        key={task.id}
+                                        className="flex justify-between items-center text-xs"
+                                      >
+                                        <span>{task.title}</span>
+                                        <span className="text-muted-foreground">
+                                          {task.dueDate
+                                            ? format(
+                                                new Date(task.dueDate),
+                                                "MMM d",
+                                              )
+                                            : "No date"}
+                                        </span>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                ) : (
+                                  <div className="text-muted-foreground italic">
+                                    No tasks found.
+                                  </div>
+                                )}
+                              </div>
                             </div>
                           );
                         }
@@ -220,6 +295,7 @@ export function AICopilotSidebar({
                         if (part.type === "tool-showTaskUpdate") {
                           return (
                             <div key={part.toolCallId} className="my-2">
+                              {debugTool}
                               <Badge
                                 variant="outline"
                                 className="bg-green-500/10 text-green-600 border-green-200"

@@ -77,7 +77,7 @@ export function SyllabusPreviewCard({ data }: SyllabusPreviewCardProps) {
   };
 
   return (
-    <Card className="w-full max-w-sm bg-sidebar-accent/10 border-sidebar-border">
+    <Card className="w-full max-w-sm bg-sidebar-accent/20 backdrop-blur-2xl border-sidebar-border">
       <CardHeader className="pb-3">
         <div className="flex items-center gap-2">
           <div className="size-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary">

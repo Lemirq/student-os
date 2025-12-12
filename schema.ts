@@ -9,6 +9,7 @@ import {
   timestamp,
   decimal,
   check,
+  jsonb,
 } from "drizzle-orm/pg-core";
 
 /* USERS */
@@ -25,6 +26,7 @@ export const usersRelations = relations(users, ({ many }) => ({
   semesters: many(semesters),
   courses: many(courses),
   tasks: many(tasks),
+  chats: many(chats),
 }));
 
 /* SEMESTERS */
@@ -152,5 +154,24 @@ export const tasksRelations = relations(tasks, ({ one }) => ({
   gradeWeight: one(gradeWeights, {
     fields: [tasks.gradeWeightId],
     references: [gradeWeights.id],
+  }),
+}));
+
+/* CHATS */
+export const chats = pgTable("chats", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: uuid("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  messages: jsonb("messages").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+});
+
+export const chatsRelations = relations(chats, ({ one }) => ({
+  user: one(users, {
+    fields: [chats.userId],
+    references: [users.id],
   }),
 }));

@@ -5,6 +5,7 @@ import { tasks, courses, semesters } from "@/schema";
 import { eq, and, ilike } from "drizzle-orm";
 import { createClient } from "@/utils/supabase/server";
 import { z } from "zod";
+import * as chrono from "chrono-node";
 
 const importSyllabusSchema = z.object({
   course: z.string(),
@@ -77,16 +78,45 @@ export async function importSyllabusTasks(
   }
 
   // Insert tasks
-  await db.insert(tasks).values(
-    validatedData.tasks.map((task) => ({
+  const tasksToInsert = validatedData.tasks.map((task) => {
+    // Use chrono-node to parse date strings more robustly
+    const parsedDate = chrono.parseDate(task.due_date);
+
+    // Fallback to native Date if chrono fails (or if date string is standard ISO)
+    const dueDate = parsedDate || new Date(task.due_date);
+
+    // Check if date is valid
+    if (isNaN(dueDate.getTime())) {
+      console.warn(
+        `Invalid date found for task "${task.title}": ${task.due_date}. Defaulting to null.`,
+      );
+      // Depending on requirements, we could default to null or skip the task, or set to today
+      // For now let's set to null or handle appropriately in DB schema if nullable
+      // The schema says timestamp with timezone, let's try to be safe.
+      // If it's invalid, let's just use null if allowed, otherwise maybe today?
+      // Looking at schema, due_date is nullable timestamp.
+      return {
+        userId: userId,
+        courseId: course.id,
+        title: task.title,
+        dueDate: null, // Set to null if invalid
+        status: "Todo",
+        priority: "Medium",
+      };
+    }
+
+    return {
       userId: userId,
       courseId: course.id,
       title: task.title,
-      dueDate: new Date(task.due_date),
+      dueDate: dueDate,
       status: "Todo",
       priority: "Medium",
-    })),
-  );
+    };
+  });
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await db.insert(tasks).values(tasksToInsert as any);
 
   return {
     success: true,
