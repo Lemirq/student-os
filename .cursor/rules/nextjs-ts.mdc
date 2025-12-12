@@ -1,0 +1,37 @@
+---
+description: Next.js TypeScript development with modern best practices
+globs: **/*.{js,ts,jsx,tsx}
+alwaysApply: true
+---
+
+# Next.js & TypeScript Configuration
+
+- **Package Manager**: Use `bun` exclusively. Run `bun install` for dependencies. Use `bun add <package>` to install new packages.
+- **TypeScript**: Enable strict mode in `tsconfig.json`. Use explicit return types on all functions. Prefer `type` over `interface` for object shapes.
+- **Framework**: Use Next.js 14+ with App Router only. Never use the Pages Router for new projects.
+
+# Component Architecture
+
+- **Components**: Use functional components with arrow functions: `const Component = (): JSX.Element => {}`
+- **File Structure**: Organize routes using App Router conventions. Place `page.tsx`, `layout.tsx`, and `loading.tsx` files as needed.
+- **Client Components**: Add `'use client'` directive only when necessary (event handlers, browser APIs). Default to Server Components.
+- **Styling**: Use Tailwind CSS with class variance authority (cva) for component variants. Avoid CSS Modules unless absolutely necessary.
+
+# API & Data Fetching
+
+- **API Routes**: Use Route Handlers (`route.ts` files) in the App Router. Validate all input with Zod schemas.
+- **Data Fetching**: Use Server Components with async/await for data. Implement loading states with `loading.tsx` or React Suspense.
+- **Database**: Use Supabase client in Server Components. Use `supabase/ssr` for authentication.
+
+# State & Performance
+
+- **State Management**: Use React hooks (useState, useReducer) for local state. Use Zustand for global state only when needed.
+- **Performance**: Use React.memo strategically for expensive components. Implement code splitting with dynamic imports: `dynamic(() => import('./Component'))`
+- **Error Handling**: Implement error boundaries with `error.tsx` files. Handle API errors gracefully with try/catch.
+
+# Code Quality
+
+- **Git**: Follow conventional commits format. Use branch names: `feat/description`, `fix/description`, `chore/description`.
+- **Testing**: Write unit tests with Jest and React Testing Library. Aim for >80% coverage on critical paths.
+- **Documentation**: Add TSDoc comments for all public functions and components. Include usage examples.
+- **Security**: Never hardcode API keys. Use environment variables with `.env.local` (gitignored). Use `process.env` not `NEXT_PUBLIC_` for server secrets.
