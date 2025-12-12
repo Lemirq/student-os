@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { Semester, Course } from "@/types";
+import { useHotkeys } from "react-hotkeys-hook";
 
 type SidebarProps = {
   semesters: (Semester & { courses: Course[] })[];
@@ -29,6 +30,17 @@ export function Sidebar({ semesters }: SidebarProps) {
       {},
     ),
   );
+
+  // Global Navigation Shortcuts
+  useHotkeys("g+t", () => router.push("/dashboard"));
+  useHotkeys("g+s", () => router.push("/settings"));
+  useHotkeys("g+c", () => {
+    if (semesters.length > 0) {
+      router.push(`/semesters/${semesters[0].id}`);
+    } else {
+      router.push("/semesters/new");
+    }
+  });
 
   const toggleSemester = (semesterId: string) => {
     setExpandedSemesters((prev) => ({
@@ -58,6 +70,9 @@ export function Sidebar({ semesters }: SidebarProps) {
           >
             <LayoutDashboard className="h-4 w-4" />
             Dashboard
+            <kbd className="ml-auto pointer-events-none inline-flex h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground opacity-100">
+              <span className="text-xs">G</span>T
+            </kbd>
           </Link>
 
           <div className="mt-4 mb-2 px-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider flex justify-between items-center">
@@ -85,12 +100,6 @@ export function Sidebar({ semesters }: SidebarProps) {
                     ? "bg-muted text-primary"
                     : "text-muted-foreground",
                 )}
-                // Click on row toggles expansion, unless we want separate behavior
-                // User complained that clicking "just opens the drop-down".
-                // Let's make the whole row navigate to the semester page,
-                // and the chevron specifically for toggling (or just have navigation + expansion separate or combined).
-                // Simplest fix: Clicking the row navigates to /semesters/[id].
-                // We can also toggle expansion on navigation if not expanded.
                 onClick={() => {
                   router.push(`/semesters/${semester.id}`);
                   if (!expandedSemesters[semester.id]) {
@@ -101,7 +110,7 @@ export function Sidebar({ semesters }: SidebarProps) {
                 <div className="flex items-center gap-3">
                   <div
                     onClick={(e) => {
-                      e.stopPropagation(); // Stop propagation to prevent navigation when just clicking chevron
+                      e.stopPropagation();
                       toggleSemester(semester.id);
                     }}
                     className="p-1 hover:bg-muted-foreground/10 rounded"
@@ -157,6 +166,9 @@ export function Sidebar({ semesters }: SidebarProps) {
         <Link href="/settings">
           <Button variant="outline" className="w-full justify-start gap-2">
             Settings
+            <kbd className="ml-auto pointer-events-none inline-flex h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground opacity-100">
+              <span className="text-xs">G</span>S
+            </kbd>
           </Button>
         </Link>
       </div>

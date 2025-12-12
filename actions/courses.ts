@@ -90,3 +90,10 @@ export async function createGradeWeight(
 
   revalidatePath(`/courses/${validated.course_id}`);
 }
+
+export async function getCourseGradeWeights(courseId: string) {
+  return await db
+    .select()
+    .from(gradeWeights)
+    .where(eq(gradeWeights.courseId, courseId));
+}

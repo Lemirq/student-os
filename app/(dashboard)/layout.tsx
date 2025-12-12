@@ -1,5 +1,12 @@
-import { Sidebar } from "@/components/sidebar/sidebar";
+import { cookies } from "next/headers";
+import {
+  SidebarProvider,
+  SidebarInset,
+  SidebarTrigger,
+} from "@/components/ui/sidebar";
+import { AppSidebar } from "@/components/app-sidebar";
 import { getSidebarData } from "@/actions/sidebar";
+import { GlobalCreateTaskModal } from "@/components/tasks/global-create-task-modal";
 
 export default async function DashboardLayout({
   children,
@@ -7,18 +14,23 @@ export default async function DashboardLayout({
   children: React.ReactNode;
 }) {
   const { semesters } = await getSidebarData();
+  const cookieStore = await cookies();
+  const defaultOpen = cookieStore.get("sidebar_state")?.value === "true";
 
   return (
-    <div className="grid min-h-screen w-full md:grid-cols-[220px_1fr] lg:grid-cols-[280px_1fr]">
-      <div className="hidden border-r bg-muted/40 md:block">
-        <Sidebar semesters={semesters} />
-      </div>
-      <div className="flex flex-col">
-        {/* Mobile Header could go here */}
-        <main className="flex flex-1 flex-col gap-4 p-4 lg:gap-6 lg:p-6">
+    <SidebarProvider defaultOpen={defaultOpen}>
+      <AppSidebar semesters={semesters} />
+      <SidebarInset>
+        <header className="flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12">
+          <div className="flex items-center gap-2 px-4">
+            <SidebarTrigger className="-ml-1" />
+          </div>
+        </header>
+        <div className="flex dark flex-1 flex-col gap-4 p-4 pt-0">
           {children}
-        </main>
-      </div>
-    </div>
+        </div>
+      </SidebarInset>
+      <GlobalCreateTaskModal semesters={semesters} />
+    </SidebarProvider>
   );
 }

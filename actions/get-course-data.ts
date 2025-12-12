@@ -6,7 +6,10 @@ import { eq } from "drizzle-orm";
 import { Course, Task, GradeWeight } from "@/types";
 
 export type CourseData = Course & {
-  tasks: (Task & { grade_weights: GradeWeight | null })[];
+  tasks: (Task & {
+    grade_weight: GradeWeight | null;
+    course: Course | null;
+  })[];
   grade_weights: GradeWeight[];
 };
 
@@ -43,7 +46,8 @@ export async function getCourseData(
       gradeWeightsResult.find((w) => w.id === task.gradeWeightId) || null;
     return {
       ...task,
-      grade_weights: gw,
+      grade_weight: gw,
+      course: course,
     };
   });
 

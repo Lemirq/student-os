@@ -11,6 +11,8 @@ import {
 } from "@/components/ui/card";
 import { Plus, ArrowRight } from "lucide-react";
 import { format } from "date-fns";
+import { DataTable } from "@/components/tasks/data-table";
+import { columns } from "@/components/tasks/columns";
 
 export default async function SemesterPage({
   params,
@@ -75,6 +77,11 @@ export default async function SemesterPage({
             No courses added yet. Click &quot;Add Course&quot; to get started.
           </div>
         )}
+      </div>
+
+      <div className="space-y-4">
+        <h2 className="text-2xl font-bold tracking-tight">Tasks</h2>
+        <DataTable columns={columns} data={semester.tasks} />
       </div>
     </div>
   );
