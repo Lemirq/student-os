@@ -1,14 +1,68 @@
 "use client";
 
 import { ColumnDef } from "@tanstack/react-table";
-import { Task, Course, GradeWeight } from "@/types";
+import { Task, Course, GradeWeight, TaskStatus } from "@/types";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { format } from "date-fns";
+import { format, isToday } from "date-fns";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { useTaskActions } from "./hooks/use-task-actions";
 
 export type TaskWithDetails = Task & {
   course: Course | null;
   grade_weight: GradeWeight | null;
+};
+
+const StatusCell = ({ task }: { task: Task }) => {
+  const { setStatus } = useTaskActions();
+  const status = task.status as TaskStatus;
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          data-status-trigger
+          className="outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 rounded-full"
+        >
+          <Badge
+            variant={
+              status === "Done"
+                ? "default"
+                : status === "In Progress"
+                  ? "secondary"
+                  : "outline"
+            }
+            className={
+              status === "Done"
+                ? "bg-green-100 text-green-800 hover:bg-green-100/80 border-transparent shadow-none"
+                : status === "In Progress"
+                  ? "bg-blue-100 text-blue-800 hover:bg-blue-100/80 border-transparent shadow-none"
+                  : "text-muted-foreground"
+            }
+          >
+            {status}
+          </Badge>
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start">
+        <DropdownMenuItem onClick={() => setStatus(task, "Todo")}>
+          Todo
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => setStatus(task, "In Progress")}>
+          In Progress
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => setStatus(task, "Done")}>
+          Done
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
 };
 
 export const columns: ColumnDef<TaskWithDetails>[] = [
@@ -61,29 +115,7 @@ export const columns: ColumnDef<TaskWithDetails>[] = [
   {
     accessorKey: "status",
     header: "Status",
-    cell: ({ row }) => {
-      const status = row.getValue("status") as string;
-      return (
-        <Badge
-          variant={
-            status === "Done"
-              ? "default" // or a success variant if available
-              : status === "In Progress"
-                ? "secondary"
-                : "outline"
-          }
-          className={
-            status === "Done"
-              ? "bg-green-100 text-green-800 hover:bg-green-100/80 border-transparent shadow-none"
-              : status === "In Progress"
-                ? "bg-blue-100 text-blue-800 hover:bg-blue-100/80 border-transparent shadow-none"
-                : "text-muted-foreground"
-          }
-        >
-          {status}
-        </Badge>
-      );
-    },
+    cell: ({ row }) => <StatusCell task={row.original} />,
     filterFn: (row, id, value) => {
       return value.includes(row.getValue(id));
     },
@@ -122,12 +154,29 @@ export const columns: ColumnDef<TaskWithDetails>[] = [
     },
   },
   {
-    accessorKey: "due_date",
+    accessorKey: "dueDate",
     header: "Due Date",
     cell: ({ row }) => {
-      const date = row.getValue("due_date") as string;
+      const date = row.getValue("dueDate") as string | null;
       if (!date) return <span className="text-muted-foreground">-</span>;
-      return <div>{format(new Date(date), "MMM d, yyyy")}</div>;
+
+      const due = new Date(date);
+      const isOverdue = due < new Date() && !isToday(due);
+      const isDueToday = isToday(due);
+
+      return (
+        <div
+          className={
+            isOverdue
+              ? "text-red-500 font-bold"
+              : isDueToday
+                ? "text-orange-500 font-bold"
+                : "text-muted-foreground"
+          }
+        >
+          {format(due, "MMM d")}
+        </div>
+      );
     },
   },
 ];

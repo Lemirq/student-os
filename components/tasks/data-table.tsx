@@ -9,12 +9,12 @@ import {
   flexRender,
   getCoreRowModel,
   getFilteredRowModel,
-  getPaginationRowModel,
   getSortedRowModel,
   getGroupedRowModel,
   getExpandedRowModel,
   useReactTable,
   GroupingState,
+  Row,
 } from "@tanstack/react-table";
 
 import {
@@ -34,7 +34,9 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ChevronDown, ChevronRight, SlidersHorizontal } from "lucide-react";
-import { useHotkeys } from "react-hotkeys-hook";
+import { useTaskActions } from "./hooks/use-task-actions";
+import { useCommandStore } from "@/hooks/use-command-store";
+import { Task } from "@/types";
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
@@ -53,15 +55,17 @@ export function DataTable<TData, TValue>({
     React.useState<VisibilityState>({});
   const [rowSelection, setRowSelection] = React.useState({});
   const [grouping, setGrouping] = React.useState<GroupingState>([]);
-  const [focusedRowIndex, setFocusedRowIndex] = React.useState<number | null>(
-    null,
-  );
+
+  // Track the last focused row index to help with range selection
+  const lastFocusedIndexRef = React.useRef<number | null>(null);
+
+  const { cyclePriority, removeTask } = useTaskActions();
+  const { open } = useCommandStore();
 
   const table = useReactTable({
     data,
     columns,
     getCoreRowModel: getCoreRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     getGroupedRowModel: getGroupedRowModel(),
@@ -71,6 +75,7 @@ export function DataTable<TData, TValue>({
     onColumnVisibilityChange: setColumnVisibility,
     onRowSelectionChange: setRowSelection,
     onGroupingChange: setGrouping,
+    enableRowSelection: true,
     state: {
       sorting,
       columnFilters,
@@ -80,54 +85,115 @@ export function DataTable<TData, TValue>({
     },
   });
 
-  // Keyboard navigation
-  // Note: Wrapped callbacks in useEffect not strictly necessary for useHotkeys but ensures stability
-  useHotkeys(
-    "down",
-    (e) => {
-      e.preventDefault();
-      setFocusedRowIndex((prev) => {
-        const rowCount = table.getRowModel().rows.length;
-        if (rowCount === 0) return null;
-        const next = prev === null ? 0 : Math.min(prev + 1, rowCount - 1);
-        return next;
-      });
-    },
-    { enableOnFormTags: false, preventDefault: true },
-  );
+  const handleRowKeyDown = (
+    e: React.KeyboardEvent<HTMLTableRowElement>,
+    row: Row<TData>,
+  ) => {
+    const task = row.original as Task;
+    const currentRowIndex = row.index;
 
-  useHotkeys(
-    "up",
-    (e) => {
-      e.preventDefault();
-      setFocusedRowIndex((prev) => {
-        const rowCount = table.getRowModel().rows.length;
-        if (rowCount === 0) return null;
-        const next = prev === null ? 0 : Math.max(prev - 1, 0);
-        return next;
-      });
-    },
-    { enableOnFormTags: false, preventDefault: true },
-  );
+    // Track focused row
+    lastFocusedIndexRef.current = currentRowIndex;
 
-  useHotkeys(
-    "space",
-    (e) => {
-      e.preventDefault();
-      if (focusedRowIndex !== null) {
-        const rows = table.getRowModel().rows;
-        if (rows && rows[focusedRowIndex]) {
-          const row = rows[focusedRowIndex];
-          if (row.getIsGrouped()) {
-            row.toggleExpanded();
-          } else {
-            row.toggleSelected();
+    switch (e.key) {
+      case "ArrowDown": {
+        e.preventDefault();
+        const nextRow = e.currentTarget.nextElementSibling as HTMLElement;
+        if (nextRow) {
+          nextRow.focus();
+
+          // Handle Shift selection
+          if (e.shiftKey) {
+            const rows = table.getRowModel().rows;
+            const nextRowIndex = currentRowIndex + 1;
+
+            if (nextRowIndex < rows.length) {
+              const nextRowObj = rows[nextRowIndex];
+              // Toggle selection for the next row
+              nextRowObj.toggleSelected(true);
+              // Ensure current row is also selected if starting selection
+              if (!row.getIsSelected()) {
+                row.toggleSelected(true);
+              }
+            }
           }
         }
+        break;
       }
-    },
-    { preventDefault: true },
-  );
+      case "ArrowUp": {
+        e.preventDefault();
+        const prevRow = e.currentTarget.previousElementSibling as HTMLElement;
+        if (prevRow) {
+          prevRow.focus();
+
+          // Handle Shift selection
+          if (e.shiftKey) {
+            const rows = table.getRowModel().rows;
+            const prevRowIndex = currentRowIndex - 1;
+
+            if (prevRowIndex >= 0) {
+              const prevRowObj = rows[prevRowIndex];
+              // Toggle selection for the prev row
+              prevRowObj.toggleSelected(true);
+              // Ensure current row is also selected
+              if (!row.getIsSelected()) {
+                row.toggleSelected(true);
+              }
+            }
+          }
+        }
+        break;
+      }
+      case "s":
+      case "S":
+        console.log("Setting status");
+        e.preventDefault();
+        // Find the status trigger button within the row and click it
+        const statusTrigger = e.currentTarget.querySelector(
+          '[data-status-trigger="true"]>span',
+        ) as HTMLElement;
+        console.log(statusTrigger);
+        if (statusTrigger) {
+          statusTrigger.click();
+        }
+        break;
+      case "p":
+      case "P":
+        e.preventDefault();
+        cyclePriority(task);
+        break;
+      case "Backspace":
+      case "Delete":
+        e.preventDefault();
+        removeTask(task);
+        break;
+      case "k":
+      case "K":
+        if (e.metaKey || e.ctrlKey) {
+          e.preventDefault();
+
+          // If multiple rows are selected, pass them all
+          const selectedRows = table.getSelectedRowModel().rows;
+          if (selectedRows.length > 0) {
+            const selectedTasks = selectedRows.map((r) => r.original as Task);
+            // Ensure the currently focused task is included if it wasn't selected
+            if (!selectedTasks.some((t) => t.id === task.id)) {
+              selectedTasks.push(task);
+            }
+            open(selectedTasks);
+          } else {
+            open(task);
+          }
+        }
+        break;
+      case "Escape":
+        e.preventDefault();
+        table.resetRowSelection();
+        break;
+      default:
+        break;
+    }
+  };
 
   // Grouping options
   const groupByOptions = [
@@ -205,16 +271,24 @@ export function DataTable<TData, TValue>({
           </TableHeader>
           <TableBody>
             {table.getRowModel().rows?.length ? (
-              table.getRowModel().rows.map((row, index) => (
+              table.getRowModel().rows.map((row) => (
                 <TableRow
                   key={row.id}
+                  id={(row.original as Task).id}
                   data-state={row.getIsSelected() && "selected"}
-                  className={
-                    focusedRowIndex === index
-                      ? "bg-muted/50! transition-colors"
-                      : "transition-colors"
-                  }
-                  onClick={() => setFocusedRowIndex(index)}
+                  className="outline-none focus:outline-none focus:ring-1 focus:ring-primary focus:bg-muted/50 transition-colors data-[state=selected]:bg-muted select-none"
+                  tabIndex={0}
+                  onKeyDown={(e) => handleRowKeyDown(e, row)}
+                  onClick={(e) => {
+                    if (e.shiftKey) {
+                      // Simple range selection could be implemented here if needed for mouse
+                    } else if (e.metaKey || e.ctrlKey) {
+                      row.toggleSelected();
+                    } else {
+                      // Optional: Clear selection on single click if not holding modifiers?
+                      // For now, let's keep it simple.
+                    }
+                  }}
                 >
                   {row.getIsGrouped() ? (
                     // Group header row

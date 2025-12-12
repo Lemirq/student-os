@@ -9,6 +9,7 @@ import { AppSidebar } from "@/components/app-sidebar";
 import { AICopilotSidebar } from "@/components/ai/ai-sidebar";
 import { getSidebarData } from "@/actions/sidebar";
 import { GlobalCreateTaskModal } from "@/components/tasks/global-create-task-modal";
+import { TaskCommandMenu } from "@/components/tasks/task-command-menu";
 import { Button } from "@/components/ui/button";
 
 export default async function DashboardLayout({
@@ -44,6 +45,7 @@ export default async function DashboardLayout({
       </SidebarInset>
       <AICopilotSidebar />
       <GlobalCreateTaskModal semesters={semesters} />
+      <TaskCommandMenu />
     </SidebarProvider>
   );
 }
