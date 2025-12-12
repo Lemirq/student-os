@@ -4,8 +4,10 @@ import { useState } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { SmartDatetimeInput } from "@/components/ui/smart-datetime-input";
+import { format } from "date-fns";
 import { Kbd } from "@/components/ui/kbd";
-import { Resolver, useForm } from "react-hook-form";
+import { Resolver, useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { taskSchema } from "@/lib/schemas";
 import { createTask } from "@/actions/tasks";
@@ -129,11 +131,35 @@ export function CreateTaskModal({
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <label className="text-sm font-medium">Do Date</label>
-              <Input type="date" {...form.register("do_date")} />
+              <Controller
+                control={form.control}
+                name="do_date"
+                render={({ field }) => (
+                  <SmartDatetimeInput
+                    value={field.value}
+                    onValueChange={(date) =>
+                      field.onChange(date ? format(date, "yyyy-MM-dd") : "")
+                    }
+                    placeholder="e.g. Tomorrow"
+                  />
+                )}
+              />
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium">Due Date</label>
-              <Input type="date" {...form.register("due_date")} />
+              <Controller
+                control={form.control}
+                name="due_date"
+                render={({ field }) => (
+                  <SmartDatetimeInput
+                    value={field.value}
+                    onValueChange={(date) =>
+                      field.onChange(date ? format(date, "yyyy-MM-dd") : "")
+                    }
+                    placeholder="e.g. Next Friday"
+                  />
+                )}
+              />
             </div>
           </div>
 

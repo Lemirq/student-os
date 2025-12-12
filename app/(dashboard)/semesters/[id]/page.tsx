@@ -69,10 +69,10 @@ export default async function SemesterPage({
         <div className="md:col-span-4 md:row-span-3 h-full">
           <GradeGapCard data={metrics.gradeGap} />
         </div>
-        <div className="md:col-span-4 h-[300px]">
+        <div className="md:col-span-4 md:row-span-2 h-full">
           <WorkloadHeatmap data={metrics.workloadHeatmap} />
         </div>
-        <div className="md:col-span-4 h-[300px]">
+        <div className="md:col-span-4 md:row-span-2 h-full">
           <HighStakesList tasks={metrics.highStakesTasks} />
         </div>
       </div>

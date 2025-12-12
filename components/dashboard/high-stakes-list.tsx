@@ -18,8 +18,8 @@ export function HighStakesList({ tasks }: HighStakesListProps) {
           High Stakes & Upcoming
         </CardTitle>
       </CardHeader>
-      <CardContent className="p-0 flex-1 min-h-0">
-        <ScrollArea className="h-full px-6 pb-4">
+      <CardContent className="p-0 flex-1 min-h-0 h-full">
+        <ScrollArea className="h-full px-6">
           {tasks.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-32 text-muted-foreground text-sm">
               <CheckCircle2 className="h-8 w-8 mb-2 opacity-50" />

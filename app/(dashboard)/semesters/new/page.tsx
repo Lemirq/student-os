@@ -7,15 +7,16 @@ import { Button } from "@/components/ui/button";
 import {
   Form,
   FormControl,
-  FormDescription,
   FormField,
   FormItem,
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { SmartDatetimeInput } from "@/components/ui/smart-datetime-input";
 import { semesterSchema } from "@/lib/schemas";
 import { createSemester } from "@/actions/courses";
+import { format } from "date-fns";
 
 export default function NewSemesterPage() {
   const form = useForm<z.infer<typeof semesterSchema>>({
@@ -74,7 +75,13 @@ export default function NewSemesterPage() {
                 <FormItem>
                   <FormLabel>Start Date</FormLabel>
                   <FormControl>
-                    <Input type="date" {...field} />
+                    <SmartDatetimeInput
+                      value={field.value}
+                      onValueChange={(date) => {
+                        field.onChange(date ? format(date, "yyyy-MM-dd") : "");
+                      }}
+                      placeholder="e.g. Next Monday"
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -87,7 +94,13 @@ export default function NewSemesterPage() {
                 <FormItem>
                   <FormLabel>End Date</FormLabel>
                   <FormControl>
-                    <Input type="date" {...field} />
+                    <SmartDatetimeInput
+                      value={field.value}
+                      onValueChange={(date) => {
+                        field.onChange(date ? format(date, "yyyy-MM-dd") : "");
+                      }}
+                      placeholder="e.g. 4 months from now"
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>

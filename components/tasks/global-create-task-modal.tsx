@@ -31,6 +31,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
+import { SmartDatetimeInput } from "@/components/ui/smart-datetime-input";
+import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
 
 interface GlobalCreateTaskModalProps {
@@ -226,7 +228,13 @@ export function GlobalCreateTaskModal({
                   <FormItem>
                     <FormLabel>Do Date</FormLabel>
                     <FormControl>
-                      <Input type="date" {...field} />
+                      <SmartDatetimeInput
+                        value={field.value}
+                        onValueChange={(date) =>
+                          field.onChange(date ? format(date, "yyyy-MM-dd") : "")
+                        }
+                        placeholder="e.g. Tomorrow"
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -240,7 +248,13 @@ export function GlobalCreateTaskModal({
                   <FormItem>
                     <FormLabel>Due Date</FormLabel>
                     <FormControl>
-                      <Input type="date" {...field} />
+                      <SmartDatetimeInput
+                        value={field.value}
+                        onValueChange={(date) =>
+                          field.onChange(date ? format(date, "yyyy-MM-dd") : "")
+                        }
+                        placeholder="e.g. Next Friday"
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
