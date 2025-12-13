@@ -1,7 +1,7 @@
 "use server";
 
 import { db } from "@/drizzle";
-import { tasks, courses, semesters } from "@/schema";
+import { tasks, courses, semesters, gradeWeights } from "@/schema";
 import { eq, and, ilike } from "drizzle-orm";
 import { createClient } from "@/utils/supabase/server";
 import { z } from "zod";
@@ -87,6 +87,48 @@ export async function importSyllabusTasks(
     }
   }
 
+  // Fetch existing grade weights for this course
+  const existingGradeWeights = await db
+    .select()
+    .from(gradeWeights)
+    .where(eq(gradeWeights.courseId, course.id));
+
+  // Map to store weight IDs: key = `${name}-${weight}`
+  const weightMap = new Map<string, string>();
+  existingGradeWeights.forEach((gw) => {
+    weightMap.set(`${gw.name}-${parseFloat(gw.weightPercent || "0")}`, gw.id);
+  });
+
+  // Identify needed weights
+  const neededWeights = new Map<string, { name: string; weight: number }>();
+
+  for (const task of validatedData.tasks) {
+    if (task.weight !== undefined && task.weight !== null) {
+      const key = `${task.type}-${task.weight}`;
+      if (!weightMap.has(key)) {
+        neededWeights.set(key, { name: task.type, weight: task.weight });
+      }
+    }
+  }
+
+  // Create missing grade weights
+  if (neededWeights.size > 0) {
+    const weightsToCreate = Array.from(neededWeights.values()).map((w) => ({
+      courseId: course.id,
+      name: w.name,
+      weightPercent: w.weight.toString(),
+    }));
+
+    const createdWeights = await db
+      .insert(gradeWeights)
+      .values(weightsToCreate)
+      .returning();
+
+    createdWeights.forEach((gw) => {
+      weightMap.set(`${gw.name}-${parseFloat(gw.weightPercent || "0")}`, gw.id);
+    });
+  }
+
   // Insert tasks
   const tasksToInsert = validatedData.tasks.map((task) => {
     // Use chrono-node to parse date strings more robustly
@@ -95,19 +137,21 @@ export async function importSyllabusTasks(
     // Fallback to native Date if chrono fails (or if date string is standard ISO)
     const dueDate = parsedDate || new Date(task.due_date);
 
+    let gradeWeightId = null;
+    if (task.weight !== undefined && task.weight !== null) {
+      const key = `${task.type}-${task.weight}`;
+      gradeWeightId = weightMap.get(key) || null;
+    }
+
     // Check if date is valid
     if (isNaN(dueDate.getTime())) {
       console.warn(
         `Invalid date found for task "${task.title}": ${task.due_date}. Defaulting to null.`,
       );
-      // Depending on requirements, we could default to null or skip the task, or set to today
-      // For now let's set to null or handle appropriately in DB schema if nullable
-      // The schema says timestamp with timezone, let's try to be safe.
-      // If it's invalid, let's just use null if allowed, otherwise maybe today?
-      // Looking at schema, due_date is nullable timestamp.
       return {
         userId: userId,
         courseId: course.id,
+        gradeWeightId: gradeWeightId,
         title: task.title,
         dueDate: null, // Set to null if invalid
         status: "Todo",
@@ -118,6 +162,7 @@ export async function importSyllabusTasks(
     return {
       userId: userId,
       courseId: course.id,
+      gradeWeightId: gradeWeightId,
       title: task.title,
       dueDate: dueDate,
       status: "Todo",

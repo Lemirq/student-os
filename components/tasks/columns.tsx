@@ -12,6 +12,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useTaskActions } from "./hooks/use-task-actions";
+import { DataTableColumnHeader } from "./data-table-column-header";
 
 export type TaskWithDetails = Task & {
   course: Course | null;
@@ -87,7 +88,9 @@ export const columns: ColumnDef<TaskWithDetails>[] = [
   },
   {
     accessorKey: "title",
-    header: "Title",
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Title" />
+    ),
     cell: ({ row }) => (
       <div className="font-medium">{row.getValue("title")}</div>
     ),
@@ -95,7 +98,9 @@ export const columns: ColumnDef<TaskWithDetails>[] = [
   {
     id: "course",
     accessorFn: (row) => row.course?.code,
-    header: "Course",
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Course" />
+    ),
     cell: ({ row }) => {
       const course = row.original.course;
       return course ? (
@@ -114,7 +119,9 @@ export const columns: ColumnDef<TaskWithDetails>[] = [
   },
   {
     accessorKey: "status",
-    header: "Status",
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Status" />
+    ),
     cell: ({ row }) => <StatusCell task={row.original} />,
     filterFn: (row, id, value) => {
       return value.includes(row.getValue(id));
@@ -122,7 +129,9 @@ export const columns: ColumnDef<TaskWithDetails>[] = [
   },
   {
     accessorKey: "priority",
-    header: "Priority",
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Priority" />
+    ),
     cell: ({ row }) => {
       const priority = row.getValue("priority") as string;
       return (
@@ -145,7 +154,9 @@ export const columns: ColumnDef<TaskWithDetails>[] = [
   },
   {
     accessorKey: "grade_weight",
-    header: "Category",
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Category" />
+    ),
     cell: ({ row }) => {
       const gw = row.original.grade_weight;
       return gw ? (
@@ -155,7 +166,9 @@ export const columns: ColumnDef<TaskWithDetails>[] = [
   },
   {
     accessorKey: "dueDate",
-    header: "Due Date",
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Due Date" />
+    ),
     cell: ({ row }) => {
       const date = row.getValue("dueDate") as string | null;
       if (!date) return <span className="text-muted-foreground">-</span>;
@@ -176,6 +189,45 @@ export const columns: ColumnDef<TaskWithDetails>[] = [
         >
           {format(due, "MMM d")}
         </div>
+      );
+    },
+  },
+  {
+    accessorKey: "doDate",
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Do Date" />
+    ),
+    cell: ({ row }) => {
+      const date = row.getValue("doDate") as string | null;
+      if (!date) return <span className="text-muted-foreground">-</span>;
+      return (
+        <span className="text-muted-foreground">
+          {format(new Date(date), "MMM d")}
+        </span>
+      );
+    },
+  },
+  {
+    accessorKey: "scoreReceived",
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Score" />
+    ),
+    cell: ({ row }) => {
+      const score = row.getValue("scoreReceived") as string | null;
+      const max = row.original.scoreMax;
+
+      if (!score) return <span className="text-muted-foreground">-</span>;
+
+      const scoreFloat = parseFloat(score);
+      const maxFloat = parseFloat(max?.toString() || "100");
+
+      if (maxFloat === 0)
+        return <span className="text-muted-foreground">-</span>;
+
+      const percentage = (scoreFloat / maxFloat) * 100;
+
+      return (
+        <span className="text-muted-foreground">{percentage.toFixed(2)}%</span>
       );
     },
   },

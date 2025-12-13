@@ -38,15 +38,18 @@ import { useTaskActions } from "./hooks/use-task-actions";
 import { useCommandStore } from "@/hooks/use-command-store";
 import { Task } from "@/types";
 import { useRouter } from "next/navigation";
+import { DataTableViewOptions } from "./data-table-view-options";
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
   data: TData[];
+  storageKey?: string;
 }
 
 export function DataTable<TData, TValue>({
   columns,
   data,
+  storageKey,
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = React.useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
@@ -66,9 +69,55 @@ export function DataTable<TData, TValue>({
 
   const [hasMounted, setHasMounted] = React.useState(false);
 
+  // Load state from local storage on mount
   React.useEffect(() => {
+    if (storageKey) {
+      try {
+        const savedState = localStorage.getItem(storageKey);
+        if (savedState) {
+          const parsed = JSON.parse(savedState);
+          // Only restore if valid
+          if (Array.isArray(parsed.sorting)) setSorting(parsed.sorting);
+          if (Array.isArray(parsed.columnFilters))
+            setColumnFilters(parsed.columnFilters);
+          if (
+            typeof parsed.columnVisibility === "object" &&
+            parsed.columnVisibility !== null
+          )
+            setColumnVisibility(parsed.columnVisibility);
+          if (Array.isArray(parsed.grouping)) setGrouping(parsed.grouping);
+        }
+      } catch (e) {
+        console.error("Failed to load table state from local storage", e);
+      }
+    }
     setHasMounted(true);
-  }, []);
+  }, [storageKey]);
+
+  // Save state to local storage when changed
+  React.useEffect(() => {
+    if (!storageKey || !hasMounted) return;
+
+    const stateToSave = {
+      sorting,
+      columnFilters,
+      columnVisibility,
+      grouping,
+    };
+
+    try {
+      localStorage.setItem(storageKey, JSON.stringify(stateToSave));
+    } catch (e) {
+      console.error("Failed to save table state to local storage", e);
+    }
+  }, [
+    sorting,
+    columnFilters,
+    columnVisibility,
+    grouping,
+    storageKey,
+    hasMounted,
+  ]);
 
   const table = useReactTable({
     data,
@@ -206,7 +255,7 @@ export function DataTable<TData, TValue>({
     <div className="space-y-4">
       {/* Toolbar */}
       <div className="flex items-center justify-between">
-        <div className="flex flex-1 items-center space-x-2">
+        <div className="flex mx-2 mt-4 flex-1 justify-between space-x-2">
           <Input
             placeholder="Filter tasks..."
             value={(table.getColumn("title")?.getFilterValue() as string) ?? ""}
@@ -215,35 +264,37 @@ export function DataTable<TData, TValue>({
             }
             className="h-8 w-[150px] lg:w-[250px]"
           />
-
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="outline"
-                size="sm"
-                className="ml-auto h-8 lg:flex"
-              >
-                <SlidersHorizontal className="mr-2 h-4 w-4" />
-                Group By
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-[150px]">
-              {groupByOptions.map((option) => (
-                <DropdownMenuCheckboxItem
-                  key={option.label}
-                  checked={
-                    JSON.stringify(grouping) === JSON.stringify(option.value)
-                  }
-                  onCheckedChange={(checked) => {
-                    if (checked) setGrouping(option.value as string[]);
-                    else setGrouping([]);
-                  }}
+          <div className="flex items-center gap-2">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="ml-auto h-8 lg:flex"
                 >
-                  {option.label}
-                </DropdownMenuCheckboxItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
+                  <SlidersHorizontal className="mr-2 h-4 w-4" />
+                  Group By
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-[150px]">
+                {groupByOptions.map((option) => (
+                  <DropdownMenuCheckboxItem
+                    key={option.label}
+                    checked={
+                      JSON.stringify(grouping) === JSON.stringify(option.value)
+                    }
+                    onCheckedChange={(checked) => {
+                      if (checked) setGrouping(option.value as string[]);
+                      else setGrouping([]);
+                    }}
+                  >
+                    {option.label}
+                  </DropdownMenuCheckboxItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <DataTableViewOptions table={table} />
+          </div>
         </div>
       </div>
 

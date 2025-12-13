@@ -1,13 +1,16 @@
 "use client";
 
 import * as React from "react";
-import { Sparkles, Trash2, GraduationCap } from "lucide-react";
+import {
+  Sparkles,
+  Trash2,
+  GraduationCap,
+  FileText,
+  Upload,
+} from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { useChat } from "@ai-sdk/react";
-import {
-  DefaultChatTransport,
-  lastAssistantMessageIsCompleteWithToolCalls,
-} from "ai";
+import { lastAssistantMessageIsCompleteWithToolCalls } from "ai";
 
 import {
   Sidebar,
@@ -25,14 +28,15 @@ import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
 import { ChatHistory } from "./chat-history";
 import { saveChat } from "@/actions/chats";
-import { Task } from "@/types";
+import { cn } from "@/lib/utils";
 
 export function AICopilotSidebar({
   ...props
 }: React.ComponentProps<typeof Sidebar>) {
   const [chatId, setChatId] = React.useState<string>("");
   const [mounted, setMounted] = React.useState(false);
-  const [shouldAutoScroll, setShouldAutoScroll] = React.useState(true);
+  const [files, setFiles] = React.useState<File[]>([]);
+  const [isDragging, setIsDragging] = React.useState(false);
 
   React.useEffect(() => {
     setMounted(true);
@@ -47,90 +51,72 @@ export function AICopilotSidebar({
     stop,
     error,
     regenerate,
-    addToolOutput,
-  } = useChat<StudentOSToolCallsMessage>({
+  } = useChat({
     id: chatId,
     sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithToolCalls,
-    async onToolCall({ toolCall }) {
-      if (toolCall.toolName === "showSyllabus") {
-        addToolOutput({
-          tool: "showSyllabus",
-          toolCallId: toolCall.toolCallId,
-          output: "Syllabus shown to user",
-        });
-      }
-      if (toolCall.toolName === "showSchedule") {
-        addToolOutput({
-          tool: "showSchedule",
-          toolCallId: toolCall.toolCallId,
-          output: "Schedule shown to user",
-        });
-      }
-      if (toolCall.toolName === "showTaskUpdate") {
-        addToolOutput({
-          tool: "showTaskUpdate",
-          toolCallId: toolCall.toolCallId,
-          output: "Task update confirmed to user",
-        });
-      }
-      if (toolCall.toolName === "showGradeRequirements") {
-        addToolOutput({
-          tool: "showGradeRequirements",
-          toolCallId: toolCall.toolCallId,
-          output: "Grade requirements shown",
-        });
-      }
-      if (toolCall.toolName === "showScheduleUpdate") {
-        addToolOutput({
-          tool: "showScheduleUpdate",
-          toolCallId: toolCall.toolCallId,
-          output: "Schedule update shown",
-        });
-      }
-      if (toolCall.toolName === "showPriorityRebalance") {
-        addToolOutput({
-          tool: "showPriorityRebalance",
-          toolCallId: toolCall.toolCallId,
-          output: "Priority rebalance shown",
-        });
-      }
-      if (toolCall.toolName === "showCreatedTasks") {
-        addToolOutput({
-          tool: "showCreatedTasks",
-          toolCallId: toolCall.toolCallId,
-          output: "Created tasks shown",
-        });
-      }
-      if (toolCall.toolName === "showMissingData") {
-        addToolOutput({
-          tool: "showMissingData",
-          toolCallId: toolCall.toolCallId,
-          output: "Missing data shown",
-        });
-      }
+    onError: (error) => {
+      console.error("Chat error:", error);
     },
   });
 
   const scrollRef = React.useRef<HTMLDivElement>(null);
   const scrollAreaRef = React.useRef<HTMLDivElement>(null);
+  const [isAtBottom, setIsAtBottom] = React.useState(true);
+  const messagesLength = messages.length;
 
-  // Handle scroll events to determine if user is scrolling up
-  const handleScroll = (event: React.UIEvent<HTMLDivElement>) => {
-    const { scrollTop, scrollHeight, clientHeight } = event.currentTarget;
-    const isAtBottom = Math.abs(scrollHeight - scrollTop - clientHeight) < 50; // 50px threshold
+  // Use IntersectionObserver to track if the user is at the bottom
+  React.useEffect(() => {
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        setIsAtBottom(entry.isIntersecting);
+      },
+      {
+        root: null,
+        threshold: 0, // Trigger as soon as any part is visible
+      },
+    );
 
-    if (isAtBottom) {
-      setShouldAutoScroll(true);
-    } else {
-      setShouldAutoScroll(false);
+    if (scrollRef.current) {
+      observer.observe(scrollRef.current);
     }
-  };
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [messagesLength]); // Re-attach when the list potentially mounts/unmounts
+
+  const scrollToBottom = React.useCallback(() => {
+    if (scrollRef.current) {
+      const viewport = scrollRef.current.closest(
+        '[data-slot="scroll-area-viewport"]',
+      );
+      if (viewport) {
+        viewport.scrollTo({
+          top: viewport.scrollHeight,
+          behavior: "smooth",
+        });
+      }
+    }
+  }, []);
 
   React.useEffect(() => {
-    if (shouldAutoScroll && scrollRef.current) {
-      scrollRef.current.scrollIntoView({ behavior: "smooth" });
+    if (messages.length === 0) return;
+
+    // Check if the last message is from the user
+    const lastMessage = messages[messages.length - 1];
+    const isUserMessage = lastMessage.role === "user";
+
+    // Scroll to bottom if:
+    // 1. The user just sent a message (always force scroll)
+    // 2. We were already at the bottom (sticky scroll)
+    if (isUserMessage || isAtBottom) {
+      // Use a small timeout to ensure DOM is updated
+      const timer = setTimeout(() => {
+        scrollToBottom();
+      }, 100);
+      return () => clearTimeout(timer);
     }
-  }, [messages, status, shouldAutoScroll]);
+  }, [messages, status, scrollToBottom, isAtBottom]);
 
   // Autosave chat
   React.useEffect(() => {
@@ -160,19 +146,48 @@ export function AICopilotSidebar({
     const newId = crypto.randomUUID();
     setChatId(newId);
     setMessages([]);
+    setFiles([]);
   };
 
-  const handleSubmit = async (text: string, files?: FileList) => {
-    // sendMessage handles FileList directly in newer SDK versions
-    if (files && files.length > 0) {
+  const handleSubmit = async (text: string, submittedFiles?: File[]) => {
+    const filesToSend = submittedFiles || files;
+
+    if (filesToSend && filesToSend.length > 0) {
+      // Convert File[] to FileList for the AI SDK if needed, or pass as is if supported.
+      // safely using DataTransfer to create a FileList to be sure.
+      const dataTransfer = new DataTransfer();
+      filesToSend.forEach((file) => dataTransfer.items.add(file));
+
       sendMessage({
         text,
-        files: files,
+        files: dataTransfer.files,
       });
     } else {
       sendMessage({
         text,
       });
+    }
+    setFiles([]);
+  };
+
+  const onDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    if (!isDragging) setIsDragging(true);
+  };
+
+  const onDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    // Only set dragging to false if we're leaving the main container
+    if (e.currentTarget.contains(e.relatedTarget as Node)) return;
+    setIsDragging(false);
+  };
+
+  const onDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      const droppedFiles = Array.from(e.dataTransfer.files);
+      setFiles((prev) => [...prev, ...droppedFiles]);
     }
   };
 
@@ -182,9 +197,26 @@ export function AICopilotSidebar({
     <Sidebar
       side="right"
       collapsible="none"
-      className="hidden lg:flex h-[calc(100svh-2rem)] m-4 rounded-xl border shadow-xl bg-sidebar/60 backdrop-blur-xl sticky top-4"
+      className={cn(
+        "hidden lg:flex h-[calc(100svh-2rem)] m-4 rounded-xl border shadow-xl bg-sidebar/60 backdrop-blur-xl sticky top-4 transition-colors",
+        isDragging && "border-primary/50 bg-primary/5",
+      )}
       {...props}
+      onDragOver={onDragOver}
+      onDragLeave={onDragLeave}
+      onDrop={onDrop}
     >
+      {isDragging && (
+        <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-background/80 backdrop-blur-sm rounded-xl border-2 border-dashed border-primary animate-in fade-in duration-200">
+          <div className="p-4 rounded-full bg-primary/10 mb-4">
+            <Upload className="size-8 text-primary" />
+          </div>
+          <h3 className="font-semibold text-lg">Drop files here</h3>
+          <p className="text-muted-foreground text-sm">
+            Add files to your chat
+          </p>
+        </div>
+      )}
       <SidebarHeader className="border-b p-4 bg-transparent">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2 font-semibold">
@@ -211,11 +243,7 @@ export function AICopilotSidebar({
       </SidebarHeader>
 
       <SidebarContent>
-        <ScrollArea
-          className="h-full"
-          ref={scrollAreaRef}
-          onScrollCapture={handleScroll} // Using capture to ensure we get the event from the viewport
-        >
+        <ScrollArea className="h-full" ref={scrollAreaRef}>
           <DottedGlowBackground
             className="pointer-events-none mask-radial-to-90% mask-radial-at-center opacity-20 dark:opacity-100"
             opacity={0.4}
@@ -254,9 +282,11 @@ export function AICopilotSidebar({
                       m.role === "user" ? "items-end" : "items-start"
                     }`}
                   >
-                    {m.parts ? (
-                      m.parts.map((part, i) => {
-                        if (part.type === "text") {
+                    {m.parts?.map((part, i) => {
+                      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                      const p = part as any;
+                      switch (p.type) {
+                        case "text":
                           return (
                             <div
                               key={i}
@@ -266,63 +296,343 @@ export function AICopilotSidebar({
                                   : "bg-muted"
                               }`}
                             >
-                              <ReactMarkdown>{part.text}</ReactMarkdown>
+                              <ReactMarkdown>{p.text}</ReactMarkdown>
                             </div>
                           );
-                        }
 
-                        // Debug info for tool calls
-                        const debugTool = (
-                          <div className="text-[10px] text-muted-foreground mb-1 font-mono bg-muted/50 p-1 rounded">
-                            Tool: {part.type.replace("tool-", "")}
-                          </div>
-                        );
-
-                        if (
-                          part.type === "tool-showSyllabus" &&
-                          part.input?.data
-                        ) {
+                        case "file":
+                          if (p.url && p.mediaType?.startsWith("image/")) {
+                            return (
+                              <div key={i} className="mb-2">
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img
+                                  src={p.url}
+                                  alt={p.filename || "Image attachment"}
+                                  className="rounded-lg max-w-full max-h-[300px] object-cover"
+                                />
+                              </div>
+                            );
+                          }
                           return (
-                            <div key={part.toolCallId}>
-                              {debugTool}
-                              <SyllabusPreviewCard
-                                // @ts-expect-error - Partial input data type mismatch during streaming
-                                data={part.input.data}
-                              />
+                            <div
+                              key={i}
+                              className="flex items-center gap-2 p-2 bg-muted/50 rounded-lg mb-2"
+                            >
+                              <FileText className="size-8 text-muted-foreground" />
+                              <div className="flex flex-col overflow-hidden">
+                                <span className="text-sm font-medium truncate max-w-[12rem]">
+                                  {p.filename || "File attachment"}
+                                </span>
+                                <span className="text-xs text-muted-foreground uppercase">
+                                  {p.mediaType?.split("/").pop() || "FILE"}
+                                </span>
+                              </div>
                             </div>
                           );
+
+                        // -----------------------------------------------------------------------
+                        // TOOL: showSyllabus
+                        // -----------------------------------------------------------------------
+                        case "tool-showSyllabus": {
+                          const callId = p.toolCallId;
+                          switch (p.state) {
+                            case "input-streaming":
+                            case "input-available":
+                              return (
+                                <div
+                                  key={callId}
+                                  className="bg-muted p-3 rounded-lg text-sm w-full animate-pulse"
+                                >
+                                  Generating syllabus preview...
+                                </div>
+                              );
+                            case "output-available": {
+                              const data = p.output?.data; // The tool returns { data }
+                              if (!data) return null;
+                              return (
+                                <div key={callId}>
+                                  <SyllabusPreviewCard data={data} />
+                                </div>
+                              );
+                            }
+                            default:
+                              return null;
+                          }
                         }
 
-                        if (part.type === "tool-showSchedule") {
-                          return (
-                            <div key={part.toolCallId}>
-                              {debugTool}
-                              <div className="bg-muted p-3 rounded-lg text-sm w-full">
-                                <h4 className="font-medium mb-2">
-                                  Schedule (
-                                  {part.input?.startDate
-                                    ? part.input.startDate
-                                    : "..."}
-                                  {" - "}
-                                  {part.input?.endDate
-                                    ? part.input.endDate
-                                    : "..."}
-                                  )
-                                </h4>
-                                {part.input?.tasks &&
-                                part.input.tasks.length > 0 ? (
+                        // -----------------------------------------------------------------------
+                        // TOOL: showSchedule
+                        // -----------------------------------------------------------------------
+                        case "tool-showSchedule": {
+                          const callId = p.toolCallId;
+                          switch (p.state) {
+                            case "input-streaming":
+                            case "input-available":
+                              return (
+                                <div
+                                  key={callId}
+                                  className="bg-muted p-3 rounded-lg text-sm w-full animate-pulse"
+                                >
+                                  Fetching schedule...
+                                </div>
+                              );
+                            case "output-available": {
+                              const args = p.input; // Start/End date are in input
+                              const tasks = p.output?.tasks; // Tasks are in output
+
+                              return (
+                                <div key={callId}>
+                                  <div className="bg-muted p-3 rounded-lg text-sm w-full">
+                                    <h4 className="font-medium mb-2">
+                                      Schedule ({args?.start_date || "..."} -{" "}
+                                      {args?.end_date || "..."})
+                                    </h4>
+                                    {tasks && tasks.length > 0 ? (
+                                      <ul className="space-y-2">
+                                        {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+                                        {tasks.map((task: any) => (
+                                          <li
+                                            key={task.id}
+                                            className="flex justify-between items-center text-xs"
+                                          >
+                                            <span>{task.title}</span>
+                                            <span className="text-muted-foreground">
+                                              {task.dueDate
+                                                ? format(
+                                                    new Date(task.dueDate),
+                                                    "MMM d",
+                                                  )
+                                                : "No date"}
+                                            </span>
+                                          </li>
+                                        ))}
+                                      </ul>
+                                    ) : (
+                                      <div className="text-muted-foreground italic">
+                                        No tasks found.
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            }
+                            default:
+                              return null;
+                          }
+                        }
+
+                        // -----------------------------------------------------------------------
+                        // TOOL: showTaskUpdate
+                        // -----------------------------------------------------------------------
+                        case "tool-showTaskUpdate": {
+                          const callId = p.toolCallId;
+                          switch (p.state) {
+                            case "input-streaming":
+                            case "input-available":
+                              return <div key={callId}>Updating task...</div>;
+                            case "output-available":
+                              const update = p.output?.taskUpdate;
+                              return (
+                                <div key={callId} className="my-2">
+                                  <Badge
+                                    variant="outline"
+                                    className="bg-green-500/10 text-green-600 border-green-200"
+                                  >
+                                    ✅ {update?.status || "Updated"}
+                                  </Badge>
+                                  {update?.task && (
+                                    <div className="text-xs text-muted-foreground mt-1">
+                                      Updated {update.task} to {update.score}%
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            default:
+                              return null;
+                          }
+                        }
+
+                        // -----------------------------------------------------------------------
+                        // TOOL: showGradeRequirements
+                        // -----------------------------------------------------------------------
+                        case "tool-showGradeRequirements": {
+                          const callId = p.toolCallId;
+                          switch (p.state) {
+                            case "input-streaming":
+                            case "input-available":
+                              return (
+                                <div key={callId}>Calculating grades...</div>
+                              );
+                            case "output-available":
+                              const data = p.output?.data;
+                              if (!data) return null;
+                              return (
+                                <div
+                                  key={callId}
+                                  className="bg-muted p-4 rounded-lg my-2 text-sm w-full"
+                                >
+                                  <h4 className="font-semibold mb-2">
+                                    Grade Analysis
+                                  </h4>
+                                  <div className="grid grid-cols-2 gap-2 mb-3">
+                                    <div>
+                                      <span className="text-xs text-muted-foreground block">
+                                        Current Grade
+                                      </span>
+                                      <span className="font-medium text-lg">
+                                        {data.current_grade}%
+                                      </span>
+                                    </div>
+                                    <div>
+                                      <span className="text-xs text-muted-foreground block">
+                                        Goal Grade
+                                      </span>
+                                      <span className="font-medium text-lg">
+                                        {data.goal_grade}%
+                                      </span>
+                                    </div>
+                                  </div>
+                                  <div className="bg-background/50 p-2 rounded border">
+                                    <span className="text-xs text-muted-foreground block">
+                                      Required on Remaining (
+                                      {data.remaining_weight}%)
+                                    </span>
+                                    <div className="flex items-baseline gap-2">
+                                      <span className="font-bold text-xl text-primary">
+                                        {data.required_avg_on_remaining}%
+                                      </span>
+                                      <Badge
+                                        variant={
+                                          data.status === "Impossible"
+                                            ? "destructive"
+                                            : data.status === "Secured"
+                                              ? "default"
+                                              : "outline"
+                                        }
+                                      >
+                                        {data.status}
+                                      </Badge>
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            default:
+                              return null;
+                          }
+                        }
+
+                        // -----------------------------------------------------------------------
+                        // TOOL: showScheduleUpdate
+                        // -----------------------------------------------------------------------
+                        case "tool-showScheduleUpdate": {
+                          const callId = p.toolCallId;
+                          switch (p.state) {
+                            case "input-streaming":
+                            case "input-available":
+                              return (
+                                <div key={callId}>Scheduling tasks...</div>
+                              );
+                            case "output-available":
+                              const updates = p.output?.updates;
+                              return (
+                                <div
+                                  key={callId}
+                                  className="bg-muted p-4 rounded-lg my-2 text-sm w-full"
+                                >
+                                  <div className="flex items-center gap-2 mb-2 text-green-600">
+                                    <Sparkles className="size-4" />
+                                    <span className="font-medium">
+                                      {updates?.message || "Schedule Updated"}
+                                    </span>
+                                  </div>
+                                  <ul className="space-y-1 text-xs text-muted-foreground">
+                                    {updates?.updates?.map(
+                                      (
+                                        u: {
+                                          title: string;
+                                          new_do_date: string;
+                                        },
+                                        i: number,
+                                      ) => (
+                                        <li key={i}>
+                                          📅 <b>{u?.title}</b> &rarr;{" "}
+                                          {format(
+                                            new Date(u?.new_do_date),
+                                            "MMM d",
+                                          )}
+                                        </li>
+                                      ),
+                                    )}
+                                  </ul>
+                                </div>
+                              );
+                            default:
+                              return null;
+                          }
+                        }
+
+                        // -----------------------------------------------------------------------
+                        // TOOL: showPriorityRebalance
+                        // -----------------------------------------------------------------------
+                        case "tool-showPriorityRebalance": {
+                          const callId = p.toolCallId;
+                          switch (p.state) {
+                            case "input-streaming":
+                            case "input-available":
+                              return (
+                                <div key={callId}>
+                                  Rebalancing priorities...
+                                </div>
+                              );
+                            case "output-available":
+                              const count = p.output?.count;
+                              return (
+                                <div key={callId} className="my-2">
+                                  <Badge
+                                    variant="secondary"
+                                    className="gap-1 py-1"
+                                  >
+                                    <Sparkles className="size-3" />
+                                    {count?.message || "Priorities Rebalanced"}
+                                  </Badge>
+                                </div>
+                              );
+                            default:
+                              return null;
+                          }
+                        }
+
+                        // -----------------------------------------------------------------------
+                        // TOOL: showCreatedTasks
+                        // -----------------------------------------------------------------------
+                        case "tool-showCreatedTasks": {
+                          const callId = p.toolCallId;
+                          switch (p.state) {
+                            case "input-streaming":
+                            case "input-available":
+                              return <div key={callId}>Creating tasks...</div>;
+                            case "output-available":
+                              const tasks = p.output?.tasks;
+                              return (
+                                <div
+                                  key={callId}
+                                  className="bg-muted p-4 rounded-lg my-2 text-sm w-full"
+                                >
+                                  <h4 className="font-medium mb-2">
+                                    Tasks Created
+                                  </h4>
                                   <ul className="space-y-2">
                                     {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-                                    {part.input.tasks.map((task: any) => (
+                                    {tasks?.tasks?.map((t: any, i: number) => (
                                       <li
-                                        key={task.id}
-                                        className="flex justify-between items-center text-xs"
+                                        key={i}
+                                        className="flex justify-between items-center text-xs border-b pb-1 last:border-0"
                                       >
-                                        <span>{task.title}</span>
+                                        <span>{t.title}</span>
                                         <span className="text-muted-foreground">
-                                          {task.dueDate
+                                          {t.dueDate
                                             ? format(
-                                                new Date(task.dueDate),
+                                                new Date(t.dueDate),
                                                 "MMM d",
                                               )
                                             : "No date"}
@@ -330,297 +640,128 @@ export function AICopilotSidebar({
                                       </li>
                                     ))}
                                   </ul>
-                                ) : (
-                                  <div className="text-muted-foreground italic">
-                                    No tasks found.
+                                </div>
+                              );
+                            default:
+                              return null;
+                          }
+                        }
+
+                        // -----------------------------------------------------------------------
+                        // TOOL: showMissingData
+                        // -----------------------------------------------------------------------
+                        case "tool-showMissingData": {
+                          const callId = p.toolCallId;
+                          switch (p.state) {
+                            case "input-streaming":
+                            case "input-available":
+                              return (
+                                <div key={callId}>
+                                  Checking for missing data...
+                                </div>
+                              );
+                            case "output-available":
+                              const data = p.output; // { tasks_without_dates, suggestion }
+                              const tasks_without_weights =
+                                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                                (data?.tasks_without_weights as any[]) || [];
+                              const tasks_without_dates =
+                                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                                (data?.tasks_without_dates as any[]) || [];
+                              const suggestion = data?.suggestion;
+                              const hasIssues =
+                                tasks_without_weights.length > 0 ||
+                                tasks_without_dates.length > 0;
+
+                              if (!hasIssues) {
+                                return (
+                                  <div
+                                    key={callId}
+                                    className="text-sm text-green-600 my-2"
+                                  >
+                                    ✅ All data looks clean!
                                   </div>
-                                )}
-                              </div>
-                            </div>
-                          );
-                        }
+                                );
+                              }
 
-                        if (part.type === "tool-showTaskUpdate") {
-                          return (
-                            <div key={part.toolCallId} className="my-2">
-                              {debugTool}
-                              <Badge
-                                variant="outline"
-                                className="bg-green-500/10 text-green-600 border-green-200"
-                              >
-                                ✅ {part.input?.status || "Updated"}
-                              </Badge>
-                              {part.input?.taskName && (
-                                <div className="text-xs text-muted-foreground mt-1">
-                                  Updated {part.input.taskName} to{" "}
-                                  {part.input.score}%
+                              return (
+                                <div
+                                  key={callId}
+                                  className="bg-orange-500/10 border border-orange-200 p-4 rounded-lg my-2 text-sm w-full"
+                                >
+                                  <h4 className="font-medium text-orange-800 mb-2">
+                                    Missing Data Found
+                                  </h4>
+                                  {tasks_without_weights.length > 0 && (
+                                    <div className="mb-3">
+                                      <span className="text-xs font-semibold text-orange-800/80 block mb-1">
+                                        Missing Grade Weights (
+                                        {tasks_without_weights.length})
+                                      </span>
+                                      <ul className="list-disc list-inside text-xs text-orange-800/70">
+                                        {tasks_without_weights
+                                          .slice(0, 3)
+                                          .map((t, i) => (
+                                            <li key={i}>{t.title}</li>
+                                          ))}
+                                        {tasks_without_weights.length > 3 && (
+                                          <li>
+                                            ...and{" "}
+                                            {tasks_without_weights.length - 3}{" "}
+                                            more
+                                          </li>
+                                        )}
+                                      </ul>
+                                    </div>
+                                  )}
+                                  {tasks_without_dates.length > 0 && (
+                                    <div className="mb-2">
+                                      <span className="text-xs font-semibold text-orange-800/80 block mb-1">
+                                        Missing Due Dates (
+                                        {tasks_without_dates.length})
+                                      </span>
+                                      <ul className="list-disc list-inside text-xs text-orange-800/70">
+                                        {tasks_without_dates
+                                          .slice(0, 3)
+                                          .map((t, i) => (
+                                            <li key={i}>{t.title}</li>
+                                          ))}
+                                        {tasks_without_dates.length > 3 && (
+                                          <li>
+                                            ...and{" "}
+                                            {tasks_without_dates.length - 3}{" "}
+                                            more
+                                          </li>
+                                        )}
+                                      </ul>
+                                    </div>
+                                  )}
+                                  <div className="mt-2 text-xs text-orange-800 italic border-t border-orange-200 pt-2">
+                                    {suggestion}
+                                  </div>
                                 </div>
-                              )}
-                            </div>
-                          );
+                              );
+                            default:
+                              return null;
+                          }
                         }
 
-                        if (
-                          part.type === "tool-showGradeRequirements" &&
-                          part.input?.data
-                        ) {
-                          const data = part.input.data;
-                          return (
-                            <div
-                              key={part.toolCallId}
-                              className="bg-muted p-4 rounded-lg my-2 text-sm w-full"
-                            >
-                              {debugTool}
-                              <h4 className="font-semibold mb-2">
-                                Grade Analysis
-                              </h4>
-                              <div className="grid grid-cols-2 gap-2 mb-3">
-                                <div>
-                                  <span className="text-xs text-muted-foreground block">
-                                    Current Grade
-                                  </span>
-                                  <span className="font-medium text-lg">
-                                    {data.current_grade}%
-                                  </span>
-                                </div>
-                                <div>
-                                  <span className="text-xs text-muted-foreground block">
-                                    Goal Grade
-                                  </span>
-                                  <span className="font-medium text-lg">
-                                    {data.goal_grade}%
-                                  </span>
-                                </div>
-                              </div>
-                              <div className="bg-background/50 p-2 rounded border">
-                                <span className="text-xs text-muted-foreground block">
-                                  Required on Remaining ({data.remaining_weight}
-                                  %)
-                                </span>
-                                <div className="flex items-baseline gap-2">
-                                  <span className="font-bold text-xl text-primary">
-                                    {data.required_avg_on_remaining}%
-                                  </span>
-                                  <Badge
-                                    variant={
-                                      data.status === "Impossible"
-                                        ? "destructive"
-                                        : data.status === "Secured"
-                                          ? "default"
-                                          : "outline"
-                                    }
-                                  >
-                                    {data.status}
-                                  </Badge>
-                                </div>
-                              </div>
-                            </div>
-                          );
-                        }
-
-                        if (
-                          part.type === "tool-showScheduleUpdate" &&
-                          part.input
-                        ) {
-                          return (
-                            <div
-                              key={part.toolCallId}
-                              className="bg-muted p-4 rounded-lg my-2 text-sm w-full"
-                            >
-                              {debugTool}
-                              <div className="flex items-center gap-2 mb-2 text-green-600">
-                                <Sparkles className="size-4" />
-                                <span className="font-medium">
-                                  {part.input.message}
-                                </span>
-                              </div>
-                              <ul className="space-y-1 text-xs text-muted-foreground">
-                                {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-                                {part.input.updates?.map(
-                                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                                  (u: any, i: number) => (
-                                    <li key={i}>
-                                      📅 <b>{u?.title}</b> &rarr;{" "}
-                                      {format(
-                                        new Date(u?.new_do_date),
-                                        "MMM d",
-                                      )}
-                                    </li>
-                                  ),
-                                )}
-                              </ul>
-                            </div>
-                          );
-                        }
-
-                        if (
-                          part.type === "tool-showPriorityRebalance" &&
-                          part.input
-                        ) {
-                          return (
-                            <div key={part.toolCallId} className="my-2">
-                              {debugTool}
-                              <Badge variant="secondary" className="gap-1 py-1">
-                                <Sparkles className="size-3" />
-                                {part.input.message}
-                              </Badge>
-                            </div>
-                          );
-                        }
-
-                        if (
-                          part.type === "tool-showCreatedTasks" &&
-                          part.input?.tasks
-                        ) {
-                          return (
-                            <div
-                              key={part.toolCallId}
-                              className="bg-muted p-4 rounded-lg my-2 text-sm w-full"
-                            >
-                              {debugTool}
-                              <h4 className="font-medium mb-2">
-                                Tasks Created
-                              </h4>
-                              <ul className="space-y-2">
-                                {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-                                {part.input.tasks.map((t: any, i: number) => (
-                                  <li
-                                    key={i}
-                                    className="flex justify-between items-center text-xs border-b pb-1 last:border-0"
-                                  >
-                                    <span>{t.title}</span>
-                                    <span className="text-muted-foreground">
-                                      {t.dueDate
-                                        ? format(new Date(t.dueDate), "MMM d")
-                                        : "No date"}
-                                    </span>
-                                  </li>
-                                ))}
-                              </ul>
-                            </div>
-                          );
-                        }
-
-                        if (
-                          part.type === "tool-showMissingData" &&
-                          part.input
-                        ) {
-                          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                          const tasks_without_weights =
-                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                            (part.input.tasks_without_weights as any[]) || [];
-                          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                          const tasks_without_dates =
-                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                            (part.input.tasks_without_dates as any[]) || [];
-                          const suggestion = part.input.suggestion;
-
-                          const hasIssues =
-                            tasks_without_weights.length > 0 ||
-                            tasks_without_dates.length > 0;
-
-                          if (!hasIssues)
-                            return (
-                              <div
-                                key={part.toolCallId}
-                                className="text-sm text-green-600 my-2"
-                              >
-                                {debugTool}✅ All data looks clean!
-                              </div>
-                            );
-
-                          return (
-                            <div
-                              key={part.toolCallId}
-                              className="bg-orange-500/10 border border-orange-200 p-4 rounded-lg my-2 text-sm w-full"
-                            >
-                              {debugTool}
-                              <h4 className="font-medium text-orange-800 mb-2">
-                                Missing Data Found
-                              </h4>
-
-                              {tasks_without_weights.length > 0 && (
-                                <div className="mb-3">
-                                  <span className="text-xs font-semibold text-orange-800/80 block mb-1">
-                                    Missing Grade Weights (
-                                    {tasks_without_weights.length})
-                                  </span>
-                                  <ul className="list-disc list-inside text-xs text-orange-800/70">
-                                    {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-                                    {tasks_without_weights
-                                      .slice(0, 3)
-                                      .map((t, i: number) => (
-                                        <li key={i}>{t.title}</li>
-                                      ))}
-                                    {tasks_without_weights.length > 3 && (
-                                      <li>
-                                        ...and{" "}
-                                        {tasks_without_weights.length - 3} more
-                                      </li>
-                                    )}
-                                  </ul>
-                                </div>
-                              )}
-
-                              {tasks_without_dates.length > 0 && (
-                                <div className="mb-2">
-                                  <span className="text-xs font-semibold text-orange-800/80 block mb-1">
-                                    Missing Due Dates (
-                                    {tasks_without_dates.length})
-                                  </span>
-                                  <ul className="list-disc list-inside text-xs text-orange-800/70">
-                                    {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-                                    {tasks_without_dates
-                                      .slice(0, 3)
-                                      .map((t, i: number) => (
-                                        <li key={i}>{t.title}</li>
-                                      ))}
-                                    {tasks_without_dates.length > 3 && (
-                                      <li>
-                                        ...and {tasks_without_dates.length - 3}{" "}
-                                        more
-                                      </li>
-                                    )}
-                                  </ul>
-                                </div>
-                              )}
-
-                              <div className="mt-2 text-xs text-orange-800 italic border-t border-orange-200 pt-2">
-                                {suggestion}
-                              </div>
-                            </div>
-                          );
-                        }
-
-                        return null;
-                      })
-                    ) : (
-                      <div
-                        className={`p-3 rounded-lg text-sm prose dark:prose-invert max-w-none ${
-                          m.role === "user"
-                            ? "bg-primary text-primary-foreground prose-headings:text-primary-foreground prose-p:text-primary-foreground prose-strong:text-primary-foreground prose-a:text-primary-foreground"
-                            : "bg-muted"
-                        }`}
-                      >
-                        {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-                        <ReactMarkdown>{(m as any).content}</ReactMarkdown>
-                      </div>
-                    )}
+                        default:
+                          // Fallback for unknown parts
+                          return null;
+                      }
+                    })}
                   </div>
                 </div>
               ))}
-              {(status === "submitted" || status === "streaming") && (
+              {status === "submitted" && (
                 <div className="flex items-start gap-2">
                   <div className="bg-muted p-3 rounded-lg text-sm max-w-[85%]">
-                    {status === "submitted" ? (
-                      <div>Loading...</div>
-                    ) : (
-                      <div className="flex space-x-1 h-5 items-center">
-                        <div className="w-1.5 h-1.5 bg-foreground/40 rounded-full animate-bounce [animation-delay:-0.3s]" />
-                        <div className="w-1.5 h-1.5 bg-foreground/40 rounded-full animate-bounce [animation-delay:-0.15s]" />
-                        <div className="w-1.5 h-1.5 bg-foreground/40 rounded-full animate-bounce" />
-                      </div>
-                    )}
+                    <div className="flex items-center gap-2">
+                      <div className="w-1.5 h-1.5 bg-foreground/40 rounded-full animate-bounce [animation-delay:-0.3s]" />
+                      <div className="w-1.5 h-1.5 bg-foreground/40 rounded-full animate-bounce [animation-delay:-0.15s]" />
+                      <div className="w-1.5 h-1.5 bg-foreground/40 rounded-full animate-bounce" />
+                    </div>
                   </div>
                 </div>
               )}
@@ -637,14 +778,20 @@ export function AICopilotSidebar({
                   </Button>
                 </div>
               )}
-              <div ref={scrollRef} />
+              <div ref={scrollRef} className="h-px w-full" />
             </div>
           )}
         </ScrollArea>
       </SidebarContent>
 
       <SidebarFooter className="p-4 bg-transparent">
-        <ChatInput status={status} onStop={stop} onSubmit={handleSubmit} />
+        <ChatInput
+          status={status}
+          onStop={stop}
+          onSubmit={handleSubmit}
+          files={files}
+          onFilesChange={setFiles}
+        />
         <div className="text-[10px] text-center text-muted-foreground/60 mt-2">
           AI can make mistakes. Check important info.
         </div>

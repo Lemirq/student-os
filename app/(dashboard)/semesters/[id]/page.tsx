@@ -114,7 +114,11 @@ export default async function SemesterPage({
       {/* Task Table */}
       <div className="space-y-2">
         <h2 className="text-xl font-semibold tracking-tight">All Tasks</h2>
-        <DataTable columns={columns} data={semester.tasks} />
+        <DataTable
+          columns={columns}
+          data={semester.tasks}
+          storageKey={`semester-tasks-table-${semester.id}`}
+        />
       </div>
     </div>
   );

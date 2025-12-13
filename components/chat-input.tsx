@@ -7,20 +7,35 @@ import { ArrowUp, Mic, Plus, Square, X, FileText } from "lucide-react";
 
 interface ChatInputProps {
   status: string;
-  onSubmit: (text: string, files?: FileList) => void;
+  onSubmit: (text: string, files?: File[]) => void;
   onStop?: () => void;
+  files?: File[];
+  onFilesChange?: (files: File[]) => void;
 }
 
 export default function ChatInput({
   status,
   onSubmit,
   onStop,
+  files: controlledFiles,
+  onFilesChange,
 }: ChatInputProps) {
-  console.log("status", status);
   const [input, setInput] = React.useState("");
-  const [files, setFiles] = React.useState<FileList | undefined>(undefined);
+  const [internalFiles, setInternalFiles] = React.useState<File[]>([]);
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+  const isControlled =
+    controlledFiles !== undefined && onFilesChange !== undefined;
+  const files = isControlled ? controlledFiles : internalFiles;
+
+  const handleFilesChange = (newFiles: File[]) => {
+    if (isControlled) {
+      onFilesChange(newFiles);
+    } else {
+      setInternalFiles(newFiles);
+    }
+  };
 
   const adjustTextareaHeight = () => {
     const textarea = textareaRef.current;
@@ -40,9 +55,12 @@ export default function ChatInput({
   const handleSubmit = (e?: React.FormEvent) => {
     e?.preventDefault();
     if (!input.trim() && (!files || files.length === 0)) return;
+
     onSubmit(input, files);
+
     setInput("");
-    setFiles(undefined);
+    handleFilesChange([]);
+
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
@@ -53,22 +71,18 @@ export default function ChatInput({
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
-      setFiles(e.target.files);
+      const selectedFiles = Array.from(e.target.files);
+      handleFilesChange([...files, ...selectedFiles]);
     }
-    console.log("files", files);
   };
 
   const removeFile = (index: number) => {
-    if (!files) return;
-    const newFiles = new DataTransfer();
-    Array.from(files).forEach((file, i) => {
-      if (i !== index) {
-        newFiles.items.add(file);
-      }
-    });
-    setFiles(newFiles.files);
-    if (fileInputRef.current) {
-      fileInputRef.current.files = newFiles.files;
+    const newFiles = files.filter((_, i) => i !== index);
+    handleFilesChange(newFiles);
+
+    // Reset file input if all files are removed (optional but good for UX)
+    if (newFiles.length === 0 && fileInputRef.current) {
+      fileInputRef.current.value = "";
     }
   };
 
@@ -79,9 +93,9 @@ export default function ChatInput({
       onSubmit={handleSubmit}
       className="rounded-2xl border bg-sidebar-accent/5 shadow-sm p-3 flex flex-col gap-2"
     >
-      {files && files.length > 0 && (
+      {files.length > 0 && (
         <div className="flex flex-row gap-2 overflow-x-auto pb-2">
-          {Array.from(files).map((file, index) => (
+          {files.map((file, index) => (
             <div key={index} className="relative group">
               <div className="relative flex items-center justify-center w-20 h-20 bg-muted rounded-md border overflow-hidden">
                 {file.type.startsWith("image/") ? (
@@ -172,7 +186,7 @@ export default function ChatInput({
               type="submit"
               size="icon"
               className="size-8 rounded-full"
-              disabled={!input.trim() || isLoading}
+              disabled={!input.trim() && files.length === 0}
             >
               <ArrowUp className="size-4" />
               <span className="sr-only">Send</span>

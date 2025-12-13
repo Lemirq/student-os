@@ -110,7 +110,11 @@ export default async function CoursePage({ params }: CoursePageProps) {
                 courseCode={course.code}
               />
               <div className="flex-1 overflow-auto rounded-md border bg-card">
-                <DataTable columns={columns} data={course.tasks} />
+                <DataTable
+                  columns={columns}
+                  data={course.tasks}
+                  storageKey={`course-tasks-table-${course.id}`}
+                />
               </div>
             </CardContent>
           </Card>

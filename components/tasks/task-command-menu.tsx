@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import {
-  CommandDialog,
+  Command,
   CommandEmpty,
   CommandGroup,
   CommandInput,
@@ -11,6 +11,13 @@ import {
   CommandSeparator,
 } from "@/components/ui/command";
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import {
   CalendarIcon,
   CheckCircle,
   Circle,
@@ -18,6 +25,9 @@ import {
   Clock,
   BookOpen,
   Trash2,
+  Calculator,
+  ArrowLeft,
+  Check,
 } from "lucide-react";
 import { Task } from "@/types";
 import { updateTask, deleteTask } from "@/actions/tasks";
@@ -27,12 +37,18 @@ import { Course } from "@/types";
 import { useCommandStore } from "@/hooks/use-command-store";
 
 export function TaskCommandMenu() {
-  const { isOpen, tasks, close } = useCommandStore();
+  const { isOpen, tasks, close, view, setView } = useCommandStore();
   const [courses, setCourses] = React.useState<Course[]>([]);
+  const [search, setSearch] = React.useState("");
 
   React.useEffect(() => {
     getAllCourses().then(setCourses);
   }, []);
+
+  // Reset search when view changes or dialog opens
+  React.useEffect(() => {
+    setSearch("");
+  }, [view, isOpen]);
 
   const handleUpdate = React.useCallback(
     async (update: Partial<Task> & { dueDate?: Date }) => {
@@ -72,6 +88,44 @@ export function TaskCommandMenu() {
     [tasks, close],
   );
 
+  const handleScoreUpdate = React.useCallback(
+    async (value: string) => {
+      if (!tasks || tasks.length === 0) return;
+
+      const parts = value.split("/");
+      const received = parseFloat(parts[0]);
+      const max = parts.length > 1 ? parseFloat(parts[1]) : undefined;
+
+      if (isNaN(received)) {
+        toast.error("Invalid score value");
+        return;
+      }
+
+      try {
+        const payload: Parameters<typeof updateTask>[1] = {
+          score_received: received,
+        };
+        if (max !== undefined && !isNaN(max)) {
+          payload.score_max = max;
+        }
+
+        await Promise.all(
+          tasks.map((task) => {
+            if (!task.id) return Promise.resolve();
+            return updateTask(task.id, payload);
+          }),
+        );
+
+        toast.success("Score updated");
+        close();
+      } catch (error) {
+        console.error("Error updating score:", error);
+        toast.error("Failed to update score");
+      }
+    },
+    [tasks, close],
+  );
+
   const handleDelete = React.useCallback(async () => {
     if (!tasks || tasks.length === 0) return;
 
@@ -86,112 +140,182 @@ export function TaskCommandMenu() {
         tasks.length === 1 ? "Task deleted" : `${tasks.length} tasks deleted`,
       );
       close();
-
-      // If we are on a task detail page and that task was deleted, redirect
-      // Assuming tasks[0] is the main one if length is 1
-      if (tasks.length === 1 && tasks[0].courseId) {
-        // This logic is a bit implicit, usually we'd check current pathname
-        // but for now let's leave router push logic minimal or remove it if not needed globally.
-        // The original code redirected. Let's keep it safe.
-        // router.push(tasks[0].courseId ? `/courses/${tasks[0].courseId}` : "/dashboard");
-      }
     } catch (error) {
       console.error("Error deleting task:", error);
       toast.error("Failed to delete task(s)");
     }
   }, [tasks, close]);
 
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Backspace" && !search && view !== "MAIN") {
+      e.preventDefault();
+      setView("MAIN");
+    }
+  };
+
   return (
-    <CommandDialog open={isOpen} onOpenChange={(val) => !val && close()}>
-      <CommandInput placeholder="Type a command or search..." />
-      <CommandList>
-        <CommandEmpty>No results found.</CommandEmpty>
+    <Dialog
+      open={isOpen}
+      onOpenChange={(val) => {
+        if (!val) close();
+      }}
+    >
+      <DialogContent className="overflow-hidden p-0">
+        <DialogHeader className="sr-only">
+          <DialogTitle>Task Command Menu</DialogTitle>
+          <DialogDescription>
+            Perform actions on selected tasks
+          </DialogDescription>
+        </DialogHeader>
+        <Command
+          shouldFilter={view !== "EDIT_SCORE"}
+          className="**:[[cmdk-group-heading]]:text-muted-foreground **:data-[slot=command-input-wrapper]:h-12 **:[[cmdk-group-heading]]:px-2 **:[[cmdk-group-heading]]:font-medium **:[[cmdk-group]]:px-2 [&_[cmdk-group]:not([hidden])_~[cmdk-group]]:pt-0 [&_[cmdk-input-wrapper]_svg]:h-5 [&_[cmdk-input-wrapper]_svg]:w-5 **:[[cmdk-input]]:h-12 **:[[cmdk-item]]:px-2 **:[[cmdk-item]]:py-3 [&_[cmdk-item]_svg]:h-5 [&_[cmdk-item]_svg]:w-5"
+          onKeyDown={handleKeyDown}
+        >
+          <CommandInput
+            placeholder={
+              view === "EDIT_SCORE"
+                ? "Enter score (e.g. 95 or 95/100)..."
+                : "Type a command or search..."
+            }
+            value={search}
+            onValueChange={setSearch}
+          />
+          <CommandList>
+            {view === "MAIN" && (
+              <>
+                <CommandEmpty>No results found.</CommandEmpty>
 
-        <CommandGroup heading="Status">
-          <CommandItem onSelect={() => handleUpdate({ status: "Todo" })}>
-            <Circle className="mr-2 h-4 w-4" />
-            Set to Todo
-          </CommandItem>
-          <CommandItem onSelect={() => handleUpdate({ status: "In Progress" })}>
-            <Clock className="mr-2 h-4 w-4" />
-            Set to In Progress
-          </CommandItem>
-          <CommandItem onSelect={() => handleUpdate({ status: "Done" })}>
-            <CheckCircle className="mr-2 h-4 w-4" />
-            Set to Done
-          </CommandItem>
-        </CommandGroup>
+                <CommandGroup heading="Actions">
+                  <CommandItem onSelect={() => setView("EDIT_SCORE")}>
+                    <Calculator className="mr-2 h-4 w-4" />
+                    Edit Score
+                  </CommandItem>
+                </CommandGroup>
 
-        <CommandSeparator />
+                <CommandSeparator />
 
-        <CommandGroup heading="Priority">
-          <CommandItem onSelect={() => handleUpdate({ priority: "High" })}>
-            <ArrowUpCircle className="mr-2 h-4 w-4 text-red-500" />
-            Set Priority High
-          </CommandItem>
-          <CommandItem onSelect={() => handleUpdate({ priority: "Medium" })}>
-            <ArrowUpCircle className="mr-2 h-4 w-4 text-yellow-500" />
-            Set Priority Medium
-          </CommandItem>
-          <CommandItem onSelect={() => handleUpdate({ priority: "Low" })}>
-            <ArrowUpCircle className="mr-2 h-4 w-4 text-blue-500" />
-            Set Priority Low
-          </CommandItem>
-        </CommandGroup>
+                <CommandGroup heading="Status">
+                  <CommandItem
+                    onSelect={() => handleUpdate({ status: "Todo" })}
+                  >
+                    <Circle className="mr-2 h-4 w-4" />
+                    Set to Todo
+                  </CommandItem>
+                  <CommandItem
+                    onSelect={() => handleUpdate({ status: "In Progress" })}
+                  >
+                    <Clock className="mr-2 h-4 w-4" />
+                    Set to In Progress
+                  </CommandItem>
+                  <CommandItem
+                    onSelect={() => handleUpdate({ status: "Done" })}
+                  >
+                    <CheckCircle className="mr-2 h-4 w-4" />
+                    Set to Done
+                  </CommandItem>
+                </CommandGroup>
 
-        <CommandSeparator />
+                <CommandSeparator />
 
-        <CommandGroup heading="Course">
-          {courses.map((course) => (
-            <CommandItem
-              key={course.id}
-              onSelect={() => handleUpdate({ courseId: course.id })}
-            >
-              <BookOpen
-                className="mr-2 h-4 w-4"
-                style={{ color: course.color || undefined }}
-              />
-              Move to {course.code}
-            </CommandItem>
-          ))}
-        </CommandGroup>
+                <CommandGroup heading="Priority">
+                  <CommandItem
+                    onSelect={() => handleUpdate({ priority: "High" })}
+                  >
+                    <ArrowUpCircle className="mr-2 h-4 w-4 text-red-500" />
+                    Set Priority High
+                  </CommandItem>
+                  <CommandItem
+                    onSelect={() => handleUpdate({ priority: "Medium" })}
+                  >
+                    <ArrowUpCircle className="mr-2 h-4 w-4 text-yellow-500" />
+                    Set Priority Medium
+                  </CommandItem>
+                  <CommandItem
+                    onSelect={() => handleUpdate({ priority: "Low" })}
+                  >
+                    <ArrowUpCircle className="mr-2 h-4 w-4 text-blue-500" />
+                    Set Priority Low
+                  </CommandItem>
+                </CommandGroup>
 
-        <CommandSeparator />
+                <CommandSeparator />
 
-        <CommandGroup heading="Due Date">
-          <CommandItem
-            onSelect={() => {
-              const today = new Date();
-              handleUpdate({ dueDate: today });
-            }}
-          >
-            <CalendarIcon className="mr-2 h-4 w-4" />
-            Due Today
-          </CommandItem>
-          <CommandItem
-            onSelect={() => {
-              const tomorrow = new Date();
-              tomorrow.setDate(tomorrow.getDate() + 1);
-              handleUpdate({ dueDate: tomorrow });
-            }}
-          >
-            <CalendarIcon className="mr-2 h-4 w-4" />
-            Due Tomorrow
-          </CommandItem>
-        </CommandGroup>
+                <CommandGroup heading="Course">
+                  {courses.map((course) => (
+                    <CommandItem
+                      key={course.id}
+                      onSelect={() => handleUpdate({ courseId: course.id })}
+                    >
+                      <BookOpen
+                        className="mr-2 h-4 w-4"
+                        style={{ color: course.color || undefined }}
+                      />
+                      Move to {course.code}
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
 
-        <CommandSeparator />
+                <CommandSeparator />
 
-        <CommandGroup heading="Danger Zone">
-          <CommandItem
-            onSelect={handleDelete}
-            className="text-red-500 aria-selected:text-red-500"
-          >
-            <Trash2 className="mr-2 h-4 w-4" />
-            Delete Task
-          </CommandItem>
-        </CommandGroup>
-      </CommandList>
-    </CommandDialog>
+                <CommandGroup heading="Due Date">
+                  <CommandItem
+                    onSelect={() => {
+                      const today = new Date();
+                      handleUpdate({ dueDate: today });
+                    }}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    Due Today
+                  </CommandItem>
+                  <CommandItem
+                    onSelect={() => {
+                      const tomorrow = new Date();
+                      tomorrow.setDate(tomorrow.getDate() + 1);
+                      handleUpdate({ dueDate: tomorrow });
+                    }}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    Due Tomorrow
+                  </CommandItem>
+                </CommandGroup>
+
+                <CommandSeparator />
+
+                <CommandGroup heading="Danger Zone">
+                  <CommandItem
+                    onSelect={handleDelete}
+                    className="text-red-500 aria-selected:text-red-500"
+                  >
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Delete Task
+                  </CommandItem>
+                </CommandGroup>
+              </>
+            )}
+
+            {view === "EDIT_SCORE" && (
+              <CommandGroup heading="Score">
+                <CommandItem
+                  onSelect={() => {
+                    setView("MAIN");
+                    setSearch("");
+                  }}
+                >
+                  <ArrowLeft className="mr-2 h-4 w-4" />
+                  Back
+                </CommandItem>
+                {search.trim() !== "" && (
+                  <CommandItem onSelect={() => handleScoreUpdate(search)}>
+                    <Check className="mr-2 h-4 w-4" />
+                    Set score to {search}
+                  </CommandItem>
+                )}
+              </CommandGroup>
+            )}
+          </CommandList>
+        </Command>
+      </DialogContent>
+    </Dialog>
   );
 }
