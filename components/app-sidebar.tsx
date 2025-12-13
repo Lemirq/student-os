@@ -36,6 +36,7 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { Semester, Course } from "@/types";
+import { Kbd } from "@/components/ui/kbd";
 
 export function AppSidebar({
   semesters,
@@ -44,6 +45,11 @@ export function AppSidebar({
 }) {
   const pathname = usePathname();
   const router = useRouter();
+
+  // Flatten all courses across semesters for keyboard shortcuts
+  const allCourses = React.useMemo(() => {
+    return semesters.flatMap((semester) => semester.courses);
+  }, [semesters]);
 
   // Hotkeys
   useHotkeys("g+t", () => router.push("/dashboard"));
@@ -56,6 +62,55 @@ export function AppSidebar({
     }
   });
 
+  // Navigate to current semester
+  useHotkeys("g+g", () => {
+    const currentSemester = semesters.find((s) => s.isCurrent);
+    if (currentSemester) {
+      router.push(`/semesters/${currentSemester.id}`);
+    } else if (semesters.length > 0) {
+      router.push(`/semesters/${semesters[0].id}`);
+    }
+  });
+
+  // Course navigation shortcuts (g-1, g-2, etc.)
+  // Register up to 9 course shortcuts
+  useHotkeys(
+    "g+1",
+    () => allCourses[0] && router.push(`/courses/${allCourses[0].id}`),
+  );
+  useHotkeys(
+    "g+2",
+    () => allCourses[1] && router.push(`/courses/${allCourses[1].id}`),
+  );
+  useHotkeys(
+    "g+3",
+    () => allCourses[2] && router.push(`/courses/${allCourses[2].id}`),
+  );
+  useHotkeys(
+    "g+4",
+    () => allCourses[3] && router.push(`/courses/${allCourses[3].id}`),
+  );
+  useHotkeys(
+    "g+5",
+    () => allCourses[4] && router.push(`/courses/${allCourses[4].id}`),
+  );
+  useHotkeys(
+    "g+6",
+    () => allCourses[5] && router.push(`/courses/${allCourses[5].id}`),
+  );
+  useHotkeys(
+    "g+7",
+    () => allCourses[6] && router.push(`/courses/${allCourses[6].id}`),
+  );
+  useHotkeys(
+    "g+8",
+    () => allCourses[7] && router.push(`/courses/${allCourses[7].id}`),
+  );
+  useHotkeys(
+    "g+9",
+    () => allCourses[8] && router.push(`/courses/${allCourses[8].id}`),
+  );
+
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader>
@@ -67,8 +122,10 @@ export function AppSidebar({
                   <GraduationCap className="size-4" />
                 </div>
                 <div className="grid flex-1 text-left text-sm leading-tight">
-                  <span className="truncate font-semibold">StudentOS</span>
-                  <span className="truncate text-xs">Organize your life</span>
+                  <div className="text-2xl tracking-tight font-bold text-white">
+                    {/* when not expanded, show sOS, otherwise show StudentOS */}
+                    StudentOS
+                  </div>
                 </div>
               </Link>
             </SidebarMenuButton>
@@ -129,24 +186,40 @@ export function AppSidebar({
                   </CollapsibleTrigger>
                   <CollapsibleContent>
                     <SidebarMenuSub>
-                      {semester.courses.map((course) => (
-                        <SidebarMenuSubItem key={course.id}>
-                          <SidebarMenuSubButton
-                            asChild
-                            isActive={pathname === `/courses/${course.id}`}
-                          >
-                            <Link href={`/courses/${course.id}`}>
-                              <span
-                                className="mr-2 size-2 rounded-full border border-sidebar-border"
-                                style={{
-                                  backgroundColor: course.color || "#000000",
-                                }}
-                              />
-                              <span>{course.code}</span>
-                            </Link>
-                          </SidebarMenuSubButton>
-                        </SidebarMenuSubItem>
-                      ))}
+                      {semester.courses.map((course) => {
+                        const courseIndex = allCourses.findIndex(
+                          (c) => c.id === course.id,
+                        );
+                        const shortcutNumber =
+                          courseIndex !== -1 && courseIndex < 9
+                            ? courseIndex + 1
+                            : null;
+
+                        return (
+                          <SidebarMenuSubItem key={course.id}>
+                            <SidebarMenuSubButton
+                              asChild
+                              isActive={pathname === `/courses/${course.id}`}
+                            >
+                              <Link href={`/courses/${course.id}`}>
+                                <span
+                                  className="mr-2 size-2 rounded-full border border-sidebar-border"
+                                  style={{
+                                    backgroundColor: course.color || "#000000",
+                                  }}
+                                />
+                                <span>{course.code}</span>
+                                {shortcutNumber && (
+                                  <Kbd className="ml-auto opacity-60 group-hover/menu-item:opacity-100 group-data-[collapsible=icon]:hidden">
+                                    <span className="text-xs">G</span>
+                                    {shortcutNumber}
+                                  </Kbd>
+                                )}
+                              </Link>
+                            </SidebarMenuSubButton>
+                          </SidebarMenuSubItem>
+                        );
+                      })}
                       <SidebarMenuSubItem>
                         <SidebarMenuSubButton asChild>
                           <Link href={`/semesters/${semester.id}/courses/new`}>

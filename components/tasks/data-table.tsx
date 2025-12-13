@@ -33,7 +33,13 @@ import {
   DropdownMenuContent,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { ChevronDown, ChevronRight, SlidersHorizontal } from "lucide-react";
+import {
+  ChevronDown,
+  ChevronRight,
+  SlidersHorizontal,
+  X,
+  GripVertical,
+} from "lucide-react";
 import { useTaskActions } from "./hooks/use-task-actions";
 import { useCommandStore } from "@/hooks/use-command-store";
 import { Task } from "@/types";
@@ -59,6 +65,7 @@ export function DataTable<TData, TValue>({
     React.useState<VisibilityState>({});
   const [rowSelection, setRowSelection] = React.useState({});
   const [grouping, setGrouping] = React.useState<GroupingState>([]);
+  const [columnSizing, setColumnSizing] = React.useState({});
 
   // Track the last focused row index to help with range selection
   const lastFocusedIndexRef = React.useRef<number | null>(null);
@@ -86,6 +93,11 @@ export function DataTable<TData, TValue>({
           )
             setColumnVisibility(parsed.columnVisibility);
           if (Array.isArray(parsed.grouping)) setGrouping(parsed.grouping);
+          if (
+            typeof parsed.columnSizing === "object" &&
+            parsed.columnSizing !== null
+          )
+            setColumnSizing(parsed.columnSizing);
         }
       } catch (e) {
         console.error("Failed to load table state from local storage", e);
@@ -103,6 +115,7 @@ export function DataTable<TData, TValue>({
       columnFilters,
       columnVisibility,
       grouping,
+      columnSizing,
     };
 
     try {
@@ -115,6 +128,7 @@ export function DataTable<TData, TValue>({
     columnFilters,
     columnVisibility,
     grouping,
+    columnSizing,
     storageKey,
     hasMounted,
   ]);
@@ -127,11 +141,14 @@ export function DataTable<TData, TValue>({
     getFilteredRowModel: getFilteredRowModel(),
     getGroupedRowModel: getGroupedRowModel(),
     getExpandedRowModel: getExpandedRowModel(),
+    enableColumnResizing: true,
+    columnResizeMode: "onChange",
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
     onColumnVisibilityChange: setColumnVisibility,
     onRowSelectionChange: setRowSelection,
     onGroupingChange: setGrouping,
+    onColumnSizingChange: setColumnSizing,
     enableRowSelection: true,
     state: {
       sorting,
@@ -139,6 +156,7 @@ export function DataTable<TData, TValue>({
       columnVisibility,
       rowSelection,
       grouping,
+      columnSizing,
     },
   });
 
@@ -161,23 +179,28 @@ export function DataTable<TData, TValue>({
         e.preventDefault();
         const nextRow = e.currentTarget.nextElementSibling as HTMLElement;
         if (nextRow) {
-          nextRow.focus();
-
-          // Handle Shift selection
+          // Handle Shift selection BEFORE moving focus
           if (e.shiftKey) {
+            // Use the sorted/filtered row model, not the original indices
             const rows = table.getRowModel().rows;
-            const nextRowIndex = currentRowIndex + 1;
+            // Find current row's position in the sorted/filtered list
+            const visualIndex = rows.findIndex((r) => r.id === row.id);
+            const nextVisualIndex = visualIndex + 1;
 
-            if (nextRowIndex < rows.length) {
-              const nextRowObj = rows[nextRowIndex];
-              // Toggle selection for the next row
-              nextRowObj.toggleSelected(true);
-              // Ensure current row is also selected if starting selection
+            if (nextVisualIndex < rows.length) {
+              // Ensure current row is selected first
               if (!row.getIsSelected()) {
                 row.toggleSelected(true);
               }
+
+              // Then select the next row (using the visual/sorted index)
+              const nextRowObj = rows[nextVisualIndex];
+              nextRowObj.toggleSelected(true);
             }
           }
+
+          // Move focus after selection logic
+          nextRow.focus();
         }
         break;
       }
@@ -185,30 +208,36 @@ export function DataTable<TData, TValue>({
         e.preventDefault();
         const prevRow = e.currentTarget.previousElementSibling as HTMLElement;
         if (prevRow) {
-          prevRow.focus();
-
-          // Handle Shift selection
+          // Handle Shift selection BEFORE moving focus
           if (e.shiftKey) {
-            const rows = table.getRowModel().rows;
-            const prevRowIndex = currentRowIndex - 1;
-
-            if (prevRowIndex >= 0) {
-              const prevRowObj = rows[prevRowIndex];
-              // Toggle selection for the prev row
-              prevRowObj.toggleSelected(true);
-              // Ensure current row is also selected
-              if (!row.getIsSelected()) {
-                row.toggleSelected(true);
-              }
+            // Deselect the current row when moving up (contracting selection)
+            if (row.getIsSelected()) {
+              row.toggleSelected(false);
             }
           }
+
+          // Move focus after selection logic
+          prevRow.focus();
         }
         break;
       }
       case "Backspace":
       case "Delete":
         e.preventDefault();
-        removeTask(task);
+        // If multiple rows are selected, delete them all
+        const selectedRows = table.getSelectedRowModel().rows;
+        if (selectedRows.length > 0) {
+          const selectedTasks = selectedRows.map((r) => r.original as Task);
+          // Ensure the currently focused task is included if it wasn't selected
+          if (!selectedTasks.some((t) => t.id === task.id)) {
+            selectedTasks.push(task);
+          }
+          // Delete all selected tasks
+          selectedTasks.forEach((t) => removeTask(t));
+        } else {
+          // Just delete the focused task
+          removeTask(task);
+        }
         break;
       case "k":
       case "K":
@@ -265,6 +294,17 @@ export function DataTable<TData, TValue>({
             className="h-8 w-[150px] lg:w-[250px]"
           />
           <div className="flex items-center gap-2">
+            {sorting.length > 0 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8"
+                onClick={() => setSorting([])}
+              >
+                <X className="mr-2 h-4 w-4" />
+                Clear Sort
+              </Button>
+            )}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button
@@ -298,20 +338,45 @@ export function DataTable<TData, TValue>({
         </div>
       </div>
 
-      <div className="rounded-md border">
-        <Table>
+      <div className="rounded-md border overflow-x-auto">
+        <Table style={{ width: "100%", minWidth: table.getTotalSize() }}>
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id}>
-                {headerGroup.headers.map((header) => {
+                {headerGroup.headers.map((header, index) => {
+                  const isLastHeader = index === headerGroup.headers.length - 1;
                   return (
-                    <TableHead key={header.id}>
-                      {header.isPlaceholder
-                        ? null
-                        : flexRender(
-                            header.column.columnDef.header,
-                            header.getContext(),
-                          )}
+                    <TableHead
+                      key={header.id}
+                      className="relative"
+                      style={{
+                        width: isLastHeader ? "auto" : `${header.getSize()}px`,
+                        minWidth: `${header.getSize()}px`,
+                      }}
+                    >
+                      <div className="flex items-center justify-between">
+                        {header.isPlaceholder
+                          ? null
+                          : flexRender(
+                              header.column.columnDef.header,
+                              header.getContext(),
+                            )}
+                      </div>
+                      {header.column.getCanResize() && (
+                        <div
+                          onMouseDown={header.getResizeHandler()}
+                          onTouchStart={header.getResizeHandler()}
+                          className={`absolute top-0 right-0 h-full w-1 cursor-col-resize select-none touch-none bg-border opacity-0 hover:opacity-100 transition-opacity ${
+                            header.column.getIsResizing()
+                              ? "opacity-100 bg-primary"
+                              : ""
+                          }`}
+                        >
+                          <div className="absolute top-1/2 right-0 -translate-y-1/2 -translate-x-1/2">
+                            <GripVertical className="h-4 w-4 text-muted-foreground" />
+                          </div>
+                        </div>
+                      )}
                     </TableHead>
                   );
                 })}
@@ -380,10 +445,20 @@ export function DataTable<TData, TValue>({
                     </TableCell>
                   ) : (
                     // Normal row
-                    row.getVisibleCells().map((cell) => {
+                    row.getVisibleCells().map((cell, index) => {
                       if (cell.getIsGrouped()) return null;
+                      const isLastCell =
+                        index === row.getVisibleCells().length - 1;
                       return (
-                        <TableCell key={cell.id}>
+                        <TableCell
+                          key={cell.id}
+                          style={{
+                            width: isLastCell
+                              ? "auto"
+                              : `${cell.column.getSize()}px`,
+                            minWidth: `${cell.column.getSize()}px`,
+                          }}
+                        >
                           {flexRender(
                             cell.column.columnDef.cell,
                             cell.getContext(),

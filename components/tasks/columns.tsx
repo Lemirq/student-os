@@ -85,6 +85,10 @@ export const columns: ColumnDef<TaskWithDetails>[] = [
     ),
     enableSorting: false,
     enableHiding: false,
+    size: 50,
+    minSize: 50,
+    maxSize: 50,
+    enableResizing: false,
   },
   {
     accessorKey: "title",
@@ -94,6 +98,9 @@ export const columns: ColumnDef<TaskWithDetails>[] = [
     cell: ({ row }) => (
       <div className="font-medium">{row.getValue("title")}</div>
     ),
+    size: 300,
+    minSize: 150,
+    maxSize: 600,
   },
   {
     id: "course",
@@ -116,6 +123,9 @@ export const columns: ColumnDef<TaskWithDetails>[] = [
     filterFn: (row, id, value) => {
       return value.includes(row.getValue(id));
     },
+    size: 120,
+    minSize: 80,
+    maxSize: 200,
   },
   {
     accessorKey: "status",
@@ -126,6 +136,9 @@ export const columns: ColumnDef<TaskWithDetails>[] = [
     filterFn: (row, id, value) => {
       return value.includes(row.getValue(id));
     },
+    size: 130,
+    minSize: 100,
+    maxSize: 200,
   },
   {
     accessorKey: "priority",
@@ -151,6 +164,9 @@ export const columns: ColumnDef<TaskWithDetails>[] = [
     filterFn: (row, id, value) => {
       return value.includes(row.getValue(id));
     },
+    size: 100,
+    minSize: 80,
+    maxSize: 150,
   },
   {
     accessorKey: "grade_weight",
@@ -163,6 +179,9 @@ export const columns: ColumnDef<TaskWithDetails>[] = [
         <span className="text-muted-foreground text-sm">{gw.name}</span>
       ) : null;
     },
+    size: 150,
+    minSize: 100,
+    maxSize: 250,
   },
   {
     accessorKey: "dueDate",
@@ -191,6 +210,9 @@ export const columns: ColumnDef<TaskWithDetails>[] = [
         </div>
       );
     },
+    size: 110,
+    minSize: 90,
+    maxSize: 150,
   },
   {
     accessorKey: "doDate",
@@ -206,6 +228,9 @@ export const columns: ColumnDef<TaskWithDetails>[] = [
         </span>
       );
     },
+    size: 110,
+    minSize: 90,
+    maxSize: 150,
   },
   {
     accessorKey: "scoreReceived",
@@ -216,7 +241,8 @@ export const columns: ColumnDef<TaskWithDetails>[] = [
       const score = row.getValue("scoreReceived") as string | null;
       const max = row.original.scoreMax;
 
-      if (!score) return <span className="text-muted-foreground">-</span>;
+      if (score === null || score === undefined)
+        return <span className="text-muted-foreground">-</span>;
 
       const scoreFloat = parseFloat(score);
       const maxFloat = parseFloat(max?.toString() || "100");
@@ -230,5 +256,8 @@ export const columns: ColumnDef<TaskWithDetails>[] = [
         <span className="text-muted-foreground">{percentage.toFixed(2)}%</span>
       );
     },
+    size: 100,
+    minSize: 80,
+    maxSize: 150,
   },
 ];

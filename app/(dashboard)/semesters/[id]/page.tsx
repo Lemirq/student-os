@@ -10,7 +10,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Plus, ArrowRight } from "lucide-react";
+import { Plus } from "lucide-react";
 import { format } from "date-fns";
 import { DataTable } from "@/components/tasks/data-table";
 import { columns } from "@/components/tasks/columns";
@@ -18,7 +18,7 @@ import { SemesterProgress } from "@/components/dashboard/semester-progress";
 import { GradeGapCard } from "@/components/dashboard/grade-gap-card";
 import { WorkloadHeatmap } from "@/components/dashboard/workload-heatmap";
 import { HighStakesList } from "@/components/dashboard/high-stakes-list";
-import { QuickCapture } from "@/components/dashboard/quick-capture";
+// import { QuickCapture } from "@/components/dashboard/quick-capture";
 
 export default async function SemesterPage({
   params,

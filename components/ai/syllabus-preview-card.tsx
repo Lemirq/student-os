@@ -40,48 +40,45 @@ export function SyllabusPreviewCard({ data }: SyllabusPreviewCardProps) {
   const [isImported, setIsImported] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
 
-  const assignmentsCount =
-    data.tasks?.filter((t) => t.type?.toLowerCase().includes("assignment"))
-      .length || 0;
-  const examsCount =
-    data.tasks?.filter((t) => t.type?.toLowerCase().includes("exam")).length ||
-    0;
-
-  // Fallback if counts are 0, just show total tasks
-  const summary =
-    assignmentsCount > 0 || examsCount > 0
-      ? `Found ${assignmentsCount} assignments, ${examsCount} exams`
-      : `Found ${data.tasks?.length || 0} tasks`;
+  const taskCount = data.tasks?.length || 0;
+  const summary = `Imported ${taskCount} task${taskCount !== 1 ? "s" : ""}`;
 
   const handleImport = async () => {
     setIsImporting(true);
     try {
+      // This is where the actual database operations happen:
+      // 1. Create/find course
+      // 2. Create grade weights
+      // 3. Create tasks
       const result = await importSyllabusTasks({
         ...data,
         syllabusBody: data.raw_text,
       });
+
       setIsImported(true);
 
+      // Show success toast with details about what was created
       if (result.courseCreated) {
-        toast.success("Syllabus Imported", {
-          description: `Created course ${result.courseCode} and imported ${result.count} tasks`,
+        toast.success("✅ Import Complete", {
+          description: `Created course ${result.courseCode}, grade weights, and imported ${result.count} tasks`,
         });
       } else {
-        toast.success("Syllabus Imported", {
-          description: `Imported ${result.count} tasks to existing course ${result.courseCode}`,
+        toast.success("✅ Import Complete", {
+          description: `Added grade weights and imported ${result.count} tasks to ${result.courseCode}`,
         });
       }
     } catch (error) {
-      toast.error("Failed to import syllabus", {
+      toast.error("❌ Import Failed", {
         description: error instanceof Error ? error.message : "Unknown error",
       });
+      setIsImported(false); // Reset on error so user can retry
     } finally {
       setIsImporting(false);
     }
   };
 
   return (
-    <Card className="w-full max-w-sm bg-sidebar-accent/20 backdrop-blur-2xl border-sidebar-border">
+    <Card className="w-full max-w-sm bg-sidebar-accent/20 backdrop-blur-2xl border-border">
       <CardHeader className="pb-3">
         <div className="flex items-center gap-2">
           <div className="size-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary">

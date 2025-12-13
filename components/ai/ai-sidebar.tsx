@@ -57,6 +57,12 @@ export function AICopilotSidebar({
     onError: (error) => {
       console.error("Chat error:", error);
     },
+    onFinish: (message) => {
+      console.log("Chat finished:", message);
+    },
+    onToolCall: (toolCall) => {
+      console.log("Tool call:", toolCall);
+    },
   });
 
   const scrollRef = React.useRef<HTMLDivElement>(null);
@@ -269,7 +275,7 @@ export function AICopilotSidebar({
               </p>
             </div>
           ) : (
-            <div className="flex flex-col gap-4 p-4 min-h-[calc(100vh-10rem)]">
+            <div className="flex flex-col gap-4 p-4 min-h-full justify-end">
               {messages.map((m) => (
                 <div
                   key={m.id}
@@ -338,14 +344,14 @@ export function AICopilotSidebar({
                           switch (p.state) {
                             case "input-streaming":
                             case "input-available":
-                              return (
-                                <div
-                                  key={callId}
-                                  className="bg-muted p-3 rounded-lg text-sm w-full animate-pulse"
-                                >
-                                  Generating syllabus preview...
-                                </div>
-                              );
+                            // return (
+                            //   <div
+                            //     key={callId}
+                            //     className="bg-muted p-3 rounded-lg text-sm w-full animate-pulse"
+                            //   >
+                            //     Generating syllabus preview...
+                            //   </div>
+                            // );
                             case "output-available": {
                               const data = p.output?.data; // The tool returns { data }
                               if (!data) return null;
@@ -356,7 +362,7 @@ export function AICopilotSidebar({
                               );
                             }
                             default:
-                              return null;
+                              return <div>Generating</div>;
                           }
                         }
 
@@ -741,6 +747,126 @@ export function AICopilotSidebar({
                                   </div>
                                 </div>
                               );
+                            default:
+                              return null;
+                          }
+                        }
+
+                        // -----------------------------------------------------------------------
+                        // TOOL: showGradeWeights
+                        // -----------------------------------------------------------------------
+                        case "tool-showGradeWeights": {
+                          const callId = p.toolCallId;
+                          switch (p.state) {
+                            case "input-streaming":
+                            case "input-available":
+                              return (
+                                <div key={callId}>
+                                  Managing grade weights...
+                                </div>
+                              );
+                            case "output-available": {
+                              const result = p.output?.result;
+
+                              if (!result) return null;
+
+                              // Handle error case
+                              if (!result.success) {
+                                return (
+                                  <div
+                                    key={callId}
+                                    className="bg-destructive/10 border border-destructive/20 p-3 rounded-lg my-2 text-sm w-full"
+                                  >
+                                    <div className="text-destructive font-medium">
+                                      ❌ {result.error}
+                                    </div>
+                                  </div>
+                                );
+                              }
+
+                              const course = result.course;
+                              const gradeWeights = result.grade_weights || [];
+                              const totalWeight = result.total_weight || 0;
+                              const isValid = result.is_valid;
+                              const action = result.action;
+
+                              return (
+                                <div
+                                  key={callId}
+                                  className="bg-muted p-4 rounded-lg my-2 text-sm w-full"
+                                >
+                                  <div className="flex items-center justify-between mb-3">
+                                    <h4 className="font-semibold">
+                                      Grade Weights - {course?.code}
+                                      {course?.name && (
+                                        <span className="text-muted-foreground font-normal ml-1">
+                                          ({course.name})
+                                        </span>
+                                      )}
+                                    </h4>
+                                    <Badge
+                                      variant={
+                                        isValid ? "default" : "destructive"
+                                      }
+                                    >
+                                      Total: {totalWeight.toFixed(1)}%
+                                    </Badge>
+                                  </div>
+
+                                  {action && (
+                                    <div className="mb-2 text-xs text-green-600 flex items-center gap-1">
+                                      <Sparkles className="size-3" />
+                                      <span>
+                                        {action === "added" &&
+                                          "✅ Weight added"}
+                                        {action === "updated" &&
+                                          "✅ Weight updated"}
+                                        {action === "deleted" &&
+                                          "✅ Weight deleted"}
+                                      </span>
+                                    </div>
+                                  )}
+
+                                  {gradeWeights.length === 0 ? (
+                                    <div className="text-muted-foreground italic text-xs">
+                                      No grade weights defined yet.
+                                    </div>
+                                  ) : (
+                                    <div className="space-y-2">
+                                      {gradeWeights.map(
+                                        (
+                                          weight: {
+                                            id: string;
+                                            name: string;
+                                            weight_percent: number;
+                                          },
+                                          index: number,
+                                        ) => (
+                                          <div
+                                            key={weight.id || index}
+                                            className="flex items-center justify-between py-2 px-3 bg-background/50 rounded border"
+                                          >
+                                            <span className="font-medium text-xs">
+                                              {weight.name}
+                                            </span>
+                                            <span className="text-xs text-muted-foreground">
+                                              {weight.weight_percent.toFixed(1)}
+                                              %
+                                            </span>
+                                          </div>
+                                        ),
+                                      )}
+                                    </div>
+                                  )}
+
+                                  {!isValid && gradeWeights.length > 0 && (
+                                    <div className="mt-3 text-xs text-destructive border-t border-border pt-2">
+                                      ⚠️ Warning: Weights do not add up to 100%
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            }
                             default:
                               return null;
                           }

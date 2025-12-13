@@ -33,8 +33,11 @@ export async function importSyllabusTasks(
 
   const userId = user.user.id;
 
-  // Find course by code for this user
-  // We use ilike for case-insensitive match
+  // ============================================================================
+  // STEP 1: CREATE OR FIND COURSE
+  // ============================================================================
+
+  // Find course by code for this user (case-insensitive)
   const existingCourses = await db
     .select()
     .from(courses)
@@ -87,6 +90,10 @@ export async function importSyllabusTasks(
     }
   }
 
+  // ============================================================================
+  // STEP 2: CREATE GRADE WEIGHTS
+  // ============================================================================
+
   // Fetch existing grade weights for this course
   const existingGradeWeights = await db
     .select()
@@ -129,7 +136,11 @@ export async function importSyllabusTasks(
     });
   }
 
-  // Insert tasks
+  // ============================================================================
+  // STEP 3: CREATE TASKS
+  // ============================================================================
+
+  // Build task records with proper date parsing and grade weight linking
   const tasksToInsert = validatedData.tasks.map((task) => {
     // Use chrono-node to parse date strings more robustly
     const parsedDate = chrono.parseDate(task.due_date);
@@ -170,13 +181,16 @@ export async function importSyllabusTasks(
     };
   });
 
+  // Step 3: Insert all tasks
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   await db.insert(tasks).values(tasksToInsert as any);
 
+  // Return detailed results for toast notification
   return {
     success: true,
     count: validatedData.tasks.length,
     courseCreated: !existingCourses[0], // true if course was newly created
     courseCode: validatedData.course,
+    weightsCreated: neededWeights.size, // number of grade weights created
   };
 }

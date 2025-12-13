@@ -1,4 +1,6 @@
 import { openai } from "@ai-sdk/openai";
+import { google } from "@ai-sdk/google";
+
 import {
   convertToModelMessages,
   streamText,
@@ -27,16 +29,49 @@ export async function POST(req: Request) {
     return new Response("Unauthorized", { status: 401 });
   }
 
-  const coreMessages = convertToModelMessages(messages);
+  // Fetch user's courses and grade weights for context
+  const userCourses = await db
+    .select()
+    .from(courses)
+    .where(eq(courses.userId, user.id));
 
-  const result = streamText({
-    model: openai("gpt-4o"),
-    messages: coreMessages,
-    // -----------------------------------------------------------------------
-    // THE BRAIN: System Prompt controls the "Workflow"
-    // -----------------------------------------------------------------------
-    system: `You are a helpful and precise Student Assistant. You have access to the student's database.
+  const courseIds = userCourses.map((c) => c.id);
+  const userGradeWeights =
+    courseIds.length > 0
+      ? await db
+          .select()
+          .from(gradeWeights)
+          .where(inArray(gradeWeights.courseId, courseIds))
+      : [];
+
+  const coreMessages = convertToModelMessages(messages);
+  console.log(JSON.stringify(coreMessages, null, 2));
+  const system = `You are a helpful and precise Student Assistant. You have access to the student's database.
     Today is ${new Date().toDateString()}.
+    
+    STUDENT'S COURSES:
+${
+  userCourses.length > 0
+    ? userCourses
+        .map(
+          (c) =>
+            `- ${c.code}: ${c.name} (ID: ${c.id}${c.goalGrade ? `, Goal: ${c.goalGrade}` : ""})`,
+        )
+        .join("\n")
+    : "(No courses added yet)"
+}
+
+    GRADE WEIGHTS:
+${
+  userGradeWeights.length > 0
+    ? userGradeWeights
+        .map((gw) => {
+          const course = userCourses.find((c) => c.id === gw.courseId);
+          return `- [${course?.code}] ${gw.name}: ${gw.weightPercent}% (ID: ${gw.id})`;
+        })
+        .join("\n")
+    : "(No grade weights added yet)"
+}
     
     RULES:
     1. **Syllabus Import:** When a user provides a syllabus (text/file), FIRST call 'parse_syllabus'. THEN, immediately call 'showSyllabus' with the parsed data. Do not speak, just show the UI.
@@ -44,10 +79,20 @@ export async function POST(req: Request) {
     3. **Grades:** When asked "What do I need for an A?", call 'calculate_grade_requirements' -> 'showGradeRequirements'.
     4. **Scheduling:** When asked to "plan my week" or "schedule tasks", call 'auto_schedule_tasks' -> 'showScheduleUpdate'.
     5. **Priorities:** When asked to "rebalance" or "what's important?", call 'rebalance_priorities' -> 'showPriorityRebalance'.
-    6. **Quick Add:** When the user says "I have a quiz Friday...", call 'create_tasks_natural_language' -> 'showCreatedTasks'.
+    6. **Quick Add:** When the user says "I have a quiz Friday...", call 'create_tasks_natural_language' -> 'showCreatedTasks'. Use the course codes and grade weight IDs provided above.
     7. **Clean Up:** When asked to find missing info, call 'find_missing_data' -> 'showMissingData'.
+    8. **Grade Weights:** When asked to view, add, update, or delete grade weights, call 'manage_grade_weights' -> 'showGradeWeights'. Always show the full updated list after any changes.
     
-    Do not display raw JSON in text. Use the 'show*' tools to render the UI components.`,
+    Do not display raw JSON in text. Use the 'show*' tools to render the UI components.`;
+  console.log(system);
+  const result = streamText({
+    // model: google("gemini-2.5-flash"), will cause ts error, add // @ts-expect-error Beta library hasn't updated to support google yet
+    model: openai("gpt-4o"),
+    messages: coreMessages,
+    // -----------------------------------------------------------------------
+    // THE BRAIN: System Prompt controls the "Workflow"
+    // -----------------------------------------------------------------------
+    system,
 
     tools: {
       // -----------------------------------------------------------------------
@@ -55,12 +100,13 @@ export async function POST(req: Request) {
       // -----------------------------------------------------------------------
       parse_syllabus: tool({
         description:
-          "Extracts structured tasks, exams, and weights from raw syllabus text.",
+          "ONLY parses syllabus text into structured data. Does NOT create any database records. Returns data for preview only.",
         inputSchema: z.object({
           raw_text: z.string().describe("The raw text content"),
           course_code: z.string().optional(),
         }),
         execute: async ({ raw_text }) => {
+          // This tool ONLY parses - no database operations
           const { object } = await generateObject({
             model: openai("gpt-4o-mini"), // Fast & Cheap for parsing
             schema: z.object({
@@ -76,6 +122,7 @@ export async function POST(req: Request) {
             }),
             prompt: `Extract tasks, exams, and weights from this syllabus: \n\n${raw_text}`,
           });
+          // Return parsed data only - user must click "Import to Database" in UI
           return { ...object, raw_text };
         },
       }),
@@ -220,24 +267,68 @@ export async function POST(req: Request) {
               tasks: z.array(
                 z.object({
                   title: z.string(),
-                  course_code: z.string(),
-                  grade_weight_id: z.string(),
-                  description: z.string().optional(),
+                  course_code: z
+                    .string()
+                    .describe("Use exact course code from available courses"),
+                  grade_weight_id: z
+                    .string()
+                    .describe(
+                      "Use exact grade weight ID from available weights",
+                    ),
+                  description: z
+                    .string()
+                    .describe("Task description with location/time details"),
                   due_date: z.string().describe("ISO Date string"),
                   priority: z.enum(["Low", "Medium", "High"]),
                 }),
               ),
             }),
-            prompt: `Current date: ${new Date().toISOString()}. Extract tasks from: "${request}"`,
+            prompt: `Current date: ${new Date().toISOString()}.
+            
+Available courses: ${userCourses.map((c) => c.code).join(", ")}
+Available grade weights: ${userGradeWeights
+              .map((gw) => {
+                const course = userCourses.find((c) => c.id === gw.courseId);
+                return `${gw.id} (${course?.code} - ${gw.name})`;
+              })
+              .join(", ")}
+
+Extract tasks from: "${request}"
+- Use the exact course codes from the available courses list
+- Use the exact grade weight IDs from the available weights list
+- For exams, try to use the "Exam" or "Midterm" grade weight ID for that course
+- If you cannot determine a field, use an empty string ""
+- Include location and time information in the description field`,
           });
 
           const newTasks = [];
           for (const t of object.tasks) {
+            // Look up the course by course code
+            let courseId = null;
+            if (t.course_code) {
+              const course = await db
+                .select()
+                .from(courses)
+                .where(
+                  and(
+                    eq(courses.userId, user.id),
+                    ilike(courses.code, t.course_code),
+                  ),
+                )
+                .limit(1);
+              if (course.length > 0) {
+                courseId = course[0].id;
+              }
+            }
+
             const res = await db
               .insert(tasks)
               .values({
                 userId: user.id,
+                courseId: courseId,
+                gradeWeightId: t.grade_weight_id || null,
                 title: t.title,
+                description: t.description || null,
                 dueDate: new Date(t.due_date),
                 priority: t.priority,
                 status: "Todo",
@@ -342,7 +433,340 @@ export async function POST(req: Request) {
       }),
 
       // -----------------------------------------------------------------------
-      // 4. UI DISPLAY TOOLS (The "Show" Layer)
+      // 4. GRADE WEIGHT MANAGEMENT TOOLS
+      // -----------------------------------------------------------------------
+      manage_grade_weights: tool({
+        description:
+          "Search for courses and manage grade weights (list, add, update, delete). Use fuzzy search with course name/code.",
+        inputSchema: z.object({
+          action: z
+            .enum(["list", "add", "update", "delete"])
+            .describe("The action to perform on grade weights"),
+          course_code: z
+            .string()
+            .describe(
+              "The course code or name to search for (e.g., 'CSC108' or 'Intro to')",
+            ),
+          grade_weight_name: z
+            .string()
+            .optional()
+            .describe(
+              "Name of the grade weight category (for add/update operations)",
+            ),
+          weight_percent: z
+            .number()
+            .optional()
+            .describe("The weight percentage (for add/update operations)"),
+          grade_weight_id: z
+            .string()
+            .optional()
+            .describe("The ID of the grade weight to update or delete"),
+        }),
+        execute: async ({
+          action,
+          course_code,
+          grade_weight_name,
+          weight_percent,
+          grade_weight_id,
+        }) => {
+          // 1. Find the course using fuzzy search
+          const foundCourses = await db
+            .select()
+            .from(courses)
+            .where(
+              and(
+                eq(courses.userId, user.id),
+                ilike(courses.code, `%${course_code}%`),
+              ),
+            );
+
+          if (foundCourses.length === 0) {
+            // Try searching by course name too
+            const coursesByName = await db
+              .select()
+              .from(courses)
+              .where(
+                and(
+                  eq(courses.userId, user.id),
+                  ilike(courses.name, `%${course_code}%`),
+                ),
+              );
+
+            if (coursesByName.length === 0) {
+              return {
+                success: false,
+                error: `No course found matching "${course_code}". Please check the course code or name.`,
+              };
+            }
+            foundCourses.push(...coursesByName);
+          }
+
+          const course = foundCourses[0];
+
+          // 2. Perform the requested action
+          switch (action) {
+            case "list": {
+              const weights = await db
+                .select()
+                .from(gradeWeights)
+                .where(eq(gradeWeights.courseId, course.id));
+
+              const totalWeight = weights.reduce(
+                (sum, w) =>
+                  sum + parseFloat(w.weightPercent?.toString() || "0"),
+                0,
+              );
+
+              return {
+                success: true,
+                course: {
+                  code: course.code,
+                  name: course.name,
+                  id: course.id,
+                },
+                grade_weights: weights.map((w) => ({
+                  id: w.id,
+                  name: w.name,
+                  weight_percent: parseFloat(
+                    w.weightPercent?.toString() || "0",
+                  ),
+                })),
+                total_weight: totalWeight,
+                is_valid: Math.abs(totalWeight - 100) < 0.01,
+              };
+            }
+
+            case "add": {
+              if (!grade_weight_name || weight_percent === undefined) {
+                return {
+                  success: false,
+                  error:
+                    "Both grade_weight_name and weight_percent are required for adding.",
+                };
+              }
+
+              const newWeight = await db
+                .insert(gradeWeights)
+                .values({
+                  courseId: course.id,
+                  name: grade_weight_name,
+                  weightPercent: String(weight_percent),
+                })
+                .returning();
+
+              // Get updated list
+              const allWeights = await db
+                .select()
+                .from(gradeWeights)
+                .where(eq(gradeWeights.courseId, course.id));
+
+              const totalWeight = allWeights.reduce(
+                (sum, w) =>
+                  sum + parseFloat(w.weightPercent?.toString() || "0"),
+                0,
+              );
+
+              return {
+                success: true,
+                action: "added",
+                course: {
+                  code: course.code,
+                  name: course.name,
+                },
+                new_weight: {
+                  id: newWeight[0].id,
+                  name: newWeight[0].name,
+                  weight_percent: parseFloat(
+                    newWeight[0].weightPercent?.toString() || "0",
+                  ),
+                },
+                grade_weights: allWeights.map((w) => ({
+                  id: w.id,
+                  name: w.name,
+                  weight_percent: parseFloat(
+                    w.weightPercent?.toString() || "0",
+                  ),
+                })),
+                total_weight: totalWeight,
+                is_valid: Math.abs(totalWeight - 100) < 0.01,
+              };
+            }
+
+            case "update": {
+              if (!grade_weight_id) {
+                // Try to find by name if ID not provided
+                if (!grade_weight_name) {
+                  return {
+                    success: false,
+                    error:
+                      "Either grade_weight_id or grade_weight_name is required for updating.",
+                  };
+                }
+
+                const existingWeights = await db
+                  .select()
+                  .from(gradeWeights)
+                  .where(
+                    and(
+                      eq(gradeWeights.courseId, course.id),
+                      ilike(gradeWeights.name, `%${grade_weight_name}%`),
+                    ),
+                  );
+
+                if (existingWeights.length === 0) {
+                  return {
+                    success: false,
+                    error: `No grade weight found matching "${grade_weight_name}" in ${course.code}`,
+                  };
+                }
+
+                grade_weight_id = existingWeights[0].id;
+              }
+
+              const updates: { name?: string; weightPercent?: string } = {};
+              if (grade_weight_name) updates.name = grade_weight_name;
+              if (weight_percent !== undefined)
+                updates.weightPercent = String(weight_percent);
+
+              const updatedWeight = await db
+                .update(gradeWeights)
+                .set(updates)
+                .where(eq(gradeWeights.id, grade_weight_id))
+                .returning();
+
+              if (updatedWeight.length === 0) {
+                return {
+                  success: false,
+                  error: "Grade weight not found or unauthorized.",
+                };
+              }
+
+              // Get updated list
+              const allWeights = await db
+                .select()
+                .from(gradeWeights)
+                .where(eq(gradeWeights.courseId, course.id));
+
+              const totalWeight = allWeights.reduce(
+                (sum, w) =>
+                  sum + parseFloat(w.weightPercent?.toString() || "0"),
+                0,
+              );
+
+              return {
+                success: true,
+                action: "updated",
+                course: {
+                  code: course.code,
+                  name: course.name,
+                },
+                updated_weight: {
+                  id: updatedWeight[0].id,
+                  name: updatedWeight[0].name,
+                  weight_percent: parseFloat(
+                    updatedWeight[0].weightPercent?.toString() || "0",
+                  ),
+                },
+                grade_weights: allWeights.map((w) => ({
+                  id: w.id,
+                  name: w.name,
+                  weight_percent: parseFloat(
+                    w.weightPercent?.toString() || "0",
+                  ),
+                })),
+                total_weight: totalWeight,
+                is_valid: Math.abs(totalWeight - 100) < 0.01,
+              };
+            }
+
+            case "delete": {
+              if (!grade_weight_id) {
+                // Try to find by name if ID not provided
+                if (!grade_weight_name) {
+                  return {
+                    success: false,
+                    error:
+                      "Either grade_weight_id or grade_weight_name is required for deleting.",
+                  };
+                }
+
+                const existingWeights = await db
+                  .select()
+                  .from(gradeWeights)
+                  .where(
+                    and(
+                      eq(gradeWeights.courseId, course.id),
+                      ilike(gradeWeights.name, `%${grade_weight_name}%`),
+                    ),
+                  );
+
+                if (existingWeights.length === 0) {
+                  return {
+                    success: false,
+                    error: `No grade weight found matching "${grade_weight_name}" in ${course.code}`,
+                  };
+                }
+
+                grade_weight_id = existingWeights[0].id;
+              }
+
+              const deletedWeight = await db
+                .delete(gradeWeights)
+                .where(eq(gradeWeights.id, grade_weight_id))
+                .returning();
+
+              if (deletedWeight.length === 0) {
+                return {
+                  success: false,
+                  error: "Grade weight not found or unauthorized.",
+                };
+              }
+
+              // Get updated list
+              const allWeights = await db
+                .select()
+                .from(gradeWeights)
+                .where(eq(gradeWeights.courseId, course.id));
+
+              const totalWeight = allWeights.reduce(
+                (sum, w) =>
+                  sum + parseFloat(w.weightPercent?.toString() || "0"),
+                0,
+              );
+
+              return {
+                success: true,
+                action: "deleted",
+                course: {
+                  code: course.code,
+                  name: course.name,
+                },
+                deleted_weight: {
+                  name: deletedWeight[0].name,
+                  weight_percent: parseFloat(
+                    deletedWeight[0].weightPercent?.toString() || "0",
+                  ),
+                },
+                grade_weights: allWeights.map((w) => ({
+                  id: w.id,
+                  name: w.name,
+                  weight_percent: parseFloat(
+                    w.weightPercent?.toString() || "0",
+                  ),
+                })),
+                total_weight: totalWeight,
+                is_valid: Math.abs(totalWeight - 100) < 0.01,
+              };
+            }
+
+            default:
+              return { success: false, error: "Invalid action" };
+          }
+        },
+      }),
+
+      // -----------------------------------------------------------------------
+      // 5. UI DISPLAY TOOLS (The "Show" Layer)
       // -----------------------------------------------------------------------
       showSyllabus: tool({
         description: "Show parsed syllabus.",
@@ -389,6 +813,13 @@ export async function POST(req: Request) {
           tasks_without_dates,
           suggestion,
         }),
+      }),
+      showGradeWeights: tool({
+        description: "Show grade weights management results.",
+        inputSchema: z.object({
+          result: z.any().describe("The result from manage_grade_weights"),
+        }),
+        execute: async ({ result }) => ({ result }),
       }),
     },
   });

@@ -44,15 +44,15 @@ export async function saveChat({
             : "[Content omitted]",
       }));
 
-      const { text } = await generateText({
-        model: openai("gpt-4o-mini"),
-        system:
-          "You are a helpful assistant that generates a short, concise title (max 5 words) for a chat conversation based on the first message.",
-        prompt: `Generate a title for this chat message: ${JSON.stringify(
-          truncatedMessages,
-        )}`,
-      });
-      chatTitle = text.trim();
+      // const { text } = await generateText({
+      //   model: openai("gpt-4o-mini"),
+      //   system:
+      //     "You are a helpful assistant that generates a short, concise title (max 5 words) for a chat conversation based on the first message.",
+      //   prompt: `Generate a title for this chat message: ${JSON.stringify(
+      //     truncatedMessages,
+      //   )}`,
+      // });
+      chatTitle = "New Chat";
     } catch (error) {
       console.error("Failed to generate chat title:", error);
       const firstContent = messages[0]?.content;

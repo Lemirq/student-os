@@ -28,22 +28,46 @@ import {
   Calculator,
   ArrowLeft,
   Check,
+  Tag,
 } from "lucide-react";
-import { Task } from "@/types";
+import { Task, GradeWeight } from "@/types";
 import { updateTask, deleteTask } from "@/actions/tasks";
 import { toast } from "sonner";
 import { getAllCourses } from "@/actions/get-course-data";
+import { getGradeWeightsForCourses } from "@/actions/courses";
 import { Course } from "@/types";
 import { useCommandStore } from "@/hooks/use-command-store";
 
 export function TaskCommandMenu() {
   const { isOpen, tasks, close, view, setView } = useCommandStore();
   const [courses, setCourses] = React.useState<Course[]>([]);
+  const [gradeWeights, setGradeWeights] = React.useState<GradeWeight[]>([]);
   const [search, setSearch] = React.useState("");
 
   React.useEffect(() => {
     getAllCourses().then(setCourses);
   }, []);
+
+  // Fetch grade weights based on selected tasks' courses
+  React.useEffect(() => {
+    if (!tasks || tasks.length === 0) {
+      setGradeWeights([]);
+      return;
+    }
+
+    // Get unique course IDs from selected tasks
+    const uniqueCourseIds = Array.from(
+      new Set(tasks.map((task) => task.courseId).filter(Boolean)),
+    ) as string[];
+
+    if (uniqueCourseIds.length === 0) {
+      setGradeWeights([]);
+      return;
+    }
+
+    // Fetch grade weights for these courses
+    getGradeWeightsForCourses(uniqueCourseIds).then(setGradeWeights);
+  }, [tasks]);
 
   // Reset search when view changes or dialog opens
   React.useEffect(() => {
@@ -66,6 +90,8 @@ export function TaskCommandMenu() {
         if (update.priority)
           payload.priority = update.priority as "Low" | "Medium" | "High";
         if (update.courseId) payload.course_id = update.courseId;
+        if (update.gradeWeightId !== undefined)
+          payload.grade_weight_id = update.gradeWeightId;
         if (update.dueDate) payload.due_date = update.dueDate.toISOString();
 
         // Update all selected tasks
@@ -104,6 +130,7 @@ export function TaskCommandMenu() {
       try {
         const payload: Parameters<typeof updateTask>[1] = {
           score_received: received,
+          status: "Done",
         };
         if (max !== undefined && !isNaN(max)) {
           payload.score_max = max;
@@ -153,6 +180,20 @@ export function TaskCommandMenu() {
     }
   };
 
+  const getPlaceholder = () => {
+    if (view === "EDIT_SCORE") {
+      return "Enter score (e.g. 95 or 95/100)...";
+    }
+
+    if (tasks.length === 1) {
+      return `Action on "${tasks[0].title}"...`;
+    } else if (tasks.length > 1) {
+      return `Action on ${tasks.length} tasks...`;
+    }
+
+    return "Type a command or search...";
+  };
+
   return (
     <Dialog
       open={isOpen}
@@ -173,11 +214,7 @@ export function TaskCommandMenu() {
           onKeyDown={handleKeyDown}
         >
           <CommandInput
-            placeholder={
-              view === "EDIT_SCORE"
-                ? "Enter score (e.g. 95 or 95/100)..."
-                : "Type a command or search..."
-            }
+            placeholder={getPlaceholder()}
             value={search}
             onValueChange={setSearch}
           />
@@ -240,6 +277,36 @@ export function TaskCommandMenu() {
                 </CommandGroup>
 
                 <CommandSeparator />
+
+                {gradeWeights.length > 0 && (
+                  <>
+                    <CommandGroup heading="Category">
+                      {gradeWeights.map((weight) => {
+                        const course = courses.find(
+                          (c) => c.id === weight.courseId,
+                        );
+                        return (
+                          <CommandItem
+                            key={weight.id}
+                            onSelect={() =>
+                              handleUpdate({ gradeWeightId: weight.id })
+                            }
+                          >
+                            <Tag className="mr-2 h-4 w-4" />
+                            {weight.name}
+                            {course && (
+                              <span className="ml-2 text-xs text-muted-foreground">
+                                ({course.code})
+                              </span>
+                            )}
+                          </CommandItem>
+                        );
+                      })}
+                    </CommandGroup>
+
+                    <CommandSeparator />
+                  </>
+                )}
 
                 <CommandGroup heading="Course">
                   {courses.map((course) => (

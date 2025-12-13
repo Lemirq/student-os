@@ -95,6 +95,49 @@ export async function getCourseGradeWeights(courseId: string) {
     .where(eq(gradeWeights.courseId, courseId));
 }
 
+export async function updateGradeWeight(
+  gradeWeightId: string,
+  data: { name?: string; weight_percent?: number },
+) {
+  const updates: { name?: string; weightPercent?: string } = {};
+
+  if (data.name !== undefined) {
+    updates.name = data.name;
+  }
+
+  if (data.weight_percent !== undefined) {
+    updates.weightPercent = String(data.weight_percent);
+  }
+
+  const result = await db
+    .update(gradeWeights)
+    .set(updates)
+    .where(eq(gradeWeights.id, gradeWeightId))
+    .returning();
+
+  if (result.length > 0) {
+    revalidatePath(`/courses/${result[0].courseId}`);
+  }
+
+  return result[0];
+}
+
+export async function deleteGradeWeight(gradeWeightId: string) {
+  const gradeWeight = await db
+    .select()
+    .from(gradeWeights)
+    .where(eq(gradeWeights.id, gradeWeightId))
+    .limit(1);
+
+  if (gradeWeight.length === 0) {
+    throw new Error("Grade weight not found");
+  }
+
+  await db.delete(gradeWeights).where(eq(gradeWeights.id, gradeWeightId));
+
+  revalidatePath(`/courses/${gradeWeight[0].courseId}`);
+}
+
 export async function getUserCourses() {
   const supabase = await createClient();
   const { data: user } = await supabase.auth.getUser();
@@ -104,4 +147,15 @@ export async function getUserCourses() {
     .select()
     .from(courses)
     .where(eq(courses.userId, user.user.id));
+}
+
+export async function getGradeWeightsForCourses(courseIds: string[]) {
+  if (courseIds.length === 0) return [];
+
+  const { inArray } = await import("drizzle-orm");
+
+  return await db
+    .select()
+    .from(gradeWeights)
+    .where(inArray(gradeWeights.courseId, courseIds));
 }

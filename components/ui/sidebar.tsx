@@ -27,6 +27,8 @@ import {
 
 const SIDEBAR_COOKIE_NAME = "sidebar_state";
 const SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 7;
+const SIDEBAR_STORAGE_KEY = "sidebar_state";
+const SIDEBAR_RIGHT_STORAGE_KEY = "sidebar_right_state";
 const SIDEBAR_WIDTH = "16rem";
 const SIDEBAR_WIDTH_MOBILE = "18rem";
 const SIDEBAR_WIDTH_RIGHT = "22rem";
@@ -74,17 +76,31 @@ function SidebarProvider({
   const isMobile = useIsMobile();
   const [openMobile, setOpenMobile] = React.useState(false);
 
-  // This is the internal state of the sidebar.
-  // We use openProp and setOpenProp for control from outside the component.
-  const [_open, _setOpen] = React.useState(defaultOpen);
+  // Initialize left sidebar state from localStorage
+  const [_open, _setOpen] = React.useState(() => {
+    if (typeof window === "undefined") return defaultOpen;
+    const stored = localStorage.getItem(SIDEBAR_STORAGE_KEY);
+    return stored !== null ? stored === "true" : defaultOpen;
+  });
   const open = openProp ?? _open;
 
-  const [_openRight, _setOpenRight] = React.useState(true);
+  // Initialize right sidebar state from localStorage
+  const [_openRight, _setOpenRight] = React.useState(() => {
+    if (typeof window === "undefined") return true;
+    const stored = localStorage.getItem(SIDEBAR_RIGHT_STORAGE_KEY);
+    return stored !== null ? stored === "true" : true;
+  });
   const openRight = _openRight;
+
   const setOpenRight = React.useCallback(
     (value: boolean | ((value: boolean) => boolean)) => {
       const openState = typeof value === "function" ? value(openRight) : value;
       _setOpenRight(openState);
+
+      // Save to localStorage
+      if (typeof window !== "undefined") {
+        localStorage.setItem(SIDEBAR_RIGHT_STORAGE_KEY, String(openState));
+      }
     },
     [openRight],
   );
@@ -98,8 +114,11 @@ function SidebarProvider({
         _setOpen(openState);
       }
 
-      // This sets the cookie to keep the sidebar state.
+      // Save to both cookie (for backward compatibility) and localStorage
       document.cookie = `${SIDEBAR_COOKIE_NAME}=${openState}; path=/; max-age=${SIDEBAR_COOKIE_MAX_AGE}`;
+      if (typeof window !== "undefined") {
+        localStorage.setItem(SIDEBAR_STORAGE_KEY, String(openState));
+      }
     },
     [setOpenProp, open],
   );
@@ -123,11 +142,22 @@ function SidebarProvider({
         event.preventDefault();
         toggleSidebar();
       }
+      console.log(event);
+      // Alt/Option + 1 toggles left sidebar
+      if (event.code === "Digit1" && event.altKey) {
+        event.preventDefault();
+        toggleSidebar();
+      }
+      // Alt/Option + 2 toggles right sidebar
+      if (event.code === "Digit2" && event.altKey) {
+        event.preventDefault();
+        toggleRightSidebar();
+      }
     };
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [toggleSidebar]);
+  }, [toggleSidebar, toggleRightSidebar]);
 
   // We add a state so that we can do data-state="expanded" or "collapsed".
   // This makes it easier to style the sidebar with Tailwind classes.

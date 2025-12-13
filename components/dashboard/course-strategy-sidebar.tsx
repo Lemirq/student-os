@@ -5,7 +5,16 @@ import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Slider } from "@/components/ui/slider";
 import { CourseData } from "@/actions/get-course-data";
-import { GradeWeight, Task } from "@/types";
+import { Task } from "@/types";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
 
 interface CourseStrategySidebarProps {
   course: CourseData;
@@ -88,9 +97,71 @@ export function CourseStrategySidebar({ course }: CourseStrategySidebarProps) {
     { name: "Remaining", value: remainingWeight, color: "#e5e7eb" }, // gray-200
   ];
 
+  // Calculate total weight for grade weights
+  const totalWeight = React.useMemo(() => {
+    return course.grade_weights.reduce((sum, weight) => {
+      return sum + parseFloat(weight.weightPercent?.toString() || "0");
+    }, 0);
+  }, [course.grade_weights]);
+
+  const isValidTotal = Math.abs(totalWeight - 100) < 0.01;
+
   return (
     <div className="space-y-6 sticky top-6">
-      {/* Widget A: Weight Distribution */}
+      {/* Widget A: Grade Weights */}
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardTitle className="text-sm font-medium text-muted-foreground">
+            Grade Weights
+          </CardTitle>
+          <Badge
+            variant={isValidTotal ? "default" : "destructive"}
+            className="text-xs"
+          >
+            Total: {totalWeight.toFixed(1)}%
+          </Badge>
+        </CardHeader>
+        <CardContent>
+          {course.grade_weights.length === 0 ? (
+            <div className="text-center py-6 text-xs text-muted-foreground">
+              No grade weights defined yet.
+            </div>
+          ) : (
+            <>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="text-xs">Category</TableHead>
+                    <TableHead className="text-right text-xs">Weight</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {course.grade_weights.map((weight) => (
+                    <TableRow key={weight.id}>
+                      <TableCell className="font-medium text-xs py-2">
+                        {weight.name}
+                      </TableCell>
+                      <TableCell className="text-right text-xs py-2">
+                        {parseFloat(
+                          weight.weightPercent?.toString() || "0",
+                        ).toFixed(1)}
+                        %
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+              {!isValidTotal && (
+                <div className="mt-3 text-xs text-destructive">
+                  ⚠️ Warning: Grade weights do not add up to 100%
+                </div>
+              )}
+            </>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Widget B: Weight Distribution */}
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-sm font-medium text-muted-foreground">
@@ -131,7 +202,7 @@ export function CourseStrategySidebar({ course }: CourseStrategySidebarProps) {
         </CardContent>
       </Card>
 
-      {/* Widget B: What-If Calculator */}
+      {/* Widget C: What-If Calculator */}
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-sm font-medium text-muted-foreground">

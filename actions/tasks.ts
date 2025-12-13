@@ -45,10 +45,15 @@ export async function createTask(data: z.infer<typeof taskSchema>) {
     priority: validated.priority,
     doDate: validated.do_date ? new Date(validated.do_date) : null,
     dueDate: validated.due_date ? new Date(validated.due_date) : null,
-    scoreReceived: validated.score_received
-      ? String(validated.score_received)
-      : null,
-    scoreMax: validated.score_max ? String(validated.score_max) : null,
+    scoreReceived:
+      validated.score_received !== null &&
+      validated.score_received !== undefined
+        ? String(validated.score_received)
+        : null,
+    scoreMax:
+      validated.score_max !== null && validated.score_max !== undefined
+        ? String(validated.score_max)
+        : null,
   });
 
   revalidatePath(`/courses/${validated.course_id}`);
@@ -81,11 +86,11 @@ export async function updateTask(
     if (data.due_date !== undefined)
       updateData.dueDate = data.due_date ? new Date(data.due_date) : null;
     if (data.score_received !== undefined)
-      updateData.scoreReceived = data.score_received
-        ? String(data.score_received)
-        : null;
+      updateData.scoreReceived =
+        data.score_received !== null ? String(data.score_received) : null;
     if (data.score_max !== undefined)
-      updateData.scoreMax = data.score_max ? String(data.score_max) : null;
+      updateData.scoreMax =
+        data.score_max !== null ? String(data.score_max) : null;
     if (data.grade_weight_id !== undefined)
       updateData.gradeWeightId = data.grade_weight_id;
     if (data.description !== undefined)
