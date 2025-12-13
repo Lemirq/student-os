@@ -37,6 +37,7 @@ import { ChevronDown, ChevronRight, SlidersHorizontal } from "lucide-react";
 import { useTaskActions } from "./hooks/use-task-actions";
 import { useCommandStore } from "@/hooks/use-command-store";
 import { Task } from "@/types";
+import { useRouter } from "next/navigation";
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
@@ -61,6 +62,7 @@ export function DataTable<TData, TValue>({
 
   const { removeTask } = useTaskActions();
   const { open } = useCommandStore();
+  const router = useRouter();
 
   const [hasMounted, setHasMounted] = React.useState(false);
 
@@ -178,6 +180,10 @@ export function DataTable<TData, TValue>({
           }
         }
         break;
+      case "Enter":
+        e.preventDefault();
+        router.push(`/tasks/${task.id}`);
+        break;
       case "Escape":
         e.preventDefault();
         table.resetRowSelection();
@@ -241,15 +247,7 @@ export function DataTable<TData, TValue>({
         </div>
       </div>
 
-      <div
-        className="rounded-md border"
-        onBlur={(e) => {
-          // Only reset selection if focus is moving outside the table container
-          if (!e.currentTarget.contains(e.relatedTarget as Node)) {
-            table.resetRowSelection();
-          }
-        }}
-      >
+      <div className="rounded-md border">
         <Table>
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
@@ -288,6 +286,10 @@ export function DataTable<TData, TValue>({
                       // Optional: Clear selection on single click if not holding modifiers?
                       // For now, let's keep it simple.
                     }
+                  }}
+                  onDoubleClick={(e) => {
+                    e.preventDefault();
+                    router.push(`/tasks/${(row.original as Task).id}`);
                   }}
                   onContextMenu={(e) => {
                     e.preventDefault();

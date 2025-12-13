@@ -9,6 +9,7 @@ import * as chrono from "chrono-node";
 
 const importSyllabusSchema = z.object({
   course: z.string(),
+  syllabusBody: z.string().optional(),
   tasks: z.array(
     z.object({
       title: z.string(),
@@ -71,10 +72,19 @@ export async function importSyllabusTasks(
         code: validatedData.course,
         name: validatedData.course, // Use code as name initially
         color: "#3b82f6", // Default blue color
+        syllabus: validatedData.syllabusBody,
       })
       .returning();
 
     course = newCourse[0];
+  } else {
+    // If course exists and we have syllabus body, update it
+    if (validatedData.syllabusBody) {
+      await db
+        .update(courses)
+        .set({ syllabus: validatedData.syllabusBody })
+        .where(eq(courses.id, course.id));
+    }
   }
 
   // Insert tasks

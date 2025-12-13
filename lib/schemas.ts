@@ -24,12 +24,13 @@ export const gradeWeightSchema = z.object({
 
 export const taskSchema = z.object({
   course_id: z.string().uuid(),
-  grade_weight_id: z.string().uuid().optional(),
+  grade_weight_id: z.string().uuid().nullable().optional(),
   title: z.string().min(1, "Title is required"),
   status: z.enum(["Todo", "In Progress", "Done"]).default("Todo"),
   priority: z.enum(["Low", "Medium", "High"]).default("Medium"),
-  do_date: z.string().optional(), // ISO string or similar
-  due_date: z.string().optional(),
-  score_received: z.coerce.number().min(0).max(100).optional(),
-  score_max: z.coerce.number().min(0).max(100).optional(),
+  do_date: z.string().nullable().optional(), // ISO string or similar
+  due_date: z.string().nullable().optional(),
+  score_received: z.coerce.number().min(0).max(100).nullable().optional(),
+  score_max: z.coerce.number().min(0).max(100).nullable().optional(),
+  description: z.string().nullable().optional(),
 });

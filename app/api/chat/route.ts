@@ -20,6 +20,16 @@ export const maxDuration = 30;
 type IncomingMessage = {
   role: "user" | "assistant" | "system" | "tool";
   content: string;
+  experimental_attachments?: Array<{
+    name?: string;
+    contentType?: string;
+    url: string;
+  }>;
+  files?: Array<{
+    name?: string;
+    contentType?: string;
+    url: string;
+  }>; // Older/Alternative field name
 };
 
 // Define the structured data types for our tools
@@ -31,6 +41,7 @@ type SyllabusData = {
     due_date: string;
     type: string;
   }>;
+  raw_text?: string;
 };
 
 type TaskData = {
@@ -124,11 +135,69 @@ export async function POST(req: Request) {
   // Ensure messages is an array before using it
   console.log("Received messages:", JSON.stringify(messages, null, 2));
 
+  // Process PDF attachments
+  if (Array.isArray(messages)) {
+    for (const message of messages as IncomingMessage[]) {
+      if (message.role === "user") {
+        const attachments =
+          message.experimental_attachments || message.files || [];
+        for (const attachment of attachments) {
+          if (
+            attachment.contentType === "application/pdf" &&
+            attachment.url.startsWith("data:")
+          ) {
+            try {
+              // Call the internal PDF parsing API
+              // Forward cookies to maintain authentication
+              const cookieHeader = req.headers.get("cookie");
+              const response = await fetch(new URL("/api/parse-pdf", req.url), {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  ...(cookieHeader ? { Cookie: cookieHeader } : {}),
+                },
+                body: JSON.stringify({ fileUrl: attachment.url }),
+              });
+
+              if (response.ok) {
+                const { text } = await response.json();
+                message.content += `\n\n[Attachment: ${
+                  attachment.name || "PDF"
+                }]\n${text}`;
+                // Remove the attachment from the message so it's not sent to the model as a raw file
+                // The model will see the extracted text content instead
+              } else {
+                console.error(
+                  "Failed to parse PDF via API",
+                  await response.text(),
+                );
+                message.content += `\n\n[Attachment: ${
+                  attachment.name || "PDF"
+                }] (Failed to parse PDF)`;
+              }
+            } catch (e) {
+              console.error("Failed to call PDF parse API", e);
+              message.content += `\n\n[Attachment: ${
+                attachment.name || "PDF"
+              }] (Failed to parse PDF)`;
+            }
+          }
+        }
+        // Clean up attachments from the message object so they aren't processed again by convertToModelMessages
+        // or sent to the model as raw data which can cause confusion or errors.
+        delete message.experimental_attachments;
+        delete message.files;
+      }
+    }
+  }
+
   let coreMessages = [] as ModelMessage[];
   try {
     coreMessages = Array.isArray(messages)
       ? convertToModelMessages(messages)
       : [];
+
+    console.log("coreMessages", coreMessages[0].content);
   } catch (error) {
     console.error("Error converting messages:", error);
     // Fallback: simple mapping for text-only messages to unblock basic chat
@@ -141,12 +210,12 @@ export async function POST(req: Request) {
   }
 
   const result = streamText({
-    model: openai("gpt-4o-mini"),
+    model: openai("gpt-4o"),
     messages: coreMessages,
     system: `You are a helpful and precise Student Assistant. You have access to the student's database.
 Today is ${new Date().toDateString()}.
 
-When a user asks to import a syllabus, first use 'parse_syllabus' to extract the data, and then ALWAYS use 'showSyllabus' to display it to the user.
+When a user asks to import a syllabus, first use 'parse_syllabus' to extract the data, and then ALWAYS use 'showSyllabus' to display it to the user. Ensure the raw text from 'parse_syllabus' is passed to 'showSyllabus'.
 When a user asks about their schedule, use 'query_schedule' to get the data, and then ALWAYS use 'showSchedule' to display it.
 When updating a task score, use 'update_task_score' to perform the update, and then 'showTaskUpdate' to confirm.
 
@@ -187,7 +256,7 @@ Do not display JSON data in the text response. Use the 'show' tools.`,
             }),
             prompt: `Extract tasks, exams, and weights from this syllabus: \n\n${raw_text}`,
           });
-          return object;
+          return { ...object, raw_text };
         },
       }),
 
@@ -539,6 +608,7 @@ Find the task that best matches "${task_name}". Return its ID. If no task matche
                 type: z.string(),
               }),
             ),
+            raw_text: z.string().optional(),
           }),
         }),
       },

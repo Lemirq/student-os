@@ -1,21 +1,6 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
-import {
-  Calendar,
-  CheckCircle2,
-  Circle,
-  Clock,
-  Trash,
-  Signal,
-  ArrowRight,
-  CalendarDays,
-} from "lucide-react";
-import { toast } from "sonner";
-import * as chrono from "chrono-node";
-import { format } from "date-fns";
-
 import {
   CommandDialog,
   CommandEmpty,
@@ -23,242 +8,190 @@ import {
   CommandInput,
   CommandItem,
   CommandList,
-  CommandShortcut,
+  CommandSeparator,
 } from "@/components/ui/command";
-import { useCommandStore } from "@/hooks/use-command-store";
+import {
+  CalendarIcon,
+  CheckCircle,
+  Circle,
+  ArrowUpCircle,
+  Clock,
+  BookOpen,
+  Trash2,
+} from "lucide-react";
+import { Task } from "@/types";
 import { updateTask, deleteTask } from "@/actions/tasks";
-import { TaskStatus, TaskPriority } from "@/types";
+import { toast } from "sonner";
+import { getAllCourses } from "@/actions/get-course-data";
+import { Course } from "@/types";
+import { useCommandStore } from "@/hooks/use-command-store";
 
 export function TaskCommandMenu() {
-  const router = useRouter();
-  const { isOpen, tasks, view, close, setView } = useCommandStore();
-  const [dueDateInput, setDueDateInput] = React.useState("");
-
-  // Restore focus to the row when closed
-  const lastTaskIdRef = React.useRef<string | null>(null);
+  const { isOpen, tasks, close } = useCommandStore();
+  const [courses, setCourses] = React.useState<Course[]>([]);
 
   React.useEffect(() => {
-    if (isOpen && tasks.length > 0) {
-      // Focus the first selected task
-      lastTaskIdRef.current = tasks[0].id;
-    } else if (!isOpen && lastTaskIdRef.current) {
-      // Small timeout to allow Dialog to unmount and focus to return to body naturally first
-      setTimeout(() => {
-        const row = document.getElementById(lastTaskIdRef.current!);
-        row?.focus();
-      }, 10);
-    }
-  }, [isOpen, tasks]);
+    getAllCourses().then(setCourses);
+  }, []);
 
-  // Reset view when closed
-  React.useEffect(() => {
-    if (!isOpen) {
-      // delayed reset to avoid flickering
-      const t = setTimeout(() => setView("MAIN"), 200);
-      return () => clearTimeout(t);
-    }
-  }, [isOpen, setView]);
+  const handleUpdate = React.useCallback(
+    async (update: Partial<Task> & { dueDate?: Date }) => {
+      if (!tasks || tasks.length === 0) {
+        console.error("No tasks selected for update");
+        return;
+      }
 
-  const handleUpdateStatus = async (status: TaskStatus) => {
-    if (tasks.length === 0) return;
-    close();
-    try {
-      await Promise.all(tasks.map((t) => updateTask(t.id, { status })));
-      toast.success(`Status updated to ${status} for ${tasks.length} task(s)`);
-    } catch (error) {
-      toast.error("Failed to update status");
-    }
-  };
+      try {
+        // Mapping Task fields to updateTask schema (snake_case)
+        const payload: Parameters<typeof updateTask>[1] = {};
 
-  const handleUpdatePriority = async (priority: TaskPriority) => {
-    if (tasks.length === 0) return;
-    close();
-    try {
-      await Promise.all(tasks.map((t) => updateTask(t.id, { priority })));
-      toast.success(
-        `Priority updated to ${priority} for ${tasks.length} task(s)`,
-      );
-    } catch (error) {
-      toast.error("Failed to update priority");
-    }
-  };
+        if (update.status)
+          payload.status = update.status as "Todo" | "In Progress" | "Done";
+        if (update.priority)
+          payload.priority = update.priority as "Low" | "Medium" | "High";
+        if (update.courseId) payload.course_id = update.courseId;
+        if (update.dueDate) payload.due_date = update.dueDate.toISOString();
 
-  const handleDelete = async () => {
-    if (tasks.length === 0) return;
-    close();
-    try {
-      await Promise.all(tasks.map((t) => deleteTask(t.id)));
-      toast.success(`${tasks.length} task(s) deleted`);
-    } catch (error) {
-      toast.error("Failed to delete task");
-    }
-  };
+        // Update all selected tasks
+        await Promise.all(
+          tasks.map((task) => {
+            if (!task.id) return Promise.resolve();
+            return updateTask(task.id, payload);
+          }),
+        );
 
-  const handleDueDateSubmit = async (dateStr?: string) => {
-    if (tasks.length === 0) return;
+        toast.success(
+          tasks.length === 1 ? "Task updated" : `${tasks.length} tasks updated`,
+        );
+        close();
+      } catch (error) {
+        console.error("Error updating task:", error);
+        toast.error("Failed to update task(s)");
+      }
+    },
+    [tasks, close],
+  );
 
-    const inputToParse = dateStr || dueDateInput;
-    const parsedDate = chrono.parseDate(inputToParse);
-
-    if (!parsedDate) {
-      toast.error("Could not parse date");
-      return;
-    }
-
-    close();
-    setDueDateInput("");
+  const handleDelete = React.useCallback(async () => {
+    if (!tasks || tasks.length === 0) return;
 
     try {
-      // Pass as ISO string
       await Promise.all(
-        tasks.map((t) =>
-          updateTask(t.id, { due_date: parsedDate.toISOString() }),
-        ),
+        tasks.map((task) => {
+          if (!task.id) return Promise.resolve();
+          return deleteTask(task.id);
+        }),
       );
       toast.success(
-        `Due date set to ${format(parsedDate, "MMM d")} for ${tasks.length} task(s)`,
+        tasks.length === 1 ? "Task deleted" : `${tasks.length} tasks deleted`,
       );
+      close();
+
+      // If we are on a task detail page and that task was deleted, redirect
+      // Assuming tasks[0] is the main one if length is 1
+      if (tasks.length === 1 && tasks[0].courseId) {
+        // This logic is a bit implicit, usually we'd check current pathname
+        // but for now let's leave router push logic minimal or remove it if not needed globally.
+        // The original code redirected. Let's keep it safe.
+        // router.push(tasks[0].courseId ? `/courses/${tasks[0].courseId}` : "/dashboard");
+      }
     } catch (error) {
-      toast.error("Failed to update due date");
+      console.error("Error deleting task:", error);
+      toast.error("Failed to delete task(s)");
     }
-  };
+  }, [tasks, close]);
 
   return (
-    <CommandDialog open={isOpen} onOpenChange={(open) => !open && close()}>
-      {view === "MAIN" && (
-        <>
-          <CommandInput
-            key="main"
-            autoFocus
-            placeholder={
-              tasks.length > 1
-                ? `Type a command for ${tasks.length} tasks...`
-                : "Type a command or search..."
-            }
-          />
-          <CommandList>
-            <CommandEmpty>No results found.</CommandEmpty>
-            <CommandGroup heading="Actions">
-              <CommandItem onSelect={() => setView("STATUS")}>
-                <Circle className="mr-2 h-4 w-4" />
-                <span>Change Status...</span>
-              </CommandItem>
-              <CommandItem onSelect={() => setView("PRIORITY")}>
-                <Signal className="mr-2 h-4 w-4" />
-                <span>Change Priority...</span>
-              </CommandItem>
-              <CommandItem onSelect={() => setView("DUE_DATE")}>
-                <Calendar className="mr-2 h-4 w-4" />
-                <span>Change Due Date...</span>
-              </CommandItem>
-              <CommandItem onSelect={handleDelete} className="text-red-600">
-                <Trash className="mr-2 h-4 w-4" />
-                <span>Delete Task</span>
-                <CommandShortcut>⌘⌫</CommandShortcut>
-              </CommandItem>
-            </CommandGroup>
-          </CommandList>
-        </>
-      )}
+    <CommandDialog open={isOpen} onOpenChange={(val) => !val && close()}>
+      <CommandInput placeholder="Type a command or search..." />
+      <CommandList>
+        <CommandEmpty>No results found.</CommandEmpty>
 
-      {view === "STATUS" && (
-        <>
-          <CommandInput key="status" autoFocus placeholder="Select status..." />
-          <CommandList>
-            <CommandGroup heading="Status">
-              <CommandItem onSelect={() => handleUpdateStatus("Todo")}>
-                <Circle className="mr-2 h-4 w-4" />
-                <span>Todo</span>
-              </CommandItem>
-              <CommandItem onSelect={() => handleUpdateStatus("In Progress")}>
-                <Clock className="mr-2 h-4 w-4 text-blue-500" />
-                <span>In Progress</span>
-              </CommandItem>
-              <CommandItem onSelect={() => handleUpdateStatus("Done")}>
-                <CheckCircle2 className="mr-2 h-4 w-4 text-green-500" />
-                <span>Done</span>
-              </CommandItem>
-            </CommandGroup>
-            <CommandGroup>
-              <CommandItem onSelect={() => setView("MAIN")}>
-                <ArrowRight className="mr-2 h-4 w-4 rotate-180" />
-                Back
-              </CommandItem>
-            </CommandGroup>
-          </CommandList>
-        </>
-      )}
+        <CommandGroup heading="Status">
+          <CommandItem onSelect={() => handleUpdate({ status: "Todo" })}>
+            <Circle className="mr-2 h-4 w-4" />
+            Set to Todo
+          </CommandItem>
+          <CommandItem onSelect={() => handleUpdate({ status: "In Progress" })}>
+            <Clock className="mr-2 h-4 w-4" />
+            Set to In Progress
+          </CommandItem>
+          <CommandItem onSelect={() => handleUpdate({ status: "Done" })}>
+            <CheckCircle className="mr-2 h-4 w-4" />
+            Set to Done
+          </CommandItem>
+        </CommandGroup>
 
-      {view === "PRIORITY" && (
-        <>
-          <CommandInput
-            key="priority"
-            autoFocus
-            placeholder="Select priority..."
-          />
-          <CommandList>
-            <CommandGroup heading="Priority">
-              <CommandItem onSelect={() => handleUpdatePriority("High")}>
-                <Signal className="mr-2 h-4 w-4 text-red-500" />
-                <span>High</span>
-              </CommandItem>
-              <CommandItem onSelect={() => handleUpdatePriority("Medium")}>
-                <Signal className="mr-2 h-4 w-4 text-yellow-500" />
-                <span>Medium</span>
-              </CommandItem>
-              <CommandItem onSelect={() => handleUpdatePriority("Low")}>
-                <Signal className="mr-2 h-4 w-4 text-blue-500" />
-                <span>Low</span>
-              </CommandItem>
-            </CommandGroup>
-            <CommandGroup>
-              <CommandItem onSelect={() => setView("MAIN")}>
-                <ArrowRight className="mr-2 h-4 w-4 rotate-180" />
-                Back
-              </CommandItem>
-            </CommandGroup>
-          </CommandList>
-        </>
-      )}
+        <CommandSeparator />
 
-      {view === "DUE_DATE" && (
-        <>
-          <CommandInput
-            key="duedate"
-            autoFocus
-            placeholder="Type a date (e.g. 'tomorrow', 'next friday')..."
-            value={dueDateInput}
-            onValueChange={setDueDateInput}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && dueDateInput) {
-                handleDueDateSubmit();
-              }
+        <CommandGroup heading="Priority">
+          <CommandItem onSelect={() => handleUpdate({ priority: "High" })}>
+            <ArrowUpCircle className="mr-2 h-4 w-4 text-red-500" />
+            Set Priority High
+          </CommandItem>
+          <CommandItem onSelect={() => handleUpdate({ priority: "Medium" })}>
+            <ArrowUpCircle className="mr-2 h-4 w-4 text-yellow-500" />
+            Set Priority Medium
+          </CommandItem>
+          <CommandItem onSelect={() => handleUpdate({ priority: "Low" })}>
+            <ArrowUpCircle className="mr-2 h-4 w-4 text-blue-500" />
+            Set Priority Low
+          </CommandItem>
+        </CommandGroup>
+
+        <CommandSeparator />
+
+        <CommandGroup heading="Course">
+          {courses.map((course) => (
+            <CommandItem
+              key={course.id}
+              onSelect={() => handleUpdate({ courseId: course.id })}
+            >
+              <BookOpen
+                className="mr-2 h-4 w-4"
+                style={{ color: course.color || undefined }}
+              />
+              Move to {course.code}
+            </CommandItem>
+          ))}
+        </CommandGroup>
+
+        <CommandSeparator />
+
+        <CommandGroup heading="Due Date">
+          <CommandItem
+            onSelect={() => {
+              const today = new Date();
+              handleUpdate({ dueDate: today });
             }}
-          />
-          <CommandList>
-            <CommandGroup heading="Suggestions">
-              <CommandItem onSelect={() => handleDueDateSubmit("Today")}>
-                <CalendarDays className="mr-2 h-4 w-4" />
-                <span>Today</span>
-              </CommandItem>
-              <CommandItem onSelect={() => handleDueDateSubmit("Tomorrow")}>
-                <CalendarDays className="mr-2 h-4 w-4" />
-                <span>Tomorrow</span>
-              </CommandItem>
-              <CommandItem onSelect={() => handleDueDateSubmit("Next Week")}>
-                <CalendarDays className="mr-2 h-4 w-4" />
-                <span>Next Week</span>
-              </CommandItem>
-            </CommandGroup>
-            <CommandGroup>
-              <CommandItem onSelect={() => setView("MAIN")}>
-                <ArrowRight className="mr-2 h-4 w-4 rotate-180" />
-                Back
-              </CommandItem>
-            </CommandGroup>
-          </CommandList>
-        </>
-      )}
+          >
+            <CalendarIcon className="mr-2 h-4 w-4" />
+            Due Today
+          </CommandItem>
+          <CommandItem
+            onSelect={() => {
+              const tomorrow = new Date();
+              tomorrow.setDate(tomorrow.getDate() + 1);
+              handleUpdate({ dueDate: tomorrow });
+            }}
+          >
+            <CalendarIcon className="mr-2 h-4 w-4" />
+            Due Tomorrow
+          </CommandItem>
+        </CommandGroup>
+
+        <CommandSeparator />
+
+        <CommandGroup heading="Danger Zone">
+          <CommandItem
+            onSelect={handleDelete}
+            className="text-red-500 aria-selected:text-red-500"
+          >
+            <Trash2 className="mr-2 h-4 w-4" />
+            Delete Task
+          </CommandItem>
+        </CommandGroup>
+      </CommandList>
     </CommandDialog>
   );
 }

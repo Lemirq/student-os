@@ -8,6 +8,7 @@ import {
   DefaultChatTransport,
   lastAssistantMessageIsCompleteWithToolCalls,
 } from "ai";
+
 import {
   Sidebar,
   SidebarContent,
@@ -24,6 +25,7 @@ import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
 import { ChatHistory } from "./chat-history";
 import { saveChat } from "@/actions/chats";
+import { Task } from "@/types";
 
 export function AICopilotSidebar({
   ...props
@@ -48,9 +50,6 @@ export function AICopilotSidebar({
     addToolOutput,
   } = useChat<StudentOSToolCallsMessage>({
     id: chatId,
-    transport: new DefaultChatTransport({
-      api: "/api/chat",
-    }),
     sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithToolCalls,
     async onToolCall({ toolCall }) {
       if (toolCall.toolName === "showSyllabus") {
@@ -161,6 +160,20 @@ export function AICopilotSidebar({
     const newId = crypto.randomUUID();
     setChatId(newId);
     setMessages([]);
+  };
+
+  const handleSubmit = async (text: string, files?: FileList) => {
+    // sendMessage handles FileList directly in newer SDK versions
+    if (files && files.length > 0) {
+      sendMessage({
+        text,
+        files: files,
+      });
+    } else {
+      sendMessage({
+        text,
+      });
+    }
   };
 
   if (!mounted) return null;
@@ -631,11 +644,7 @@ export function AICopilotSidebar({
       </SidebarContent>
 
       <SidebarFooter className="p-4 bg-transparent">
-        <ChatInput
-          status={status}
-          onStop={stop}
-          onSubmit={(text) => sendMessage({ text })}
-        />
+        <ChatInput status={status} onStop={stop} onSubmit={handleSubmit} />
         <div className="text-[10px] text-center text-muted-foreground/60 mt-2">
           AI can make mistakes. Check important info.
         </div>

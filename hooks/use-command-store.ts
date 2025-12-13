@@ -1,7 +1,17 @@
 import { create } from "zustand";
 import { Task } from "@/types";
 
-type CommandView = "MAIN" | "DUE_DATE" | "PRIORITY" | "STATUS";
+type CommandView =
+  | "MAIN"
+  | "DUE_DATE"
+  | "PRIORITY"
+  | "STATUS"
+  | "EDIT_TITLE"
+  | "EDIT_DESCRIPTION"
+  | "EDIT_DO_DATE"
+  | "EDIT_SCORE"
+  | "EDIT_COURSE"
+  | "EDIT_GRADE_WEIGHT";
 
 interface CommandState {
   isOpen: boolean;

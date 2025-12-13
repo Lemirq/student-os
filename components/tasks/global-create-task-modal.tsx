@@ -144,7 +144,6 @@ export function GlobalCreateTaskModal({
                     <FormLabel>Category</FormLabel>
                     <Select
                       onValueChange={field.onChange}
-                      defaultValue={field.value}
                       disabled={!selectedCourseId}
                     >
                       <FormControl>

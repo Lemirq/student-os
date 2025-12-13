@@ -94,3 +94,14 @@ export async function getCourseGradeWeights(courseId: string) {
     .from(gradeWeights)
     .where(eq(gradeWeights.courseId, courseId));
 }
+
+export async function getUserCourses() {
+  const supabase = await createClient();
+  const { data: user } = await supabase.auth.getUser();
+  if (!user.user) return [];
+
+  return await db
+    .select()
+    .from(courses)
+    .where(eq(courses.userId, user.user.id));
+}

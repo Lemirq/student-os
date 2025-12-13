@@ -63,6 +63,7 @@ export const courses = pgTable("courses", {
   code: text("code").notNull(),
   name: text("name"), // nullable in Supabase
   color: text("color").default("#000000"),
+  syllabus: text("syllabus"),
   goalGrade: decimal("goal_grade", { precision: 5, scale: 2 }),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
 });

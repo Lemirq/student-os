@@ -31,6 +31,7 @@ interface SyllabusPreviewCardProps {
   data: {
     course: string;
     tasks: SyllabusTask[];
+    raw_text?: string;
   };
 }
 
@@ -55,7 +56,10 @@ export function SyllabusPreviewCard({ data }: SyllabusPreviewCardProps) {
   const handleImport = async () => {
     setIsImporting(true);
     try {
-      const result = await importSyllabusTasks(data);
+      const result = await importSyllabusTasks({
+        ...data,
+        syllabusBody: data.raw_text,
+      });
       setIsImported(true);
 
       if (result.courseCreated) {

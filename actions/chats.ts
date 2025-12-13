@@ -35,16 +35,31 @@ export async function saveChat({
 
   if (!chatTitle && !existingChat && messages.length > 0) {
     try {
+      // Truncate messages to avoid context length issues with large attachments
+      const truncatedMessages = messages.map((m) => ({
+        role: m.role,
+        content:
+          typeof m.content === "string"
+            ? m.content.slice(0, 1000)
+            : "[Content omitted]",
+      }));
+
       const { text } = await generateText({
         model: openai("gpt-4o-mini"),
         system:
           "You are a helpful assistant that generates a short, concise title (max 5 words) for a chat conversation based on the first message.",
-        prompt: `Generate a title for this chat message: ${JSON.stringify(messages)}`,
+        prompt: `Generate a title for this chat message: ${JSON.stringify(
+          truncatedMessages,
+        )}`,
       });
       chatTitle = text.trim();
     } catch (error) {
       console.error("Failed to generate chat title:", error);
-      chatTitle = messages[0]?.content.slice(0, 50) || "New Chat";
+      const firstContent = messages[0]?.content;
+      chatTitle =
+        typeof firstContent === "string"
+          ? firstContent.slice(0, 50)
+          : "New Chat";
     }
   }
 
@@ -62,7 +77,11 @@ export async function saveChat({
     await db.insert(chats).values({
       id,
       userId: user.id,
-      title: chatTitle || messages[0]?.content.slice(0, 50) || "New Chat",
+      title:
+        chatTitle ||
+        (typeof messages[0]?.content === "string"
+          ? messages[0].content.slice(0, 50)
+          : "New Chat"),
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       messages: messages as any,
     });

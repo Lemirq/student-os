@@ -4,6 +4,7 @@ import { db } from "@/drizzle";
 import { courses, tasks, gradeWeights } from "@/schema";
 import { eq } from "drizzle-orm";
 import { Course, Task, GradeWeight } from "@/types";
+import { createClient } from "@/utils/supabase/server";
 
 export type CourseData = Course & {
   tasks: (Task & {
@@ -56,4 +57,15 @@ export async function getCourseData(
     tasks: tasksWithWeights,
     grade_weights: gradeWeightsResult,
   };
+}
+
+export async function getAllCourses(): Promise<Course[]> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) return [];
+
+  return db.select().from(courses).where(eq(courses.userId, user.id));
 }
