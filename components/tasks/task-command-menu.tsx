@@ -296,6 +296,12 @@ export function TaskCommandMenu() {
 
             {view === "EDIT_SCORE" && (
               <CommandGroup heading="Score">
+                {search.trim() !== "" && (
+                  <CommandItem onSelect={() => handleScoreUpdate(search)}>
+                    <Check className="mr-2 h-4 w-4" />
+                    Set score to {search}
+                  </CommandItem>
+                )}
                 <CommandItem
                   onSelect={() => {
                     setView("MAIN");
@@ -305,12 +311,6 @@ export function TaskCommandMenu() {
                   <ArrowLeft className="mr-2 h-4 w-4" />
                   Back
                 </CommandItem>
-                {search.trim() !== "" && (
-                  <CommandItem onSelect={() => handleScoreUpdate(search)}>
-                    <Check className="mr-2 h-4 w-4" />
-                    Set score to {search}
-                  </CommandItem>
-                )}
               </CommandGroup>
             )}
           </CommandList>
