@@ -20,6 +20,7 @@ import {
 import { getChats, deleteChat } from "@/actions/chats";
 import { formatDistanceToNow } from "date-fns";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 
 type Chat = {
   id: string;
@@ -120,11 +121,15 @@ export function ChatHistory({
                             onSelectChat(chat.id, chat.messages);
                             setIsOpen(false);
                           }}
-                          isActive={chat.id === currentChatId}
-                          className="h-auto py-2 px-2 group/menu-button relative"
+                          className="h-auto hover:bg-primary/10! px-2 group/menu-button relative"
                         >
                           <div className="flex flex-col gap-1 w-full text-left overflow-hidden pr-6">
-                            <span className="truncate font-medium text-xs">
+                            <span
+                              className={cn(
+                                "truncate font-medium text-xs",
+                                chat.id === currentChatId && "font-bold",
+                              )}
+                            >
                               {chat.title.length > 50
                                 ? chat.title.slice(0, 50) + "..."
                                 : chat.title}

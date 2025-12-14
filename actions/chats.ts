@@ -4,8 +4,6 @@ import { db } from "@/drizzle";
 import { chats } from "@/schema";
 import { createClient } from "@/utils/supabase/server";
 import { eq, desc, and } from "drizzle-orm";
-import { generateText } from "ai";
-import { openai } from "@ai-sdk/openai";
 
 export async function saveChat({
   id,
@@ -17,7 +15,6 @@ export async function saveChat({
   messages: any[];
   title?: string;
 }) {
-  ``;
   const supabase = await createClient();
   const {
     data: { user },
@@ -35,14 +32,16 @@ export async function saveChat({
 
   if (!chatTitle && !existingChat && messages.length > 0) {
     try {
+      // For now just use `new chat` as the title
+
       // Truncate messages to avoid context length issues with large attachments
-      const truncatedMessages = messages.map((m) => ({
-        role: m.role,
-        content:
-          typeof m.content === "string"
-            ? m.content.slice(0, 1000)
-            : "[Content omitted]",
-      }));
+      // const truncatedMessages = messages.map((m) => ({
+      //   role: m.role,
+      //   content:
+      //     typeof m.content === "string"
+      //       ? m.content.slice(0, 1000)
+      //       : "[Content omitted]",
+      // }));
 
       // const { text } = await generateText({
       //   model: openai("gpt-4o-mini"),

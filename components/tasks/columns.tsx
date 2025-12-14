@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useTaskActions } from "./hooks/use-task-actions";
 import { DataTableColumnHeader } from "./data-table-column-header";
+import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 
 export type TaskWithDetails = Task & {
   course: Course | null;
@@ -116,7 +117,14 @@ export const columns: ColumnDef<TaskWithDetails>[] = [
             className="w-2 h-2 rounded-full"
             style={{ backgroundColor: course.color || "#000" }}
           />
-          <span>{course.code}</span>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span>{course.code}</span>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>{course.name}</p>
+            </TooltipContent>
+          </Tooltip>
         </div>
       ) : null;
     },

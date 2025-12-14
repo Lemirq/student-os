@@ -6,6 +6,7 @@ import { CourseStrategySidebar } from "@/components/dashboard/course-strategy-si
 import { DataTable } from "@/components/tasks/data-table";
 import { columns } from "@/components/tasks/columns";
 import { QuickAddCourseTask } from "@/components/dashboard/quick-add-course-task";
+import { EditCourseDialog } from "@/components/courses/edit-course-dialog";
 
 interface CoursePageProps {
   params: Promise<{ id: string }>;
@@ -69,32 +70,41 @@ export default async function CoursePage({ params }: CoursePageProps) {
         className="shrink-0 border-t-4 shadow-sm py-2"
         style={{ borderTopColor: course.color || "#000" }}
       >
-        <CardContent className="p-6 flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight">
-              {course.code}{" "}
-              <span className="text-muted-foreground font-normal ml-2">
-                {course.name}
-              </span>
-            </h1>
-          </div>
-          <div className="flex items-center gap-4">
-            <div className="text-right">
-              <div className="text-xs text-muted-foreground uppercase tracking-wider font-semibold mb-1">
-                Current Grade
-              </div>
-              <div
-                className={`text-3xl font-bold ${isBelowGoal ? "text-yellow-500" : "text-foreground"}`}
-              >
-                {totalWeightDecided > 0 ? currentGrade.toFixed(1) + "%" : "N/A"}
-              </div>
+        <CardContent className="p-6 space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-bold tracking-tight">
+                {course.code}{" "}
+                <span className="text-muted-foreground font-normal ml-2">
+                  {course.name}
+                </span>
+              </h1>
             </div>
+            <div className="flex items-center gap-4">
+              <div className="text-right">
+                <div className="text-xs text-muted-foreground uppercase tracking-wider font-semibold mb-1">
+                  Current Grade
+                </div>
+                <div
+                  className={`text-3xl font-bold ${isBelowGoal ? "text-yellow-500" : "text-foreground"}`}
+                >
+                  {totalWeightDecided > 0
+                    ? currentGrade.toFixed(1) + "%"
+                    : "N/A"}
+                </div>
+              </div>
 
-            <div className="h-10 w-px bg-border mx-2" />
+              <div className="h-10 w-px bg-border mx-2" />
 
-            <Badge variant="outline" className="text-sm py-1 px-3">
-              Goal: {goalGrade}%
-            </Badge>
+              <Badge variant="outline" className="text-sm py-1 px-3">
+                Goal: {goalGrade}%
+              </Badge>
+            </div>
+          </div>
+
+          {/* Edit Button */}
+          <div className="flex items-center gap-2">
+            <EditCourseDialog course={course} />
           </div>
         </CardContent>
       </Card>

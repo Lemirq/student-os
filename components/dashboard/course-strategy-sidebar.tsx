@@ -5,7 +5,7 @@ import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Slider } from "@/components/ui/slider";
 import { CourseData } from "@/actions/get-course-data";
-import { Task } from "@/types";
+import { GradeWeight, Task } from "@/types";
 import {
   Table,
   TableBody,
@@ -15,12 +15,31 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Pencil, Check, X, Trash2, Plus } from "lucide-react";
+import {
+  updateGradeWeight,
+  createGradeWeight,
+  deleteGradeWeight,
+} from "@/actions/courses";
 
 interface CourseStrategySidebarProps {
   course: CourseData;
 }
 
 export function CourseStrategySidebar({ course }: CourseStrategySidebarProps) {
+  // State for editing grade weights
+  const [editingId, setEditingId] = React.useState<string | null>(null);
+  const [editedName, setEditedName] = React.useState("");
+  const [editedWeight, setEditedWeight] = React.useState("");
+  const [isSaving, setIsSaving] = React.useState(false);
+
+  // State for adding new grade weight
+  const [isAdding, setIsAdding] = React.useState(false);
+  const [newName, setNewName] = React.useState("");
+  const [newWeight, setNewWeight] = React.useState("");
+
   // 1. Calculate Weights and Scores
   const { completedWeight, currentWeightedScore, remainingWeight } =
     React.useMemo(() => {
@@ -106,6 +125,83 @@ export function CourseStrategySidebar({ course }: CourseStrategySidebarProps) {
 
   const isValidTotal = Math.abs(totalWeight - 100) < 0.01;
 
+  // Handlers for editing grade weights
+  const handleEdit = (gradeWeight: GradeWeight) => {
+    setEditingId(gradeWeight.id);
+    setEditedName(gradeWeight.name);
+    setEditedWeight(gradeWeight.weightPercent?.toString() || "0");
+  };
+
+  const handleCancel = () => {
+    setEditingId(null);
+    setEditedName("");
+    setEditedWeight("");
+  };
+
+  const handleSave = async (gradeWeightId: string) => {
+    setIsSaving(true);
+    try {
+      await updateGradeWeight(gradeWeightId, {
+        name: editedName,
+        weight_percent: parseFloat(editedWeight),
+      });
+      setEditingId(null);
+      setEditedName("");
+      setEditedWeight("");
+    } catch (error) {
+      console.error("Failed to update grade weight:", error);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleDelete = async (gradeWeightId: string) => {
+    if (!confirm("Are you sure you want to delete this grade weight?")) {
+      return;
+    }
+    setIsSaving(true);
+    try {
+      await deleteGradeWeight(gradeWeightId);
+    } catch (error) {
+      console.error("Failed to delete grade weight:", error);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleAddNew = () => {
+    setIsAdding(true);
+    setNewName("");
+    setNewWeight("");
+  };
+
+  const handleCancelAdd = () => {
+    setIsAdding(false);
+    setNewName("");
+    setNewWeight("");
+  };
+
+  const handleSaveNew = async () => {
+    if (!newName.trim() || !newWeight) {
+      return;
+    }
+    setIsSaving(true);
+    try {
+      await createGradeWeight({
+        course_id: course.id,
+        name: newName,
+        weight_percent: parseFloat(newWeight),
+      });
+      setIsAdding(false);
+      setNewName("");
+      setNewWeight("");
+    } catch (error) {
+      console.error("Failed to create grade weight:", error);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   return (
     <div className="space-y-6 sticky top-6">
       {/* Widget A: Grade Weights */}
@@ -122,33 +218,156 @@ export function CourseStrategySidebar({ course }: CourseStrategySidebarProps) {
           </Badge>
         </CardHeader>
         <CardContent>
-          {course.grade_weights.length === 0 ? (
+          {course.grade_weights.length === 0 && !isAdding ? (
             <div className="text-center py-6 text-xs text-muted-foreground">
               No grade weights defined yet.
             </div>
-          ) : (
+          ) : null}
+          {(course.grade_weights.length > 0 || isAdding) && (
             <>
               <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead className="text-xs">Category</TableHead>
                     <TableHead className="text-right text-xs">Weight</TableHead>
+                    <TableHead className="w-[100px]"></TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {course.grade_weights.map((weight) => (
                     <TableRow key={weight.id}>
                       <TableCell className="font-medium text-xs py-2">
-                        {weight.name}
+                        {editingId === weight.id ? (
+                          <Input
+                            value={editedName}
+                            onChange={(e) => setEditedName(e.target.value)}
+                            className="h-7 text-xs"
+                            disabled={isSaving}
+                          />
+                        ) : (
+                          weight.name
+                        )}
                       </TableCell>
                       <TableCell className="text-right text-xs py-2">
-                        {parseFloat(
-                          weight.weightPercent?.toString() || "0",
-                        ).toFixed(1)}
-                        %
+                        {editingId === weight.id ? (
+                          <div className="flex items-center justify-end gap-1">
+                            <Input
+                              value={editedWeight}
+                              onChange={(e) => setEditedWeight(e.target.value)}
+                              className="h-7 text-xs w-24 text-right"
+                              type="number"
+                              step="0.1"
+                              min="0"
+                              max="100"
+                              disabled={isSaving}
+                            />
+                            <span className="text-xs">%</span>
+                          </div>
+                        ) : (
+                          `${parseFloat(
+                            weight.weightPercent?.toString() || "0",
+                          ).toFixed(1)}%`
+                        )}
+                      </TableCell>
+                      <TableCell className="text-right py-2">
+                        {editingId === weight.id ? (
+                          <div className="flex items-center justify-end gap-1">
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 w-7 p-0"
+                              onClick={() => handleSave(weight.id)}
+                              disabled={isSaving}
+                            >
+                              <Check className="h-3 w-3" />
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 w-7 p-0"
+                              onClick={handleCancel}
+                              disabled={isSaving}
+                            >
+                              <X className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        ) : (
+                          <div className="flex items-center justify-end gap-1">
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 w-7 p-0"
+                              onClick={() => handleEdit(weight)}
+                              disabled={isSaving}
+                            >
+                              <Pencil className="h-3 w-3" />
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 w-7 p-0"
+                              onClick={() => handleDelete(weight.id)}
+                              disabled={isSaving}
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        )}
                       </TableCell>
                     </TableRow>
                   ))}
+                  {isAdding && (
+                    <TableRow>
+                      <TableCell className="font-medium text-xs py-2">
+                        <Input
+                          value={newName}
+                          onChange={(e) => setNewName(e.target.value)}
+                          className="h-7 text-xs"
+                          placeholder="Category name"
+                          disabled={isSaving}
+                          autoFocus
+                        />
+                      </TableCell>
+                      <TableCell className="text-right text-xs py-2">
+                        <div className="flex items-center justify-end gap-1">
+                          <Input
+                            value={newWeight}
+                            onChange={(e) => setNewWeight(e.target.value)}
+                            className="h-7 text-xs w-24 text-right"
+                            type="number"
+                            step="0.1"
+                            min="0"
+                            max="100"
+                            placeholder="0"
+                            disabled={isSaving}
+                          />
+                          <span className="text-xs">%</span>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-right py-2">
+                        <div className="flex items-center justify-end gap-1">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 w-7 p-0"
+                            onClick={handleSaveNew}
+                            disabled={isSaving || !newName.trim() || !newWeight}
+                          >
+                            <Check className="h-3 w-3" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 w-7 p-0"
+                            onClick={handleCancelAdd}
+                            disabled={isSaving}
+                          >
+                            <X className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  )}
                 </TableBody>
               </Table>
               {!isValidTotal && (
@@ -158,6 +377,16 @@ export function CourseStrategySidebar({ course }: CourseStrategySidebarProps) {
               )}
             </>
           )}
+          <Button
+            variant="outline"
+            size="sm"
+            className="w-full mt-3"
+            onClick={handleAddNew}
+            disabled={isSaving || isAdding}
+          >
+            <Plus className="h-3 w-3 mr-2" />
+            Add Grade Weight
+          </Button>
         </CardContent>
       </Card>
 

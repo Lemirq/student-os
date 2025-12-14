@@ -29,6 +29,7 @@ import {
   ArrowLeft,
   Check,
   Tag,
+  X,
 } from "lucide-react";
 import { Task, GradeWeight } from "@/types";
 import { updateTask, deleteTask } from "@/actions/tasks";
@@ -152,6 +153,30 @@ export function TaskCommandMenu() {
     },
     [tasks, close],
   );
+
+  const handleScoreRemove = React.useCallback(async () => {
+    if (!tasks || tasks.length === 0) return;
+
+    try {
+      const payload: Parameters<typeof updateTask>[1] = {
+        score_received: null,
+        score_max: null,
+      };
+
+      await Promise.all(
+        tasks.map((task) => {
+          if (!task.id) return Promise.resolve();
+          return updateTask(task.id, payload);
+        }),
+      );
+
+      toast.success("Score removed");
+      close();
+    } catch (error) {
+      console.error("Error removing score:", error);
+      toast.error("Failed to remove score");
+    }
+  }, [tasks, close]);
 
   const handleDelete = React.useCallback(async () => {
     if (!tasks || tasks.length === 0) return;
@@ -369,6 +394,13 @@ export function TaskCommandMenu() {
                     Set score to {search}
                   </CommandItem>
                 )}
+                <CommandItem
+                  onSelect={handleScoreRemove}
+                  className="text-red-500 aria-selected:text-red-500"
+                >
+                  <X className="mr-2 h-4 w-4" />
+                  Remove Score
+                </CommandItem>
                 <CommandItem
                   onSelect={() => {
                     setView("MAIN");

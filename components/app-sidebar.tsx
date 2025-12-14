@@ -133,7 +133,7 @@ export function AppSidebar({
         </SidebarMenu>
       </SidebarHeader>
       <SidebarContent>
-        <SidebarGroup>
+        {/* <SidebarGroup>
           <SidebarGroupLabel>Platform</SidebarGroupLabel>
           <SidebarMenu>
             <SidebarMenuItem>
@@ -149,7 +149,7 @@ export function AppSidebar({
               </SidebarMenuButton>
             </SidebarMenuItem>
           </SidebarMenu>
-        </SidebarGroup>
+        </SidebarGroup> */}
 
         <SidebarGroup>
           <SidebarGroupLabel>Semesters</SidebarGroupLabel>
@@ -175,7 +175,9 @@ export function AppSidebar({
                   >
                     <Link href={`/semesters/${semester.id}`}>
                       <BookOpen />
-                      <span>{semester.name}</span>
+                      <span>
+                        {semester.name} <Kbd>G G</Kbd>
+                      </span>
                     </Link>
                   </SidebarMenuButton>
                   <CollapsibleTrigger asChild>
@@ -251,6 +253,17 @@ export function AppSidebar({
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
+        <div className="px-4 py-2 text-xs text-muted-foreground text-center group-data-[collapsible=icon]:hidden">
+          created with love by{" "}
+          <a
+            href="https://vhaan.me"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hover:underline font-medium"
+          >
+            vihaan
+          </a>
+        </div>
       </SidebarFooter>
       <SidebarRail />
     </Sidebar>

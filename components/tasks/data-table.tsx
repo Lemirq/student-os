@@ -6,6 +6,7 @@ import {
   ColumnFiltersState,
   SortingState,
   VisibilityState,
+  ColumnOrderState,
   flexRender,
   getCoreRowModel,
   getFilteredRowModel,
@@ -15,6 +16,7 @@ import {
   useReactTable,
   GroupingState,
   Row,
+  Header,
 } from "@tanstack/react-table";
 
 import {
@@ -40,11 +42,87 @@ import {
   X,
   GripVertical,
 } from "lucide-react";
+import {
+  DndContext,
+  KeyboardSensor,
+  MouseSensor,
+  TouchSensor,
+  closestCenter,
+  type DragEndEvent,
+  useSensor,
+  useSensors,
+} from "@dnd-kit/core";
+import { restrictToHorizontalAxis } from "@dnd-kit/modifiers";
+import { CSS } from "@dnd-kit/utilities";
+import {
+  SortableContext,
+  horizontalListSortingStrategy,
+  useSortable,
+} from "@dnd-kit/sortable";
 import { useTaskActions } from "./hooks/use-task-actions";
 import { useCommandStore } from "@/hooks/use-command-store";
 import { Task } from "@/types";
 import { useRouter } from "next/navigation";
 import { DataTableViewOptions } from "./data-table-view-options";
+
+interface DraggableTableHeaderProps<TData, TValue> {
+  header: Header<TData, TValue>;
+  isLastHeader: boolean;
+}
+
+const DraggableTableHeader = <TData, TValue>({
+  header,
+  isLastHeader,
+}: DraggableTableHeaderProps<TData, TValue>) => {
+  const { attributes, isDragging, listeners, setNodeRef, transform } =
+    useSortable({
+      id: header.column.id,
+    });
+
+  const style = {
+    opacity: isDragging ? 0.8 : 1,
+    position: "relative" as const,
+    transform: CSS.Translate.toString(transform),
+    transition: "width transform 0.2s ease-in-out",
+    whiteSpace: "nowrap" as const,
+    width: isLastHeader ? "auto" : `${header.getSize()}px`,
+    minWidth: `${header.getSize()}px`,
+    zIndex: isDragging ? 1 : 0,
+  };
+
+  return (
+    <TableHead ref={setNodeRef} style={style}>
+      <div className="flex items-center gap-2 py-2 pr-4">
+        <div
+          className="cursor-move flex items-center"
+          {...attributes}
+          {...listeners}
+        >
+          <GripVertical className="h-4 w-4 text-muted-foreground/50 shrink-0" />
+        </div>
+        <div className="flex-1 min-w-0">
+          {header.isPlaceholder
+            ? null
+            : flexRender(header.column.columnDef.header, header.getContext())}
+        </div>
+      </div>
+      {header.column.getCanResize() && (
+        <div
+          onMouseDown={header.getResizeHandler()}
+          onTouchStart={header.getResizeHandler()}
+          className={`absolute top-0 right-0 h-full w-px cursor-col-resize select-none touch-none bg-border opacity-100 hover:opacity-100 transition-opacity ${
+            header.column.getIsResizing() ? "opacity-100 bg-primary" : ""
+          }`}
+          style={{ pointerEvents: "auto" }}
+        >
+          {/* <div className="absolute top-1/2 right-0 -translate-y-1/2 -translate-x-1/2">
+            <GripVertical className="h-4 w-4 text-muted-foreground" />
+          </div> */}
+        </div>
+      )}
+    </TableHead>
+  );
+};
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
@@ -66,6 +144,7 @@ export function DataTable<TData, TValue>({
   const [rowSelection, setRowSelection] = React.useState({});
   const [grouping, setGrouping] = React.useState<GroupingState>([]);
   const [columnSizing, setColumnSizing] = React.useState({});
+  const [columnOrder, setColumnOrder] = React.useState<ColumnOrderState>([]);
 
   // Track the last focused row index to help with range selection
   const lastFocusedIndexRef = React.useRef<number | null>(null);
@@ -98,6 +177,8 @@ export function DataTable<TData, TValue>({
             parsed.columnSizing !== null
           )
             setColumnSizing(parsed.columnSizing);
+          if (Array.isArray(parsed.columnOrder))
+            setColumnOrder(parsed.columnOrder);
         }
       } catch (e) {
         console.error("Failed to load table state from local storage", e);
@@ -116,6 +197,7 @@ export function DataTable<TData, TValue>({
       columnVisibility,
       grouping,
       columnSizing,
+      columnOrder,
     };
 
     try {
@@ -129,6 +211,7 @@ export function DataTable<TData, TValue>({
     columnVisibility,
     grouping,
     columnSizing,
+    columnOrder,
     storageKey,
     hasMounted,
   ]);
@@ -149,6 +232,7 @@ export function DataTable<TData, TValue>({
     onRowSelectionChange: setRowSelection,
     onGroupingChange: setGrouping,
     onColumnSizingChange: setColumnSizing,
+    onColumnOrderChange: setColumnOrder,
     enableRowSelection: true,
     state: {
       sorting,
@@ -157,8 +241,43 @@ export function DataTable<TData, TValue>({
       rowSelection,
       grouping,
       columnSizing,
+      columnOrder,
     },
   });
+
+  // Set up drag and drop sensors
+  const sensors = useSensors(
+    useSensor(MouseSensor, {}),
+    useSensor(TouchSensor, {}),
+    useSensor(KeyboardSensor, {}),
+  );
+
+  // Handle column reorder on drag end
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    if (active && over && active.id !== over.id) {
+      setColumnOrder((columnOrder) => {
+        const oldIndex = columnOrder.indexOf(active.id as string);
+        const newIndex = columnOrder.indexOf(over.id as string);
+
+        // If columns aren't in the order array yet, use the current order
+        if (oldIndex === -1 || newIndex === -1) {
+          const currentOrder = table.getAllLeafColumns().map((c) => c.id);
+          const oldIdx = currentOrder.indexOf(active.id as string);
+          const newIdx = currentOrder.indexOf(over.id as string);
+
+          const reordered = [...currentOrder];
+          reordered.splice(newIdx, 0, reordered.splice(oldIdx, 1)[0]);
+          return reordered;
+        }
+
+        // Reorder using splice
+        const reordered = [...columnOrder];
+        reordered.splice(newIndex, 0, reordered.splice(oldIndex, 1)[0]);
+        return reordered;
+      });
+    }
+  }
 
   if (!hasMounted) {
     return null; // or a loading skeleton
@@ -339,148 +458,134 @@ export function DataTable<TData, TValue>({
       </div>
 
       <div className="rounded-md border overflow-x-auto">
-        <Table style={{ width: "100%", minWidth: table.getTotalSize() }}>
-          <TableHeader>
-            {table.getHeaderGroups().map((headerGroup) => (
-              <TableRow key={headerGroup.id}>
-                {headerGroup.headers.map((header, index) => {
-                  const isLastHeader = index === headerGroup.headers.length - 1;
-                  return (
-                    <TableHead
-                      key={header.id}
-                      className="relative"
-                      style={{
-                        width: isLastHeader ? "auto" : `${header.getSize()}px`,
-                        minWidth: `${header.getSize()}px`,
-                      }}
-                    >
-                      <div className="flex items-center justify-between">
-                        {header.isPlaceholder
-                          ? null
-                          : flexRender(
-                              header.column.columnDef.header,
-                              header.getContext(),
-                            )}
-                      </div>
-                      {header.column.getCanResize() && (
-                        <div
-                          onMouseDown={header.getResizeHandler()}
-                          onTouchStart={header.getResizeHandler()}
-                          className={`absolute top-0 right-0 h-full w-1 cursor-col-resize select-none touch-none bg-border opacity-0 hover:opacity-100 transition-opacity ${
-                            header.column.getIsResizing()
-                              ? "opacity-100 bg-primary"
-                              : ""
-                          }`}
-                        >
-                          <div className="absolute top-1/2 right-0 -translate-y-1/2 -translate-x-1/2">
-                            <GripVertical className="h-4 w-4 text-muted-foreground" />
-                          </div>
-                        </div>
-                      )}
-                    </TableHead>
-                  );
-                })}
-              </TableRow>
-            ))}
-          </TableHeader>
-          <TableBody>
-            {table.getRowModel().rows?.length ? (
-              table.getRowModel().rows.map((row) => (
-                <TableRow
-                  key={row.id}
-                  id={(row.original as Task).id}
-                  data-state={row.getIsSelected() && "selected"}
-                  className="group outline-none focus:outline-none focus:ring-1 focus:ring-primary focus:bg-muted/50 transition-colors data-[state=selected]:bg-muted select-none focus:relative focus:z-10"
-                  tabIndex={0}
-                  onKeyDown={(e) => handleRowKeyDown(e, row)}
-                  onClick={(e) => {
-                    if (e.shiftKey) {
-                      // Simple range selection could be implemented here if needed for mouse
-                    } else if (e.metaKey || e.ctrlKey) {
-                      row.toggleSelected();
-                    } else {
-                      // Optional: Clear selection on single click if not holding modifiers?
-                      // For now, let's keep it simple.
-                    }
-                  }}
-                  onDoubleClick={(e) => {
-                    e.preventDefault();
-                    router.push(`/tasks/${(row.original as Task).id}`);
-                  }}
-                  onContextMenu={(e) => {
-                    e.preventDefault();
-                    if (!row.getIsSelected()) {
-                      table.resetRowSelection();
-                      row.toggleSelected(true);
-                      open(row.original as Task);
-                    } else {
-                      const selectedRows = table.getSelectedRowModel().rows;
-                      const selectedTasks = selectedRows.map(
-                        (r) => r.original as Task,
-                      );
-                      open(selectedTasks);
-                    }
-                  }}
-                >
-                  {row.getIsGrouped() ? (
-                    // Group header row
-                    <TableCell colSpan={columns.length}>
-                      <div
-                        className="flex items-center gap-2 cursor-pointer select-none"
-                        onClick={row.getToggleExpandedHandler()}
-                      >
-                        {row.getIsExpanded() ? (
-                          <ChevronDown className="h-4 w-4" />
-                        ) : (
-                          <ChevronRight className="h-4 w-4" />
-                        )}
-                        <span className="font-medium">
-                          {flexRender(
-                            row.getVisibleCells()[0].column.columnDef.cell,
-                            row.getVisibleCells()[0].getContext(),
-                          )}{" "}
-                          ({row.subRows.length})
-                        </span>
-                      </div>
-                    </TableCell>
-                  ) : (
-                    // Normal row
-                    row.getVisibleCells().map((cell, index) => {
-                      if (cell.getIsGrouped()) return null;
-                      const isLastCell =
-                        index === row.getVisibleCells().length - 1;
+        <DndContext
+          collisionDetection={closestCenter}
+          modifiers={[restrictToHorizontalAxis]}
+          onDragEnd={handleDragEnd}
+          sensors={sensors}
+        >
+          <Table style={{ width: "100%", minWidth: table.getTotalSize() }}>
+            <TableHeader>
+              {table.getHeaderGroups().map((headerGroup) => (
+                <TableRow key={headerGroup.id}>
+                  <SortableContext
+                    items={headerGroup.headers.map((h) => h.column.id)}
+                    strategy={horizontalListSortingStrategy}
+                  >
+                    {headerGroup.headers.map((header, index) => {
+                      const isLastHeader =
+                        index === headerGroup.headers.length - 1;
                       return (
-                        <TableCell
-                          key={cell.id}
-                          style={{
-                            width: isLastCell
-                              ? "auto"
-                              : `${cell.column.getSize()}px`,
-                            minWidth: `${cell.column.getSize()}px`,
-                          }}
-                        >
-                          {flexRender(
-                            cell.column.columnDef.cell,
-                            cell.getContext(),
-                          )}
-                        </TableCell>
+                        <DraggableTableHeader
+                          key={header.id}
+                          header={header}
+                          isLastHeader={isLastHeader}
+                        />
                       );
-                    })
-                  )}
+                    })}
+                  </SortableContext>
                 </TableRow>
-              ))
-            ) : (
-              <TableRow>
-                <TableCell
-                  colSpan={columns.length}
-                  className="h-24 text-center"
-                >
-                  No results.
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
+              ))}
+            </TableHeader>
+            <TableBody>
+              {table.getRowModel().rows?.length ? (
+                table.getRowModel().rows.map((row) => (
+                  <TableRow
+                    key={row.id}
+                    id={(row.original as Task).id}
+                    data-state={row.getIsSelected() && "selected"}
+                    className="group outline-none focus:outline-none focus:ring-1 focus:ring-primary focus:bg-muted/50 transition-colors data-[state=selected]:bg-muted select-none focus:relative focus:z-10"
+                    tabIndex={0}
+                    onKeyDown={(e) => handleRowKeyDown(e, row)}
+                    onClick={(e) => {
+                      if (e.shiftKey) {
+                        // Simple range selection could be implemented here if needed for mouse
+                      } else if (e.metaKey || e.ctrlKey) {
+                        row.toggleSelected();
+                      } else {
+                        // Optional: Clear selection on single click if not holding modifiers?
+                        // For now, let's keep it simple.
+                      }
+                    }}
+                    onDoubleClick={(e) => {
+                      e.preventDefault();
+                      router.push(`/tasks/${(row.original as Task).id}`);
+                    }}
+                    onContextMenu={(e) => {
+                      e.preventDefault();
+                      if (!row.getIsSelected()) {
+                        table.resetRowSelection();
+                        row.toggleSelected(true);
+                        open(row.original as Task);
+                      } else {
+                        const selectedRows = table.getSelectedRowModel().rows;
+                        const selectedTasks = selectedRows.map(
+                          (r) => r.original as Task,
+                        );
+                        open(selectedTasks);
+                      }
+                    }}
+                  >
+                    {row.getIsGrouped() ? (
+                      // Group header row
+                      <TableCell colSpan={columns.length}>
+                        <div
+                          className="flex items-center gap-2 cursor-pointer select-none"
+                          onClick={row.getToggleExpandedHandler()}
+                        >
+                          {row.getIsExpanded() ? (
+                            <ChevronDown className="h-4 w-4" />
+                          ) : (
+                            <ChevronRight className="h-4 w-4" />
+                          )}
+                          <span className="font-medium">
+                            {flexRender(
+                              row.getVisibleCells()[0].column.columnDef.cell,
+                              row.getVisibleCells()[0].getContext(),
+                            )}{" "}
+                            ({row.subRows.length})
+                          </span>
+                        </div>
+                      </TableCell>
+                    ) : (
+                      // Normal row
+                      row.getVisibleCells().map((cell, index) => {
+                        if (cell.getIsGrouped()) return null;
+                        const isLastCell =
+                          index === row.getVisibleCells().length - 1;
+                        return (
+                          <TableCell
+                            key={cell.id}
+                            style={{
+                              width: isLastCell
+                                ? "auto"
+                                : `${cell.column.getSize()}px`,
+                              minWidth: `${cell.column.getSize()}px`,
+                            }}
+                          >
+                            {flexRender(
+                              cell.column.columnDef.cell,
+                              cell.getContext(),
+                            )}
+                          </TableCell>
+                        );
+                      })
+                    )}
+                  </TableRow>
+                ))
+              ) : (
+                <TableRow>
+                  <TableCell
+                    colSpan={columns.length}
+                    className="h-24 text-center"
+                  >
+                    No results.
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </DndContext>
       </div>
     </div>
   );

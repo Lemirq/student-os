@@ -8,6 +8,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { createClient } from "@/utils/supabase/server";
 import { eq } from "drizzle-orm";
+import { Course, Semester } from "@/types";
 
 async function ensureUserExists(userId: string, email: string) {
   // Check if user exists
@@ -37,7 +38,7 @@ export async function createSemester(data: z.infer<typeof semesterSchema>) {
 
   const validated = semesterSchema.parse(data);
 
-  await db.insert(semesters).values({
+  const [insertedSemester]: Semester[] = await db.insert(semesters).values({
     name: validated.name,
     yearLevel: validated.year_level,
     startDate: validated.start_date,
@@ -47,7 +48,7 @@ export async function createSemester(data: z.infer<typeof semesterSchema>) {
   });
 
   revalidatePath("/");
-  redirect("/dashboard");
+  redirect(`/semesters/${insertedSemester.id}`);
 }
 
 export async function createCourse(data: z.infer<typeof courseSchema>) {
@@ -61,7 +62,7 @@ export async function createCourse(data: z.infer<typeof courseSchema>) {
 
   const validated = courseSchema.parse(data);
 
-  await db.insert(courses).values({
+  const [insertedCourse]: Course[] = await db.insert(courses).values({
     semesterId: validated.semester_id,
     userId: user.user.id,
     code: validated.code,
@@ -71,7 +72,7 @@ export async function createCourse(data: z.infer<typeof courseSchema>) {
   });
 
   revalidatePath("/");
-  redirect("/dashboard");
+  redirect(`/courses/${insertedCourse.id}`);
 }
 
 export async function createGradeWeight(
@@ -158,4 +159,43 @@ export async function getGradeWeightsForCourses(courseIds: string[]) {
     .select()
     .from(gradeWeights)
     .where(inArray(gradeWeights.courseId, courseIds));
+}
+
+export async function updateCourse(
+  courseId: string,
+  data: {
+    code?: string;
+    name?: string;
+    color?: string;
+    goal_grade?: number;
+    syllabus?: string;
+  },
+) {
+  const supabase = await createClient();
+  const { data: user } = await supabase.auth.getUser();
+  if (!user.user) throw new Error("Unauthorized");
+
+  const updates: {
+    code?: string;
+    name?: string;
+    color?: string;
+    goalGrade?: string;
+    syllabus?: string;
+  } = {};
+
+  if (data.code !== undefined) updates.code = data.code;
+  if (data.name !== undefined) updates.name = data.name;
+  if (data.color !== undefined) updates.color = data.color;
+  if (data.goal_grade !== undefined)
+    updates.goalGrade = String(data.goal_grade);
+  if (data.syllabus !== undefined) updates.syllabus = data.syllabus;
+
+  const result = await db
+    .update(courses)
+    .set(updates)
+    .where(eq(courses.id, courseId))
+    .returning();
+
+  revalidatePath(`/courses/${courseId}`);
+  return result[0];
 }

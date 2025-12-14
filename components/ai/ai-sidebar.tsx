@@ -459,6 +459,77 @@ export function AICopilotSidebar({
                         }
 
                         // -----------------------------------------------------------------------
+                        // TOOL: update_task_score
+                        // -----------------------------------------------------------------------
+                        case "tool-update_task_score": {
+                          const callId = p.toolCallId;
+                          switch (p.state) {
+                            case "input-streaming":
+                            case "input-available":
+                              return (
+                                <div
+                                  key={callId}
+                                  className="bg-muted p-3 rounded-lg text-sm w-full animate-pulse"
+                                >
+                                  Updating score...
+                                </div>
+                              );
+                            case "output-available": {
+                              const result = p.output;
+
+                              if (!result?.success) {
+                                return (
+                                  <div
+                                    key={callId}
+                                    className="bg-destructive/10 border border-destructive/20 p-3 rounded-lg my-2 text-sm w-full"
+                                  >
+                                    <div className="text-destructive font-medium flex items-center gap-2">
+                                      <span>❌</span>
+                                      <span>
+                                        {result?.message ||
+                                          "Failed to update task"}
+                                      </span>
+                                    </div>
+                                  </div>
+                                );
+                              }
+
+                              return (
+                                <div
+                                  key={callId}
+                                  className="bg-muted/50 border border-border/50 p-3 rounded-lg my-2 text-sm w-full"
+                                >
+                                  <div className="flex items-center gap-2 mb-2 text-blue-600 dark:text-blue-400">
+                                    <Sparkles className="size-3.5" />
+                                    <span className="font-medium text-xs">
+                                      Score updated
+                                    </span>
+                                  </div>
+
+                                  <div className="flex items-center justify-between gap-2 text-xs py-1.5 px-2 bg-background/50 rounded border border-border/30">
+                                    <span className="font-medium truncate">
+                                      {result.task}
+                                    </span>
+                                    <div className="flex items-center gap-1.5 shrink-0">
+                                      <span className="text-blue-600 dark:text-blue-400 font-semibold">
+                                        {result.score}%
+                                      </span>
+                                      {result.status === "Done" && (
+                                        <span className="text-green-600 dark:text-green-400">
+                                          ✓
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            }
+                            default:
+                              return null;
+                          }
+                        }
+
+                        // -----------------------------------------------------------------------
                         // TOOL: showGradeRequirements
                         // -----------------------------------------------------------------------
                         case "tool-showGradeRequirements": {
@@ -616,36 +687,94 @@ export function AICopilotSidebar({
                           switch (p.state) {
                             case "input-streaming":
                             case "input-available":
-                              return <div key={callId}>Creating tasks...</div>;
-                            case "output-available":
-                              const tasks = p.output?.tasks;
                               return (
                                 <div
                                   key={callId}
-                                  className="bg-muted p-4 rounded-lg my-2 text-sm w-full"
+                                  className="bg-muted p-3 rounded-lg text-sm w-full animate-pulse"
                                 >
-                                  <h4 className="font-medium mb-2">
-                                    Tasks Created
-                                  </h4>
-                                  <ul className="space-y-2">
+                                  Creating tasks...
+                                </div>
+                              );
+                            case "output-available":
+                              const tasks = p.output?.tasks;
+                              const taskArray = Array.isArray(tasks)
+                                ? tasks
+                                : tasks?.tasks || [];
+                              const taskCount = taskArray.length;
+
+                              if (taskCount === 0) {
+                                return (
+                                  <div
+                                    key={callId}
+                                    className="bg-muted p-4 rounded-lg my-2 text-sm w-full"
+                                  >
+                                    <div className="text-muted-foreground italic">
+                                      No tasks created
+                                    </div>
+                                  </div>
+                                );
+                              }
+
+                              return (
+                                <div
+                                  key={callId}
+                                  className="bg-muted/50 border border-border/50 p-3 rounded-lg my-2 text-sm w-full"
+                                >
+                                  <div className="flex items-center gap-2 mb-2 text-green-600 dark:text-green-400">
+                                    <Sparkles className="size-3.5" />
+                                    <span className="font-medium text-xs">
+                                      {taskCount} task
+                                      {taskCount !== 1 ? "s" : ""} created
+                                    </span>
+                                  </div>
+
+                                  <div className="space-y-1.5">
                                     {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-                                    {tasks?.tasks?.map((t: any, i: number) => (
-                                      <li
-                                        key={i}
-                                        className="flex justify-between items-center text-xs border-b pb-1 last:border-0"
-                                      >
-                                        <span>{t.title}</span>
-                                        <span className="text-muted-foreground">
-                                          {t.dueDate
-                                            ? format(
-                                                new Date(t.dueDate),
-                                                "MMM d",
-                                              )
-                                            : "No date"}
-                                        </span>
-                                      </li>
-                                    ))}
-                                  </ul>
+                                    {taskArray.map((t: any, i: number) => {
+                                      const hasScore =
+                                        t.scoreReceived && t.scoreMax;
+                                      const scorePercent = hasScore
+                                        ? (
+                                            (parseFloat(t.scoreReceived) /
+                                              parseFloat(t.scoreMax)) *
+                                            100
+                                          ).toFixed(0)
+                                        : null;
+
+                                      return (
+                                        <div
+                                          key={i}
+                                          className="flex items-center justify-between gap-2 text-xs py-1.5 px-2 bg-background/50 rounded border border-border/30 hover:border-green-400/50 transition-colors"
+                                        >
+                                          <div className="flex-1 min-w-0 flex items-center gap-2">
+                                            <span className="font-medium truncate">
+                                              {t.title}
+                                            </span>
+                                            {hasScore && (
+                                              <span className="text-green-600 dark:text-green-400 font-semibold shrink-0">
+                                                {scorePercent}%
+                                              </span>
+                                            )}
+                                          </div>
+                                          <div className="flex items-center gap-1.5 shrink-0 text-muted-foreground">
+                                            {t.dueDate && (
+                                              <span className="text-[10px]">
+                                                {format(
+                                                  new Date(t.dueDate),
+                                                  "MMM d",
+                                                )}
+                                              </span>
+                                            )}
+                                            {t.status === "Done" && (
+                                              <span className="text-green-600 dark:text-green-400">
+                                                ✓
+                                              </span>
+                                            )}
+                                          </div>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
                                 </div>
                               );
                             default:

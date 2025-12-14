@@ -1,5 +1,4 @@
 import { openai } from "@ai-sdk/openai";
-import { google } from "@ai-sdk/google";
 
 import {
   convertToModelMessages,
@@ -45,7 +44,7 @@ export async function POST(req: Request) {
       : [];
 
   const coreMessages = convertToModelMessages(messages);
-  console.log(JSON.stringify(coreMessages, null, 2));
+  // for debugging: console.log(JSON.stringify(coreMessages, null, 2));
   const system = `You are a helpful and precise Student Assistant. You have access to the student's database.
     Today is ${new Date().toDateString()}.
     
@@ -280,6 +279,24 @@ ${
                     .describe("Task description with location/time details"),
                   due_date: z.string().describe("ISO Date string"),
                   priority: z.enum(["Low", "Medium", "High"]),
+                  status: z
+                    .enum(["Todo", "In Progress", "Done", "Submitted"])
+                    .nullable()
+                    .describe(
+                      "Task status - use 'Done' if graded, 'Submitted' if submitted but not graded, 'Todo' for new tasks, or null if unknown",
+                    ),
+                  score_received: z
+                    .number()
+                    .nullable()
+                    .describe(
+                      "The score/grade received (as a number, e.g., 60 for 60%), or null if not graded",
+                    ),
+                  score_max: z
+                    .number()
+                    .nullable()
+                    .describe(
+                      "Maximum possible score (e.g., 100), or null to use default",
+                    ),
                 }),
               ),
             }),
@@ -298,7 +315,9 @@ Extract tasks from: "${request}"
 - Use the exact grade weight IDs from the available weights list
 - For exams, try to use the "Exam" or "Midterm" grade weight ID for that course
 - If you cannot determine a field, use an empty string ""
-- Include location and time information in the description field`,
+- Include location and time information in the description field
+- Extract scores if provided (e.g., "60%" -> score_received: 60, score_max: 100)
+- Set status to "Done" if the task has been graded, "Submitted" if submitted but not graded, "Todo" otherwise`,
           });
 
           const newTasks = [];
@@ -331,7 +350,11 @@ Extract tasks from: "${request}"
                 description: t.description || null,
                 dueDate: new Date(t.due_date),
                 priority: t.priority,
-                status: "Todo",
+                status: t.status || "Todo",
+                scoreReceived: t.score_received
+                  ? String(t.score_received)
+                  : null,
+                scoreMax: t.score_max ? String(t.score_max) : null,
               })
               .returning();
             newTasks.push(res[0]);
