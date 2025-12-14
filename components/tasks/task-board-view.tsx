@@ -152,6 +152,10 @@ export function TaskBoardView({ tasks, context }: TaskBoardViewProps) {
       const activeIndex = optimisticTasks.findIndex((t) => t.id === activeId);
       const overIndex = optimisticTasks.findIndex((t) => t.id === overId);
 
+      if (activeIndex === -1 || overIndex === -1) {
+        return;
+      }
+
       if (
         optimisticTasks[activeIndex].status !==
         optimisticTasks[overIndex].status
@@ -171,6 +175,11 @@ export function TaskBoardView({ tasks, context }: TaskBoardViewProps) {
     const isOverColumn = over.data.current?.type === "Column";
     if (isActiveTask && isOverColumn) {
       const activeIndex = optimisticTasks.findIndex((t) => t.id === activeId);
+
+      if (activeIndex === -1) {
+        return;
+      }
+
       const newStatus = overId as TaskStatus;
 
       if (optimisticTasks[activeIndex].status !== newStatus) {
