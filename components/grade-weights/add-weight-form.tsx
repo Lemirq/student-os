@@ -1,6 +1,6 @@
 "use client";
 
-import { Control, FieldValues, Resolver, useForm } from "react-hook-form";
+import { Resolver, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { gradeWeightSchema } from "@/lib/schemas";
@@ -20,20 +20,19 @@ export function AddGradeWeightForm({ courseId }: { courseId: string }) {
   const form = useForm<z.infer<typeof gradeWeightSchema>>({
     resolver: zodResolver(gradeWeightSchema) as unknown as Resolver<
       z.infer<typeof gradeWeightSchema>
-    > &
-      FieldValues,
+    >,
     defaultValues: {
-      course_id: courseId,
+      courseId: courseId,
       name: "",
-      weight_percent: 0,
+      weightPercent: "0",
     },
   });
 
   async function onSubmit(
-    values: Omit<z.infer<typeof gradeWeightSchema>, "course_id">,
+    values: Omit<z.infer<typeof gradeWeightSchema>, "courseId">,
   ) {
-    await createGradeWeight({ ...values, course_id: courseId });
-    form.reset({ course_id: courseId, name: "", weight_percent: 0 });
+    await createGradeWeight({ ...values, courseId: courseId });
+    form.reset({ courseId: courseId, name: "", weightPercent: "0" });
   }
 
   return (
@@ -43,7 +42,7 @@ export function AddGradeWeightForm({ courseId }: { courseId: string }) {
           onSubmit(
             values as unknown as Omit<
               z.infer<typeof gradeWeightSchema>,
-              "course_id"
+              "courseId"
             >,
           ),
         )}
@@ -63,11 +62,16 @@ export function AddGradeWeightForm({ courseId }: { courseId: string }) {
         />
         <FormField
           control={form.control}
-          name="weight_percent"
+          name="weightPercent"
           render={({ field }) => (
             <FormItem className="w-24">
               <FormControl>
-                <Input type="number" placeholder="%" {...field} />
+                <Input
+                  type="number"
+                  placeholder="%"
+                  value={field.value ?? undefined}
+                  onChange={(e) => field.onChange(Number(e.target.value))}
+                />
               </FormControl>
               <FormMessage />
             </FormItem>

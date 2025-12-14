@@ -9,6 +9,7 @@ type CommandView =
   | "EDIT_TITLE"
   | "EDIT_DESCRIPTION"
   | "EDIT_DO_DATE"
+  | "EDIT_DUE_DATE"
   | "EDIT_SCORE"
   | "EDIT_COURSE"
   | "EDIT_GRADE_WEIGHT";

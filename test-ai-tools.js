@@ -3,6 +3,7 @@
  * Run tests against the AI chat API to validate tooling capabilities
  */
 
+// eslint-disable-next-line @typescript-eslint/no-require-imports
 const testContent = require("./ai-tooling-test-content.ts");
 
 // Mock fetch for testing (replace with actual implementation)
@@ -116,7 +117,7 @@ class AIToolsTester {
         const messages = [{ role: "user", content: test.user }];
         await this.runTest(`Syllabus Parsing - ${key}`, messages);
         results.passed++;
-      } catch (error) {
+      } catch {
         results.failed++;
       }
     }
@@ -130,7 +131,7 @@ class AIToolsTester {
         const messages = [{ role: "user", content: test.user }];
         await this.runTest(`Schedule Query - ${key}`, messages);
         results.passed++;
-      } catch (error) {
+      } catch {
         results.failed++;
       }
     }
@@ -144,7 +145,7 @@ class AIToolsTester {
         const messages = [{ role: "user", content: test.user }];
         await this.runTest(`Score Update - ${key}`, messages);
         results.passed++;
-      } catch (error) {
+      } catch {
         results.failed++;
       }
     }
@@ -195,7 +196,7 @@ class AIToolsTester {
         console.log(
           `Expected ${testCase.expectedTasks} tasks, got ${result.toolCalls?.length || 0} tool calls`,
         );
-      } catch (error) {
+      } catch {
         console.log(`Failed to parse ${testCase.name}`);
       }
     }

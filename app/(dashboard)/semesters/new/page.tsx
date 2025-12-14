@@ -25,10 +25,10 @@ export default function NewSemesterPage() {
     >,
     defaultValues: {
       name: "",
-      year_level: 1,
-      start_date: "",
-      end_date: "",
-      is_current: true,
+      yearLevel: 1,
+      startDate: "",
+      endDate: "",
+      isCurrent: true,
     },
   });
 
@@ -56,12 +56,16 @@ export default function NewSemesterPage() {
           />
           <FormField
             control={form.control}
-            name="year_level"
+            name="yearLevel"
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Year Level</FormLabel>
                 <FormControl>
-                  <Input type="number" {...field} />
+                  <Input
+                    type="number"
+                    value={field.value ?? undefined}
+                    onChange={(e) => field.onChange(Number(e.target.value))}
+                  />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -70,7 +74,7 @@ export default function NewSemesterPage() {
           <div className="grid grid-cols-2 gap-4">
             <FormField
               control={form.control}
-              name="start_date"
+              name="startDate"
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Start Date</FormLabel>
@@ -89,7 +93,7 @@ export default function NewSemesterPage() {
             />
             <FormField
               control={form.control}
-              name="end_date"
+              name="endDate"
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>End Date</FormLabel>

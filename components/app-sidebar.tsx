@@ -4,7 +4,6 @@ import * as React from "react";
 import {
   BookOpen,
   GraduationCap,
-  LayoutDashboard,
   Settings,
   Plus,
   ChevronRight,

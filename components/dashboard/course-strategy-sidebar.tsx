@@ -143,7 +143,7 @@ export function CourseStrategySidebar({ course }: CourseStrategySidebarProps) {
     try {
       await updateGradeWeight(gradeWeightId, {
         name: editedName,
-        weight_percent: parseFloat(editedWeight),
+        weightPercent: parseFloat(editedWeight),
       });
       setEditingId(null);
       setEditedName("");
@@ -188,9 +188,9 @@ export function CourseStrategySidebar({ course }: CourseStrategySidebarProps) {
     setIsSaving(true);
     try {
       await createGradeWeight({
-        course_id: course.id,
+        courseId: course.id,
         name: newName,
-        weight_percent: parseFloat(newWeight),
+        weightPercent: String(parseFloat(newWeight)),
       });
       setIsAdding(false);
       setNewName("");

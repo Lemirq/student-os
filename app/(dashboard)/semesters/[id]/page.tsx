@@ -18,7 +18,16 @@ import { SemesterProgress } from "@/components/dashboard/semester-progress";
 import { GradeGapCard } from "@/components/dashboard/grade-gap-card";
 import { WorkloadHeatmap } from "@/components/dashboard/workload-heatmap";
 import { HighStakesList } from "@/components/dashboard/high-stakes-list";
+import { EditSemesterDialog } from "@/components/semesters/edit-semester-dialog";
 // import { QuickCapture } from "@/components/dashboard/quick-capture";
+
+// Helper to format date-only strings correctly without timezone issues
+function formatDateOnly(dateStr: string): string {
+  // Parse YYYY-MM-DD as local date
+  const [year, month, day] = dateStr.split("-").map(Number);
+  const date = new Date(year, month - 1, day);
+  return format(date, "MMM d, yyyy");
+}
 
 export default async function SemesterPage({
   params,
@@ -44,15 +53,18 @@ export default async function SemesterPage({
         <div>
           <h1 className="text-3xl font-bold tracking-tight">{semester.name}</h1>
           <p className="text-muted-foreground">
-            {format(new Date(semester.startDate), "MMM d, yyyy")} -{" "}
-            {format(new Date(semester.endDate), "MMM d, yyyy")}
+            {formatDateOnly(semester.startDate)} -{" "}
+            {formatDateOnly(semester.endDate)}
           </p>
         </div>
-        <Link href={`/semesters/${semester.id}/courses/new`}>
-          <Button>
-            <Plus className="mr-2 h-4 w-4" /> Add Course
-          </Button>
-        </Link>
+        <div className="flex gap-2">
+          <EditSemesterDialog semester={semester} />
+          <Link href={`/semesters/${semester.id}/courses/new`}>
+            <Button>
+              <Plus className="mr-2 h-4 w-4" /> Add Course
+            </Button>
+          </Link>
+        </div>
       </div>
 
       {/* Dashboard Grid */}

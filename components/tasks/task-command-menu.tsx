@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import * as chrono from "chrono-node";
 import {
   Command,
   CommandEmpty,
@@ -38,12 +39,47 @@ import { getAllCourses } from "@/actions/get-course-data";
 import { getGradeWeightsForCourses } from "@/actions/courses";
 import { Course } from "@/types";
 import { useCommandStore } from "@/hooks/use-command-store";
+import { format } from "date-fns";
 
 export function TaskCommandMenu() {
   const { isOpen, tasks, close, view, setView } = useCommandStore();
   const [courses, setCourses] = React.useState<Course[]>([]);
   const [gradeWeights, setGradeWeights] = React.useState<GradeWeight[]>([]);
   const [search, setSearch] = React.useState("");
+  const [parsedDate, setParsedDate] = React.useState<Date | null>(null);
+  const [parsedScore, setParsedScore] = React.useState<string | null>(null);
+
+  // Parse date from search input in real-time
+  React.useEffect(() => {
+    if (view === "MAIN" && search.trim()) {
+      const date = chrono.parseDate(search);
+      if (date) {
+        date.setHours(12, 0, 0, 0);
+        setParsedDate(date);
+      } else {
+        setParsedDate(null);
+      }
+    } else {
+      setParsedDate(null);
+    }
+  }, [search, view]);
+
+  // Parse score from search input in real-time
+  React.useEffect(() => {
+    if (view === "MAIN" && search.trim()) {
+      // Check if input is purely numeric or a fraction (e.g., "95" or "95/100" or "4/5")
+      const scorePattern = /^(\d+(?:\.\d+)?)(?:\/(\d+(?:\.\d+)?))?$/;
+      const match = search.trim().match(scorePattern);
+
+      if (match) {
+        setParsedScore(search.trim());
+      } else {
+        setParsedScore(null);
+      }
+    } else {
+      setParsedScore(null);
+    }
+  }, [search, view]);
 
   React.useEffect(() => {
     getAllCourses().then(setCourses);
@@ -90,10 +126,10 @@ export function TaskCommandMenu() {
           payload.status = update.status as "Todo" | "In Progress" | "Done";
         if (update.priority)
           payload.priority = update.priority as "Low" | "Medium" | "High";
-        if (update.courseId) payload.course_id = update.courseId;
+        if (update.courseId) payload.courseId = update.courseId;
         if (update.gradeWeightId !== undefined)
-          payload.grade_weight_id = update.gradeWeightId;
-        if (update.dueDate) payload.due_date = update.dueDate.toISOString();
+          payload.gradeWeightId = update.gradeWeightId;
+        if (update.dueDate) payload.dueDate = update.dueDate;
 
         // Update all selected tasks
         await Promise.all(
@@ -130,11 +166,11 @@ export function TaskCommandMenu() {
 
       try {
         const payload: Parameters<typeof updateTask>[1] = {
-          score_received: received,
+          scoreReceived: String(received),
           status: "Done",
         };
         if (max !== undefined && !isNaN(max)) {
-          payload.score_max = max;
+          payload.scoreMax = String(max);
         }
 
         await Promise.all(
@@ -159,8 +195,8 @@ export function TaskCommandMenu() {
 
     try {
       const payload: Parameters<typeof updateTask>[1] = {
-        score_received: null,
-        score_max: null,
+        scoreReceived: null,
+        scoreMax: null,
       };
 
       await Promise.all(
@@ -175,6 +211,65 @@ export function TaskCommandMenu() {
     } catch (error) {
       console.error("Error removing score:", error);
       toast.error("Failed to remove score");
+    }
+  }, [tasks, close]);
+
+  const handleDueDateUpdate = React.useCallback(
+    async (value: string) => {
+      if (!tasks || tasks.length === 0) return;
+
+      const parsedDate = chrono.parseDate(value);
+
+      if (!parsedDate) {
+        toast.error("Invalid date format");
+        return;
+      }
+
+      // Set to noon to avoid timezone issues
+      parsedDate.setHours(12, 0, 0, 0);
+
+      try {
+        const payload: Parameters<typeof updateTask>[1] = {
+          dueDate: parsedDate,
+        };
+
+        await Promise.all(
+          tasks.map((task) => {
+            if (!task.id) return Promise.resolve();
+            return updateTask(task.id, payload);
+          }),
+        );
+
+        toast.success(`Due date set to ${format(parsedDate, "MMM d, yyyy")}`);
+        close();
+      } catch (error) {
+        console.error("Error updating due date:", error);
+        toast.error("Failed to update due date");
+      }
+    },
+    [tasks, close],
+  );
+
+  const handleDueDateRemove = React.useCallback(async () => {
+    if (!tasks || tasks.length === 0) return;
+
+    try {
+      const payload: Parameters<typeof updateTask>[1] = {
+        dueDate: undefined,
+      };
+
+      await Promise.all(
+        tasks.map((task) => {
+          if (!task.id) return Promise.resolve();
+          return updateTask(task.id, payload);
+        }),
+      );
+
+      toast.success("Due date removed");
+      close();
+    } catch (error) {
+      console.error("Error removing due date:", error);
+      toast.error("Failed to remove due date");
     }
   }, [tasks, close]);
 
@@ -210,6 +305,10 @@ export function TaskCommandMenu() {
       return "Enter score (e.g. 95 or 95/100)...";
     }
 
+    if (view === "EDIT_DUE_DATE") {
+      return "Enter due date (e.g. tomorrow, next Friday, Dec 25)...";
+    }
+
     if (tasks.length === 1) {
       return `Action on "${tasks[0].title}"...`;
     } else if (tasks.length > 1) {
@@ -234,7 +333,12 @@ export function TaskCommandMenu() {
           </DialogDescription>
         </DialogHeader>
         <Command
-          shouldFilter={view !== "EDIT_SCORE"}
+          shouldFilter={
+            view !== "EDIT_SCORE" &&
+            view !== "EDIT_DUE_DATE" &&
+            !parsedDate &&
+            !parsedScore
+          }
           className="**:[[cmdk-group-heading]]:text-muted-foreground **:data-[slot=command-input-wrapper]:h-12 **:[[cmdk-group-heading]]:px-2 **:[[cmdk-group-heading]]:font-medium **:[[cmdk-group]]:px-2 [&_[cmdk-group]:not([hidden])_~[cmdk-group]]:pt-0 [&_[cmdk-input-wrapper]_svg]:h-5 [&_[cmdk-input-wrapper]_svg]:w-5 **:[[cmdk-input]]:h-12 **:[[cmdk-item]]:px-2 **:[[cmdk-item]]:py-3 [&_[cmdk-item]_svg]:h-5 [&_[cmdk-item]_svg]:w-5"
           onKeyDown={handleKeyDown}
         >
@@ -247,6 +351,30 @@ export function TaskCommandMenu() {
             {view === "MAIN" && (
               <>
                 <CommandEmpty>No results found.</CommandEmpty>
+
+                {(parsedDate || parsedScore) && (
+                  <>
+                    <CommandGroup heading="Quick Action">
+                      {parsedScore && (
+                        <CommandItem
+                          onSelect={() => handleScoreUpdate(parsedScore)}
+                        >
+                          <Calculator className="mr-2 h-4 w-4" />
+                          Set score to {parsedScore}
+                        </CommandItem>
+                      )}
+                      {parsedDate && (
+                        <CommandItem
+                          onSelect={() => handleUpdate({ dueDate: parsedDate })}
+                        >
+                          <CalendarIcon className="mr-2 h-4 w-4" />
+                          Set due date to {format(parsedDate, "MMM d, yyyy")}
+                        </CommandItem>
+                      )}
+                    </CommandGroup>
+                    <CommandSeparator />
+                  </>
+                )}
 
                 <CommandGroup heading="Actions">
                   <CommandItem onSelect={() => setView("EDIT_SCORE")}>
@@ -351,9 +479,14 @@ export function TaskCommandMenu() {
                 <CommandSeparator />
 
                 <CommandGroup heading="Due Date">
+                  <CommandItem onSelect={() => setView("EDIT_DUE_DATE")}>
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    Edit Due Date
+                  </CommandItem>
                   <CommandItem
                     onSelect={() => {
                       const today = new Date();
+                      today.setHours(12, 0, 0, 0);
                       handleUpdate({ dueDate: today });
                     }}
                   >
@@ -364,6 +497,7 @@ export function TaskCommandMenu() {
                     onSelect={() => {
                       const tomorrow = new Date();
                       tomorrow.setDate(tomorrow.getDate() + 1);
+                      tomorrow.setHours(12, 0, 0, 0);
                       handleUpdate({ dueDate: tomorrow });
                     }}
                   >
@@ -400,6 +534,37 @@ export function TaskCommandMenu() {
                 >
                   <X className="mr-2 h-4 w-4" />
                   Remove Score
+                </CommandItem>
+                <CommandItem
+                  onSelect={() => {
+                    setView("MAIN");
+                    setSearch("");
+                  }}
+                >
+                  <ArrowLeft className="mr-2 h-4 w-4" />
+                  Back
+                </CommandItem>
+              </CommandGroup>
+            )}
+
+            {view === "EDIT_DUE_DATE" && (
+              <CommandGroup heading="Due Date">
+                {search.trim() !== "" &&
+                  (() => {
+                    const parsedDate = chrono.parseDate(search);
+                    return parsedDate ? (
+                      <CommandItem onSelect={() => handleDueDateUpdate(search)}>
+                        <Check className="mr-2 h-4 w-4" />
+                        Set due date to {format(parsedDate, "MMM d, yyyy")}
+                      </CommandItem>
+                    ) : null;
+                  })()}
+                <CommandItem
+                  onSelect={handleDueDateRemove}
+                  className="text-red-500 aria-selected:text-red-500"
+                >
+                  <X className="mr-2 h-4 w-4" />
+                  Remove Due Date
                 </CommandItem>
                 <CommandItem
                   onSelect={() => {

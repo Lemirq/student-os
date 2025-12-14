@@ -7,6 +7,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { eq, and } from "drizzle-orm";
 import { createClient } from "@/utils/supabase/server";
+import { Task } from "@/types";
 
 async function ensureUserExists(userId: string, email: string) {
   // Check if user exists
@@ -38,31 +39,27 @@ export async function createTask(data: z.infer<typeof taskSchema>) {
 
   await db.insert(tasks).values({
     userId: user.user.id,
-    courseId: validated.course_id,
-    gradeWeightId: validated.grade_weight_id,
+    courseId: validated.courseId,
+    gradeWeightId: validated.gradeWeightId,
     title: validated.title,
     status: validated.status,
     priority: validated.priority,
-    doDate: validated.do_date ? new Date(validated.do_date) : null,
-    dueDate: validated.due_date ? new Date(validated.due_date) : null,
+    doDate: validated.doDate ? new Date(validated.doDate) : null,
+    dueDate: validated.dueDate ? new Date(validated.dueDate) : null,
     scoreReceived:
-      validated.score_received !== null &&
-      validated.score_received !== undefined
-        ? String(validated.score_received)
+      validated.scoreReceived !== null && validated.scoreReceived !== undefined
+        ? String(validated.scoreReceived)
         : null,
     scoreMax:
-      validated.score_max !== null && validated.score_max !== undefined
-        ? String(validated.score_max)
+      validated.scoreMax !== null && validated.scoreMax !== undefined
+        ? String(validated.scoreMax)
         : null,
   });
 
-  revalidatePath(`/courses/${validated.course_id}`);
+  revalidatePath(`/courses/${validated.courseId}`);
 }
 
-export async function updateTask(
-  id: string,
-  data: Partial<z.infer<typeof taskSchema>>,
-) {
+export async function updateTask(id: string, data: Partial<Task>) {
   try {
     const supabase = await createClient();
     const {
@@ -81,24 +78,24 @@ export async function updateTask(
     if (data.title !== undefined) updateData.title = data.title;
     if (data.status !== undefined) updateData.status = data.status;
     if (data.priority !== undefined) updateData.priority = data.priority;
-    if (data.do_date !== undefined)
-      updateData.doDate = data.do_date ? new Date(data.do_date) : null;
-    if (data.due_date !== undefined)
-      updateData.dueDate = data.due_date ? new Date(data.due_date) : null;
-    if (data.score_received !== undefined)
+    if (data.doDate !== undefined)
+      updateData.doDate = data.doDate ? new Date(data.doDate) : null;
+    if (data.dueDate !== undefined)
+      updateData.dueDate = data.dueDate ? new Date(data.dueDate) : null;
+    if (data.scoreReceived !== undefined)
       updateData.scoreReceived =
-        data.score_received !== null ? String(data.score_received) : null;
-    if (data.score_max !== undefined)
+        data.scoreReceived !== null ? String(data.scoreReceived) : null;
+    if (data.scoreMax !== undefined)
       updateData.scoreMax =
-        data.score_max !== null ? String(data.score_max) : null;
-    if (data.grade_weight_id !== undefined)
-      updateData.gradeWeightId = data.grade_weight_id;
+        data.scoreMax !== null ? String(data.scoreMax) : null;
+    if (data.gradeWeightId !== undefined)
+      updateData.gradeWeightId = data.gradeWeightId;
     if (data.description !== undefined)
       updateData.description = data.description;
-    if (data.course_id !== undefined) {
-      updateData.courseId = data.course_id;
+    if (data.courseId !== undefined) {
+      updateData.courseId = data.courseId;
       // Reset grade weight if course changes and new weight not provided
-      if (data.grade_weight_id === undefined) {
+      if (data.gradeWeightId === undefined) {
         updateData.gradeWeightId = null;
       }
     }
@@ -110,8 +107,8 @@ export async function updateTask(
       revalidatePath(`/courses/${existingTask.courseId}`);
     }
     // If course changed, revalidate new course too
-    if (data.course_id && data.course_id !== existingTask.courseId) {
-      revalidatePath(`/courses/${data.course_id}`);
+    if (data.courseId && data.courseId !== existingTask.courseId) {
+      revalidatePath(`/courses/${data.courseId}`);
     }
     // Revalidate the task detail page itself
     revalidatePath(`/tasks/${id}`);

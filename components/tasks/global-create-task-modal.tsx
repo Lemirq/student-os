@@ -69,7 +69,7 @@ export function GlobalCreateTaskModal({
     },
   });
 
-  const selectedCourseId = form.watch("course_id");
+  const selectedCourseId = form.watch("courseId");
 
   useEffect(() => {
     if (selectedCourseId) {
@@ -110,13 +110,13 @@ export function GlobalCreateTaskModal({
             <div className="grid grid-cols-2 gap-4">
               <FormField
                 control={form.control}
-                name="course_id"
+                name="courseId"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Course</FormLabel>
                     <Select
                       onValueChange={field.onChange}
-                      defaultValue={field.value}
+                      defaultValue={field.value ?? undefined}
                     >
                       <FormControl>
                         <SelectTrigger>
@@ -138,7 +138,7 @@ export function GlobalCreateTaskModal({
 
               <FormField
                 control={form.control}
-                name="grade_weight_id"
+                name="gradeWeightId"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Category</FormLabel>
@@ -175,7 +175,7 @@ export function GlobalCreateTaskModal({
                     <FormLabel>Status</FormLabel>
                     <Select
                       onValueChange={field.onChange}
-                      defaultValue={field.value}
+                      defaultValue={field.value ?? undefined}
                     >
                       <FormControl>
                         <SelectTrigger>
@@ -201,7 +201,7 @@ export function GlobalCreateTaskModal({
                     <FormLabel>Priority</FormLabel>
                     <Select
                       onValueChange={field.onChange}
-                      defaultValue={field.value}
+                      defaultValue={field.value ?? undefined}
                     >
                       <FormControl>
                         <SelectTrigger>
@@ -223,7 +223,7 @@ export function GlobalCreateTaskModal({
             <div className="grid grid-cols-2 gap-4">
               <FormField
                 control={form.control}
-                name="do_date"
+                name="doDate"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Do Date</FormLabel>
@@ -243,7 +243,7 @@ export function GlobalCreateTaskModal({
 
               <FormField
                 control={form.control}
-                name="due_date"
+                name="dueDate"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Due Date</FormLabel>

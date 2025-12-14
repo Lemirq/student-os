@@ -40,10 +40,10 @@ export async function createSemester(data: z.infer<typeof semesterSchema>) {
 
   const [insertedSemester]: Semester[] = await db.insert(semesters).values({
     name: validated.name,
-    yearLevel: validated.year_level,
-    startDate: validated.start_date,
-    endDate: validated.end_date,
-    isCurrent: validated.is_current,
+    yearLevel: validated.yearLevel,
+    startDate: validated.startDate,
+    endDate: validated.endDate,
+    isCurrent: validated.isCurrent,
     userId: user.user.id,
   });
 
@@ -63,12 +63,12 @@ export async function createCourse(data: z.infer<typeof courseSchema>) {
   const validated = courseSchema.parse(data);
 
   const [insertedCourse]: Course[] = await db.insert(courses).values({
-    semesterId: validated.semester_id,
+    semesterId: validated.semesterId,
     userId: user.user.id,
     code: validated.code,
     name: validated.name,
     color: validated.color,
-    goalGrade: validated.goal_grade ? String(validated.goal_grade) : null,
+    goalGrade: validated.goalGrade ? String(validated.goalGrade) : null,
   });
 
   revalidatePath("/");
@@ -81,12 +81,12 @@ export async function createGradeWeight(
   const validated = gradeWeightSchema.parse(data);
 
   await db.insert(gradeWeights).values({
-    courseId: validated.course_id,
+    courseId: validated.courseId,
     name: validated.name,
-    weightPercent: String(validated.weight_percent),
+    weightPercent: String(validated.weightPercent),
   });
 
-  revalidatePath(`/courses/${validated.course_id}`);
+  revalidatePath(`/courses/${validated.courseId}`);
 }
 
 export async function getCourseGradeWeights(courseId: string) {
@@ -98,7 +98,7 @@ export async function getCourseGradeWeights(courseId: string) {
 
 export async function updateGradeWeight(
   gradeWeightId: string,
-  data: { name?: string; weight_percent?: number },
+  data: { name?: string; weightPercent?: number },
 ) {
   const updates: { name?: string; weightPercent?: string } = {};
 
@@ -106,8 +106,8 @@ export async function updateGradeWeight(
     updates.name = data.name;
   }
 
-  if (data.weight_percent !== undefined) {
-    updates.weightPercent = String(data.weight_percent);
+  if (data.weightPercent !== undefined) {
+    updates.weightPercent = String(data.weightPercent);
   }
 
   const result = await db

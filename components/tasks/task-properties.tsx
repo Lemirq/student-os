@@ -57,7 +57,7 @@ export function TaskProperties({ task }: TaskPropertiesProps) {
 
   const handleCourseChange = async (value: string) => {
     try {
-      await updateTask(task.id, { course_id: value });
+      await updateTask(task.id, { courseId: value });
       toast.success("Course updated");
       // Note: This might require a refresh to update grade weights if they are course-specific
       // In a real app, we'd invalidate/refetch the task data here.
@@ -69,7 +69,7 @@ export function TaskProperties({ task }: TaskPropertiesProps) {
   const handleDateSelect = async (newDate: Date | null) => {
     setDate(newDate || undefined);
     try {
-      await updateTask(task.id, { due_date: newDate?.toISOString() || null });
+      await updateTask(task.id, { dueDate: newDate || null });
       toast.success("Due date updated");
     } catch {
       toast.error("Failed to update due date");
@@ -79,7 +79,7 @@ export function TaskProperties({ task }: TaskPropertiesProps) {
   const handleDoDateSelect = async (newDate: Date | null) => {
     setDoDate(newDate || undefined);
     try {
-      await updateTask(task.id, { do_date: newDate?.toISOString() || null });
+      await updateTask(task.id, { doDate: newDate || null });
       toast.success("Do date updated");
     } catch {
       toast.error("Failed to update do date");
@@ -88,7 +88,7 @@ export function TaskProperties({ task }: TaskPropertiesProps) {
 
   const handleWeightChange = async (value: string) => {
     try {
-      await updateTask(task.id, { grade_weight_id: value });
+      await updateTask(task.id, { gradeWeightId: value });
       toast.success("Category updated");
     } catch {
       toast.error("Failed to update category");
@@ -106,9 +106,13 @@ export function TaskProperties({ task }: TaskPropertiesProps) {
 
     try {
       if (field === "received") {
-        await updateTask(task.id, { score_received: num as number });
+        await updateTask(task.id, {
+          scoreReceived: num !== null ? String(num) : null,
+        });
       } else {
-        await updateTask(task.id, { score_max: num as number });
+        await updateTask(task.id, {
+          scoreMax: num !== null ? String(num) : null,
+        });
       }
       toast.success("Score updated");
     } catch {

@@ -27,11 +27,11 @@ export default function NewCoursePage() {
       z.infer<typeof courseSchema>
     >,
     defaultValues: {
-      semester_id: semesterId,
+      semesterId: semesterId,
       code: "",
       name: "",
       color: "#3b82f6", // Default blue
-      goal_grade: 85,
+      goalGrade: "85",
     },
   });
 
@@ -65,7 +65,11 @@ export default function NewCoursePage() {
               <FormItem>
                 <FormLabel>Course Name</FormLabel>
                 <FormControl>
-                  <Input placeholder="Intro to CS" {...field} />
+                  <Input
+                    placeholder="Intro to CS"
+                    {...field}
+                    value={field.value || ""}
+                  />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -79,8 +83,17 @@ export default function NewCoursePage() {
                 <FormLabel>Color</FormLabel>
                 <FormControl>
                   <div className="flex items-center gap-2">
-                    <Input type="color" className="w-12 h-10 p-1" {...field} />
-                    <Input placeholder="#3b82f6" {...field} />
+                    <Input
+                      type="color"
+                      className="w-12 h-10 p-1"
+                      {...field}
+                      value={field.value || ""}
+                    />
+                    <Input
+                      placeholder="#3b82f6"
+                      {...field}
+                      value={field.value || ""}
+                    />
                   </div>
                 </FormControl>
                 <FormMessage />
@@ -89,12 +102,12 @@ export default function NewCoursePage() {
           />
           <FormField
             control={form.control}
-            name="goal_grade"
+            name="goalGrade"
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Goal Grade (%)</FormLabel>
                 <FormControl>
-                  <Input type="number" {...field} />
+                  <Input type="number" {...field} value={field.value || ""} />
                 </FormControl>
                 <FormMessage />
               </FormItem>

@@ -4,6 +4,7 @@ import { db } from "@/drizzle";
 import { semesters, courses, tasks, gradeWeights } from "@/schema";
 import { eq, inArray } from "drizzle-orm";
 import { Semester, Course, Task, GradeWeight } from "@/types";
+import { revalidatePath } from "next/cache";
 
 export type SemesterData = Semester & {
   courses: Course[];
@@ -69,4 +70,32 @@ export async function getSemesterData(
     courses: coursesResult,
     tasks: tasksWithDetails,
   };
+}
+
+export async function updateSemester(
+  semesterId: string,
+  data: {
+    name?: string;
+    start_date?: string;
+    end_date?: string;
+  },
+): Promise<void> {
+  const updateData: Record<string, string> = {};
+
+  if (data.name !== undefined) {
+    updateData.name = data.name;
+  }
+  if (data.start_date !== undefined) {
+    updateData.startDate = data.start_date;
+  }
+  if (data.end_date !== undefined) {
+    updateData.endDate = data.end_date;
+  }
+
+  await db
+    .update(semesters)
+    .set(updateData)
+    .where(eq(semesters.id, semesterId));
+
+  revalidatePath(`/semesters/${semesterId}`);
 }

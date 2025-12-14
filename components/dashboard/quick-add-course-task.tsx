@@ -26,7 +26,7 @@ export function QuickAddCourseTask({
         try {
           await createTask({
             title: title.trim(),
-            course_id: courseId,
+            courseId: courseId,
             status: "Todo",
             priority: "Medium",
           });

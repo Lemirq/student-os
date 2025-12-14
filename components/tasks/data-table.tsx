@@ -146,8 +146,8 @@ export function DataTable<TData, TValue>({
   const [columnSizing, setColumnSizing] = React.useState({});
   const [columnOrder, setColumnOrder] = React.useState<ColumnOrderState>([]);
 
-  // Track the last focused row index to help with range selection
-  const lastFocusedIndexRef = React.useRef<number | null>(null);
+  // Track the last clicked/focused row ID to help with range selection
+  const lastClickedRowIdRef = React.useRef<string | null>(null);
 
   const { removeTask } = useTaskActions();
   const { open } = useCommandStore();
@@ -216,6 +216,7 @@ export function DataTable<TData, TValue>({
     hasMounted,
   ]);
 
+  // eslint-disable-next-line react-hooks/incompatible-library
   const table = useReactTable({
     data,
     columns,
@@ -288,10 +289,9 @@ export function DataTable<TData, TValue>({
     row: Row<TData>,
   ) => {
     const task = row.original as Task;
-    const currentRowIndex = row.index;
 
-    // Track focused row
-    lastFocusedIndexRef.current = currentRowIndex;
+    // Track focused row for keyboard navigation (store row ID, not index)
+    lastClickedRowIdRef.current = row.id;
 
     switch (e.key) {
       case "ArrowDown": {
@@ -499,12 +499,46 @@ export function DataTable<TData, TValue>({
                     onKeyDown={(e) => handleRowKeyDown(e, row)}
                     onClick={(e) => {
                       if (e.shiftKey) {
-                        // Simple range selection could be implemented here if needed for mouse
+                        // Shift-click: Select range from last clicked row to current row
+                        if (lastClickedRowIdRef.current !== null) {
+                          // Use the sorted/filtered row model, not the original indices
+                          const rows = table.getRowModel().rows;
+
+                          // Find both rows' positions in the current sorted/filtered list
+                          const currentIndex = rows.findIndex(
+                            (r) => r.id === row.id,
+                          );
+                          const lastIndex = rows.findIndex(
+                            (r) => r.id === lastClickedRowIdRef.current,
+                          );
+
+                          if (currentIndex !== -1 && lastIndex !== -1) {
+                            // Calculate the range to select
+                            const start = Math.min(currentIndex, lastIndex);
+                            const end = Math.max(currentIndex, lastIndex);
+
+                            // Select all rows in the range
+                            for (let i = start; i <= end; i++) {
+                              rows[i].toggleSelected(true);
+                            }
+                          }
+                        } else {
+                          // If no previous selection, just select this row
+                          row.toggleSelected(true);
+                        }
+                        // Update last clicked row ID
+                        lastClickedRowIdRef.current = row.id;
                       } else if (e.metaKey || e.ctrlKey) {
+                        // Command/Ctrl-click: Toggle individual row selection
                         row.toggleSelected();
+                        // Update last clicked row ID for future shift-clicks
+                        lastClickedRowIdRef.current = row.id;
                       } else {
-                        // Optional: Clear selection on single click if not holding modifiers?
-                        // For now, let's keep it simple.
+                        // Single click: Select only this row and clear others
+                        table.resetRowSelection();
+                        row.toggleSelected(true);
+                        // Update last clicked row ID
+                        lastClickedRowIdRef.current = row.id;
                       }
                     }}
                     onDoubleClick={(e) => {

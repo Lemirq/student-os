@@ -203,12 +203,8 @@ export const DottedGlowBackground = ({
 
     regenDots();
 
-    let last = performance.now();
-
-    const draw = (now: number) => {
+    const draw = (_now: number) => {
       if (stopped) return;
-      const dt = (now - last) / 1000; // seconds
-      last = now;
       const { width, height } = container.getBoundingClientRect();
 
       ctx.clearRect(0, 0, el.width, el.height);
@@ -237,7 +233,7 @@ export const DottedGlowBackground = ({
       ctx.save();
       ctx.fillStyle = resolvedColor;
 
-      const time = (now / 1000) * Math.max(speedScale, 0);
+      const time = (_now / 1000) * Math.max(speedScale, 0);
       for (let i = 0; i < dots.length; i++) {
         const d = dots[i];
         // Linear triangle wave 0..1..0 for linear glow/dim

@@ -41,7 +41,7 @@ export function CreateTaskModal({
       z.infer<typeof taskSchema>
     >,
     defaultValues: {
-      course_id: courseId,
+      courseId: courseId,
       title: "",
       status: "Todo",
       priority: "Medium",
@@ -49,9 +49,9 @@ export function CreateTaskModal({
   });
 
   const onSubmit = async (
-    values: Omit<z.infer<typeof taskSchema>, "course_id">,
+    values: Omit<z.infer<typeof taskSchema>, "courseId">,
   ) => {
-    await createTask({ ...values, course_id: courseId });
+    await createTask({ ...values, courseId: courseId });
     setIsOpen(false);
     form.reset();
   };
@@ -78,10 +78,7 @@ export function CreateTaskModal({
         <form
           onSubmit={form.handleSubmit((values) =>
             onSubmit(
-              values as unknown as Omit<
-                z.infer<typeof taskSchema>,
-                "course_id"
-              >,
+              values as unknown as Omit<z.infer<typeof taskSchema>, "courseId">,
             ),
           )}
           className="space-y-4"
@@ -104,7 +101,7 @@ export function CreateTaskModal({
             <div className="space-y-2">
               <label className="text-sm font-medium">Category</label>
               <select
-                {...form.register("grade_weight_id")}
+                {...form.register("gradeWeightId")}
                 className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
               >
                 <option value="">None</option>
@@ -133,7 +130,7 @@ export function CreateTaskModal({
               <label className="text-sm font-medium">Do Date</label>
               <Controller
                 control={form.control}
-                name="do_date"
+                name="doDate"
                 render={({ field }) => (
                   <SmartDatetimeInput
                     value={field.value}
@@ -149,7 +146,7 @@ export function CreateTaskModal({
               <label className="text-sm font-medium">Due Date</label>
               <Controller
                 control={form.control}
-                name="due_date"
+                name="dueDate"
                 render={({ field }) => (
                   <SmartDatetimeInput
                     value={field.value}
