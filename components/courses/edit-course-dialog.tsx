@@ -10,12 +10,23 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { updateCourse } from "@/actions/courses";
+import { updateCourse, deleteCourse } from "@/actions/courses";
 import { toast } from "sonner";
 import { Course } from "@/types";
-import { Settings, Check } from "lucide-react";
+import { Settings, Check, Trash2 } from "lucide-react";
 
 const PRESET_COLORS = [
   { name: "Red", value: "#ef4444" },
@@ -148,18 +159,52 @@ export function EditCourseDialog({ course }: EditCourseDialogProps) {
             />
           </div>
 
-          <div className="flex justify-end gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setOpen(false)}
-              disabled={isPending}
-            >
-              Cancel
-            </Button>
-            <Button type="submit" disabled={isPending}>
-              {isPending ? "Saving..." : "Save Changes"}
-            </Button>
+          <div className="flex justify-between w-full">
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="destructive" disabled={isPending}>
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This action cannot be undone. This will permanently delete
+                    the course and all associated tasks and grades.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={(e) => {
+                      e.preventDefault();
+                      startTransition(async () => {
+                        await deleteCourse(course.id);
+                        toast.success("Course deleted successfully");
+                        setOpen(false);
+                      });
+                    }}
+                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  >
+                    Delete
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setOpen(false)}
+                disabled={isPending}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" disabled={isPending}>
+                {isPending ? "Saving..." : "Save Changes"}
+              </Button>
+            </div>
           </div>
         </form>
       </DialogContent>

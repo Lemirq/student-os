@@ -38,14 +38,17 @@ export async function createSemester(data: z.infer<typeof semesterSchema>) {
 
   const validated = semesterSchema.parse(data);
 
-  const [insertedSemester]: Semester[] = await db.insert(semesters).values({
-    name: validated.name,
-    yearLevel: validated.yearLevel,
-    startDate: validated.startDate,
-    endDate: validated.endDate,
-    isCurrent: validated.isCurrent,
-    userId: user.user.id,
-  });
+  const [insertedSemester]: Semester[] = await db
+    .insert(semesters)
+    .values({
+      name: validated.name,
+      yearLevel: validated.yearLevel,
+      startDate: validated.startDate,
+      endDate: validated.endDate,
+      isCurrent: validated.isCurrent,
+      userId: user.user.id,
+    })
+    .returning();
 
   revalidatePath("/");
   redirect(`/semesters/${insertedSemester.id}`);
@@ -76,14 +79,17 @@ export async function createCourse(data: z.infer<typeof courseSchema>) {
     throw new Error("Semester not found or unauthorized");
   }
 
-  const [insertedCourse]: Course[] = await db.insert(courses).values({
-    semesterId: validated.semesterId,
-    userId: user.user.id,
-    code: validated.code,
-    name: validated.name,
-    color: validated.color,
-    goalGrade: validated.goalGrade ? String(validated.goalGrade) : null,
-  });
+  const [insertedCourse]: Course[] = await db
+    .insert(courses)
+    .values({
+      semesterId: validated.semesterId,
+      userId: user.user.id,
+      code: validated.code,
+      name: validated.name,
+      color: validated.color,
+      goalGrade: validated.goalGrade ? String(validated.goalGrade) : null,
+    })
+    .returning();
 
   revalidatePath("/");
   redirect(`/courses/${insertedCourse.id}`);
@@ -278,4 +284,30 @@ export async function updateCourse(
 
   revalidatePath(`/courses/${courseId}`);
   return result[0];
+}
+
+export async function deleteCourse(courseId: string) {
+  const supabase = await createClient();
+  const { data: user } = await supabase.auth.getUser();
+  if (!user.user) throw new Error("Unauthorized");
+
+  const course = await db.query.courses.findFirst({
+    where: and(eq(courses.id, courseId), eq(courses.userId, user.user.id)),
+    with: {
+      semester: true,
+    },
+  });
+
+  if (!course) {
+    throw new Error("Course not found or unauthorized");
+  }
+
+  await db.delete(courses).where(eq(courses.id, courseId));
+
+  revalidatePath("/");
+  if (course.semester) {
+    redirect(`/semesters/${course.semester.id}`);
+  } else {
+    redirect("/dashboard");
+  }
 }

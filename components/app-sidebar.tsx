@@ -38,6 +38,7 @@ import {
 import { Semester, Course } from "@/types";
 import { Kbd } from "@/components/ui/kbd";
 import { CreateSemesterDialog } from "@/components/semesters/create-semester-dialog";
+import { CreateCourseDialog } from "@/components/courses/create-course-dialog";
 import { createClient } from "@/utils/supabase/client";
 
 export function AppSidebar({
@@ -230,12 +231,12 @@ export function AppSidebar({
                         );
                       })}
                       <SidebarMenuSubItem>
-                        <SidebarMenuSubButton asChild>
-                          <Link href={`/semesters/${semester.id}/courses/new`}>
+                        <CreateCourseDialog semesterId={semester.id}>
+                          <SidebarMenuSubButton>
                             <Plus className="mr-2 size-4" />
                             <span>Add Course</span>
-                          </Link>
-                        </SidebarMenuSubButton>
+                          </SidebarMenuSubButton>
+                        </CreateCourseDialog>
                       </SidebarMenuSubItem>
                     </SidebarMenuSub>
                   </CollapsibleContent>

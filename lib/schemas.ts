@@ -6,7 +6,11 @@ export const semesterSchema = createInsertSchema(semesters).omit({
   userId: true,
   createdAt: true,
 });
-export const courseSchema = createSelectSchema(courses);
+export const courseSchema = createInsertSchema(courses).omit({
+  id: true,
+  userId: true,
+  createdAt: true,
+});
 export const gradeWeightSchema = createInsertSchema(gradeWeights).omit({
   id: true,
   createdAt: true,
