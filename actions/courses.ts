@@ -7,7 +7,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { createClient } from "@/utils/supabase/server";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { Course, Semester } from "@/types";
 
 async function ensureUserExists(userId: string, email: string) {
@@ -61,6 +61,20 @@ export async function createCourse(data: z.infer<typeof courseSchema>) {
   await ensureUserExists(user.user.id, user.user.email || "");
 
   const validated = courseSchema.parse(data);
+  if (!validated.semesterId) {
+    throw new Error("Semester ID is required");
+  }
+
+  const semester = await db.query.semesters.findFirst({
+    where: and(
+      eq(semesters.id, validated.semesterId),
+      eq(semesters.userId, user.user.id),
+    ),
+  });
+
+  if (!semester) {
+    throw new Error("Semester not found or unauthorized");
+  }
 
   const [insertedCourse]: Course[] = await db.insert(courses).values({
     semesterId: validated.semesterId,
@@ -80,6 +94,24 @@ export async function createGradeWeight(
 ) {
   const validated = gradeWeightSchema.parse(data);
 
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("Unauthorized");
+
+  if (!validated.courseId) {
+    throw new Error("Course ID is required");
+  }
+
+  const course = await db.query.courses.findFirst({
+    where: and(eq(courses.id, validated.courseId), eq(courses.userId, user.id)),
+  });
+
+  if (!course) {
+    throw new Error("Course not found or unauthorized");
+  }
+
   await db.insert(gradeWeights).values({
     courseId: validated.courseId,
     name: validated.name,
@@ -90,6 +122,21 @@ export async function createGradeWeight(
 }
 
 export async function getCourseGradeWeights(courseId: string) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("Unauthorized");
+
+  // Verify course ownership
+  const course = await db.query.courses.findFirst({
+    where: and(eq(courses.id, courseId), eq(courses.userId, user.id)),
+  });
+
+  if (!course) {
+    return [];
+  }
+
   return await db
     .select()
     .from(gradeWeights)
@@ -110,6 +157,28 @@ export async function updateGradeWeight(
     updates.weightPercent = String(data.weightPercent);
   }
 
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("Unauthorized");
+
+  // Verify ownership via course
+  const existingWeight = await db.query.gradeWeights.findFirst({
+    where: eq(gradeWeights.id, gradeWeightId),
+    with: {
+      course: true,
+    },
+  });
+
+  if (
+    !existingWeight ||
+    !existingWeight.course ||
+    existingWeight.course.userId !== user.id
+  ) {
+    throw new Error("Grade weight not found or unauthorized");
+  }
+
   const result = await db
     .update(gradeWeights)
     .set(updates)
@@ -124,19 +193,30 @@ export async function updateGradeWeight(
 }
 
 export async function deleteGradeWeight(gradeWeightId: string) {
-  const gradeWeight = await db
-    .select()
-    .from(gradeWeights)
-    .where(eq(gradeWeights.id, gradeWeightId))
-    .limit(1);
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("Unauthorized");
 
-  if (gradeWeight.length === 0) {
+  const gradeWeight = await db.query.gradeWeights.findFirst({
+    where: eq(gradeWeights.id, gradeWeightId),
+    with: {
+      course: true,
+    },
+  });
+
+  if (!gradeWeight) {
     throw new Error("Grade weight not found");
+  }
+
+  if (!gradeWeight.course || gradeWeight.course.userId !== user.id) {
+    throw new Error("Unauthorized");
   }
 
   await db.delete(gradeWeights).where(eq(gradeWeights.id, gradeWeightId));
 
-  revalidatePath(`/courses/${gradeWeight[0].courseId}`);
+  revalidatePath(`/courses/${gradeWeight.courseId}`);
 }
 
 export async function getUserCourses() {
@@ -193,7 +273,7 @@ export async function updateCourse(
   const result = await db
     .update(courses)
     .set(updates)
-    .where(eq(courses.id, courseId))
+    .where(and(eq(courses.id, courseId), eq(courses.userId, user.user.id)))
     .returning();
 
   revalidatePath(`/courses/${courseId}`);

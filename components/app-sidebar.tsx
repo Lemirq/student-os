@@ -7,6 +7,7 @@ import {
   Settings,
   Plus,
   ChevronRight,
+  LogOut,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -37,6 +38,7 @@ import {
 import { Semester, Course } from "@/types";
 import { Kbd } from "@/components/ui/kbd";
 import { CreateSemesterDialog } from "@/components/semesters/create-semester-dialog";
+import { createClient } from "@/utils/supabase/client";
 
 export function AppSidebar({
   semesters,
@@ -45,6 +47,12 @@ export function AppSidebar({
 }) {
   const pathname = usePathname();
   const router = useRouter();
+  const supabase = createClient();
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    router.push("/login"); // or refresh/redirect as needed
+  };
 
   // Flatten all courses across semesters for keyboard shortcuts
   const allCourses = React.useMemo(() => {
@@ -249,6 +257,12 @@ export function AppSidebar({
                 <Settings />
                 <span>Settings</span>
               </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem>
+            <SidebarMenuButton onClick={handleLogout} tooltip="Log out">
+              <LogOut />
+              <span>Log out</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>

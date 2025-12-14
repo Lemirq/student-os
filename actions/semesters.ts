@@ -2,9 +2,10 @@
 
 import { db } from "@/drizzle";
 import { semesters, courses, tasks, gradeWeights } from "@/schema";
-import { eq, inArray } from "drizzle-orm";
+import { eq, inArray, and } from "drizzle-orm";
 import { Semester, Course, Task, GradeWeight } from "@/types";
 import { revalidatePath } from "next/cache";
+import { createClient } from "@/utils/supabase/server";
 
 export type SemesterData = Semester & {
   courses: Course[];
@@ -17,10 +18,19 @@ export type SemesterData = Semester & {
 export async function getSemesterData(
   semesterId: string,
 ): Promise<SemesterData | null> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return null;
+  }
+
   const semesterResult = await db
     .select()
     .from(semesters)
-    .where(eq(semesters.id, semesterId));
+    .where(and(eq(semesters.id, semesterId), eq(semesters.userId, user.id)));
 
   if (semesterResult.length === 0) {
     return null;
@@ -92,15 +102,35 @@ export async function updateSemester(
     updateData.endDate = data.end_date;
   }
 
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    throw new Error("Unauthorized");
+  }
+
   await db
     .update(semesters)
     .set(updateData)
-    .where(eq(semesters.id, semesterId));
+    .where(and(eq(semesters.id, semesterId), eq(semesters.userId, user.id)));
 
   revalidatePath(`/semesters/${semesterId}`);
 }
 
 export async function deleteSemester(semesterId: string): Promise<void> {
-  await db.delete(semesters).where(eq(semesters.id, semesterId));
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    throw new Error("Unauthorized");
+  }
+
+  await db
+    .delete(semesters)
+    .where(and(eq(semesters.id, semesterId), eq(semesters.userId, user.id)));
   revalidatePath("/dashboard");
 }

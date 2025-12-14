@@ -2,7 +2,8 @@
 
 import { db } from "@/drizzle";
 import { semesters, courses } from "@/schema";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
+import { createClient } from "@/utils/supabase/server";
 import {
   addDays,
   differenceInCalendarWeeks,
@@ -48,9 +49,18 @@ export interface DashboardMetrics {
 export async function getDashboardMetrics(
   semesterId: string,
 ): Promise<DashboardMetrics> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    throw new Error("Unauthorized");
+  }
+
   // 1. Fetch Semester Details
   const semester = await db.query.semesters.findFirst({
-    where: eq(semesters.id, semesterId),
+    where: and(eq(semesters.id, semesterId), eq(semesters.userId, user.id)),
   });
 
   if (!semester) {
@@ -59,7 +69,7 @@ export async function getDashboardMetrics(
 
   // 2. Fetch Courses with Grade Weights and Tasks
   const coursesData = await db.query.courses.findMany({
-    where: eq(courses.semesterId, semesterId),
+    where: and(eq(courses.semesterId, semesterId), eq(courses.userId, user.id)),
     with: {
       gradeWeights: true,
       tasks: true,

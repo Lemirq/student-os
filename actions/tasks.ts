@@ -6,8 +6,8 @@ import { taskSchema } from "@/lib/schemas";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { eq, and } from "drizzle-orm";
-import { createClient } from "@/utils/supabase/server";
 import { Task } from "@/types";
+import { createClient } from "@/utils/supabase/server";
 
 async function ensureUserExists(userId: string, email: string) {
   // Check if user exists
@@ -147,8 +147,17 @@ export async function deleteTask(id: string) {
 }
 
 export async function getTask(id: string) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return null;
+  }
+
   const task = await db.query.tasks.findFirst({
-    where: eq(tasks.id, id),
+    where: and(eq(tasks.id, id), eq(tasks.userId, user.id)),
     with: {
       course: {
         with: {
