@@ -128,12 +128,14 @@ interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
   data: TData[];
   storageKey?: string;
+  viewToggle?: React.ReactNode;
 }
 
 export function DataTable<TData, TValue>({
   columns,
   data,
   storageKey,
+  viewToggle,
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = React.useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
@@ -451,6 +453,7 @@ export function DataTable<TData, TValue>({
             className="h-8 w-[150px] lg:w-[250px]"
           />
           <div className="flex items-center gap-2">
+            {viewToggle}
             {sorting.length > 0 && (
               <Button
                 variant="ghost"

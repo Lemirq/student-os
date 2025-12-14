@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/card";
 import { Plus } from "lucide-react";
 import { format } from "date-fns";
-import { DataTable } from "@/components/tasks/data-table";
+import { TaskExplorer } from "@/components/tasks/task-explorer";
 import { columns } from "@/components/tasks/columns";
 import { SemesterProgress } from "@/components/dashboard/semester-progress";
 import { GradeGapCard } from "@/components/dashboard/grade-gap-card";
@@ -126,10 +126,10 @@ export default async function SemesterPage({
       {/* Task Table */}
       <div className="space-y-2">
         <h2 className="text-xl font-semibold tracking-tight">All Tasks</h2>
-        <DataTable
-          columns={columns}
-          data={semester.tasks}
+        <TaskExplorer
+          tasks={semester.tasks}
           storageKey={`semester-tasks-table-${semester.id}`}
+          context={{ type: "semester", id: semester.id }}
         />
       </div>
     </div>

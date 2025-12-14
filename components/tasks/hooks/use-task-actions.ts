@@ -19,11 +19,13 @@ export const useTaskActions = () => {
   };
 
   const setStatus = async (task: Task, status: TaskStatus) => {
-    toast.promise(updateTask(task.id, { status }), {
+    const promise = updateTask(task.id, { status });
+    toast.promise(promise, {
       loading: "Updating status...",
       success: `Status set to ${status}`,
       error: "Failed to update status",
     });
+    return promise;
   };
 
   const removeTask = async (task: Task) => {
