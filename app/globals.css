@@ -200,3 +200,76 @@
     letter-spacing: var(--tracking-normal);
   }
 }
+
+@layer base {
+  /* React Big Calendar Overrides */
+  .rbc-calendar {
+    @apply font-sans;
+  }
+  .rbc-toolbar button {
+    @apply text-foreground border-border hover:bg-muted active:bg-muted/80 focus:ring-ring;
+  }
+  .rbc-toolbar button.rbc-active {
+    @apply bg-primary text-primary-foreground hover:bg-primary/90 shadow-none;
+  }
+  .rbc-header {
+    @apply border-border text-muted-foreground font-medium p-2;
+  }
+  .rbc-month-view,
+  .rbc-time-view,
+  .rbc-agenda-view {
+    @apply border-border bg-card;
+  }
+  .rbc-day-bg {
+    @apply border-border;
+  }
+  .rbc-off-range-bg {
+    @apply bg-transparent!;
+  }
+  .rbc-today {
+    @apply bg-primary/10!;
+  }
+  .rbc-month-view,
+  .rbc-day-slot,
+  .rbc-day-bg,
+  .rbc-month-row,
+  .rbc-header,
+  .rbc-day-slot .rbc-time-column,
+  .rbc-events-container,
+  .rbc-time-view {
+    @apply border-border! border-l-border! border-t-border! border-b-border! border-r-border!;
+  }
+  .rbc-time-content > * + * > *,
+  rbc-timeslot-group,
+  rbc-day-slot .rbc-time-slot,
+  .rbc-time-content,
+  .rbc-time-header-content,
+  .rbc-agenda-date-cell,
+  .rbc-agenda-time-cell,
+  .rbc-agenda-event-cell,
+  .rbc-day-slot .rbc-time-slot,
+  .rbc-time-header.rbc-overflowing,
+  .rbc-timeslot-group,
+  .rbc-agenda-time-cell {
+    @apply border-border! border-l-border! border-t-border! border-b-border! border-r-border!;
+  }
+  .rbc-event {
+    @apply rounded-sm shadow-sm opacity-90 hover:opacity-100 transition-opacity;
+  }
+  rbc-time-header rbc-overflowing {
+    @apply border-border! border-l-border! border-t-border! border-b-border! border-r-border!;
+  }
+  /* Dark mode specific fix for text colors if needed */
+  .dark .rbc-toolbar-label {
+    @apply text-foreground;
+  }
+  .dark .rbc-day-bg + .rbc-day-bg {
+    @apply border-border;
+  }
+  .dark .rbc-month-row + .rbc-month-row {
+    @apply border-border;
+  }
+  .dark .rbc-header + .rbc-header {
+    @apply border-border;
+  }
+}

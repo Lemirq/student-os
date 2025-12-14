@@ -3,7 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { notFound } from "next/navigation";
 import { CourseStrategySidebar } from "@/components/dashboard/course-strategy-sidebar";
-import { DataTable } from "@/components/tasks/data-table";
+import { TaskExplorer } from "@/components/tasks/task-explorer";
 import { columns } from "@/components/tasks/columns";
 import { QuickAddCourseTask } from "@/components/dashboard/quick-add-course-task";
 import { EditCourseDialog } from "@/components/courses/edit-course-dialog";
@@ -119,11 +119,11 @@ export default async function CoursePage({ params }: CoursePageProps) {
                 courseId={course.id}
                 courseCode={course.code}
               />
-              <div className="flex-1 overflow-auto rounded-md border bg-card">
-                <DataTable
-                  columns={columns}
-                  data={course.tasks}
+              <div className="flex-1 min-h-0">
+                <TaskExplorer
+                  tasks={course.tasks}
                   storageKey={`course-tasks-table-${course.id}`}
+                  context={{ type: "course", id: course.id }}
                 />
               </div>
             </CardContent>
