@@ -3,14 +3,10 @@
 import { DashboardMetrics } from "@/actions/dashboard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  Tooltip,
-  ResponsiveContainer,
-  Cell,
-} from "recharts";
+  ChartContainer,
+  ChartTooltip,
+} from "@/components/ui/chart";
+import { Bar, BarChart, XAxis, YAxis, Cell } from "recharts";
 import { Activity } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { useTheme } from "next-themes";
@@ -30,8 +26,14 @@ export function WorkloadHeatmap({ data }: WorkloadHeatmapProps) {
   }));
 
   const isDark = theme === "dark";
-  const defaultBarColor = isDark ? "var(--chart-1)" : "var(--chart-1)"; // slate-200 : slate-900
-  const warningBarColor = "var(--destructive)"; // red-500
+  const defaultBarColor = isDark ? "hsl(var(--chart-1))" : "hsl(var(--chart-1))";
+  const warningBarColor = "hsl(var(--destructive))";
+
+  const chartConfig = {
+    taskCount: {
+      label: "Tasks",
+    },
+  };
 
   return (
     <Card className="h-full">
@@ -42,62 +44,60 @@ export function WorkloadHeatmap({ data }: WorkloadHeatmapProps) {
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="h-[200px] w-full">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart
-              data={chartData}
-              margin={{ top: 5, right: 5, bottom: 5, left: -20 }}
-            >
-              <XAxis
-                dataKey="dayName"
-                fontSize={12}
-                tickLine={false}
-                axisLine={false}
-                tick={{ fill: "currentColor", opacity: 0.7 }}
-              />
-              <YAxis
-                fontSize={12}
-                tickLine={false}
-                axisLine={false}
-                allowDecimals={false}
-                tick={{ fill: "currentColor", opacity: 0.7 }}
-              />
-              <Tooltip
-                cursor={{ fill: "transparent" }}
-                content={({ active, payload }) => {
-                  if (active && payload && payload.length) {
-                    const item = payload[0].payload;
-                    return (
-                      <div className="rounded-lg border bg-background p-2 shadow-sm">
-                        <div className="grid grid-cols-2 gap-2">
-                          <div className="flex flex-col">
-                            <span className="text-[0.70rem] uppercase text-muted-foreground">
-                              {item.formattedDate}
-                            </span>
-                            <span className="font-bold text-muted-foreground">
-                              {item.taskCount} Tasks
-                            </span>
-                          </div>
+        <ChartContainer config={chartConfig} className="h-[200px] w-full">
+          <BarChart
+            data={chartData}
+            margin={{ top: 5, right: 5, bottom: 5, left: -20 }}
+          >
+            <XAxis
+              dataKey="dayName"
+              fontSize={12}
+              tickLine={false}
+              axisLine={false}
+              tick={{ fill: "currentColor", opacity: 0.7 }}
+            />
+            <YAxis
+              fontSize={12}
+              tickLine={false}
+              axisLine={false}
+              allowDecimals={false}
+              tick={{ fill: "currentColor", opacity: 0.7 }}
+            />
+            <ChartTooltip
+              cursor={{ fill: "transparent" }}
+              content={({ active, payload }) => {
+                if (active && payload && payload.length) {
+                  const item = payload[0].payload;
+                  return (
+                    <div className="rounded-lg border bg-background p-2 shadow-sm">
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="flex flex-col">
+                          <span className="text-[0.70rem] uppercase text-muted-foreground">
+                            {item.formattedDate}
+                          </span>
+                          <span className="font-bold text-muted-foreground">
+                            {item.taskCount} Tasks
+                          </span>
                         </div>
                       </div>
-                    );
+                    </div>
+                  );
+                }
+                return null;
+              }}
+            />
+            <Bar dataKey="taskCount" radius={[4, 4, 0, 0]}>
+              {chartData.map((entry, index) => (
+                <Cell
+                  key={`cell-${index}`}
+                  fill={
+                    entry.taskCount > 3 ? warningBarColor : defaultBarColor
                   }
-                  return null;
-                }}
-              />
-              <Bar dataKey="taskCount" radius={[4, 4, 0, 0]}>
-                {chartData.map((entry, index) => (
-                  <Cell
-                    key={`cell-${index}`}
-                    fill={
-                      entry.taskCount > 3 ? warningBarColor : defaultBarColor
-                    }
-                  />
-                ))}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
+                />
+              ))}
+            </Bar>
+          </BarChart>
+        </ChartContainer>
       </CardContent>
     </Card>
   );
