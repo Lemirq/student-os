@@ -230,9 +230,7 @@ export function GlobalCreateTaskModal({
                     <FormControl>
                       <SmartDatetimeInput
                         value={field.value}
-                        onValueChange={(date) =>
-                          field.onChange(date ? format(date, "yyyy-MM-dd") : "")
-                        }
+                        onValueChange={(date) => field.onChange(date ?? null)}
                         placeholder="e.g. Tomorrow"
                       />
                     </FormControl>
@@ -250,9 +248,7 @@ export function GlobalCreateTaskModal({
                     <FormControl>
                       <SmartDatetimeInput
                         value={field.value}
-                        onValueChange={(date) =>
-                          field.onChange(date ? format(date, "yyyy-MM-dd") : "")
-                        }
+                        onValueChange={(date) => field.onChange(date ?? null)}
                         placeholder="e.g. Next Friday"
                       />
                     </FormControl>

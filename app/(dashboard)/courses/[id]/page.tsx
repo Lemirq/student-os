@@ -110,7 +110,7 @@ export default async function CoursePage({ params }: CoursePageProps) {
       </Card>
 
       {/* Main Grid Layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 flex-1 min-h-0">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-2 flex-1 min-h-0">
         {/* Left Column: Tasks */}
         <div className="lg:col-span-2 flex flex-col min-h-0">
           <Card className="flex-1 flex flex-col min-h-0 border-none shadow-none bg-transparent">

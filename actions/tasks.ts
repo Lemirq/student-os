@@ -92,6 +92,7 @@ export async function updateTask(id: string, data: Partial<Task>) {
       updateData.gradeWeightId = data.gradeWeightId;
     if (data.description !== undefined)
       updateData.description = data.description;
+    if (data.notes !== undefined) updateData.notes = data.notes;
     if (data.courseId !== undefined) {
       updateData.courseId = data.courseId;
       // Reset grade weight if course changes and new weight not provided

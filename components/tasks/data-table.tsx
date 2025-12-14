@@ -17,6 +17,7 @@ import {
   GroupingState,
   Row,
   Header,
+  ColumnFilter,
 } from "@tanstack/react-table";
 
 import {
@@ -64,6 +65,10 @@ import { useCommandStore } from "@/hooks/use-command-store";
 import { Task } from "@/types";
 import { useRouter } from "next/navigation";
 import { DataTableViewOptions } from "./data-table-view-options";
+import { DataTableAdvancedFilters } from "./data-table-advanced-filters";
+import { useDebtStore } from "@/hooks/use-debt-store";
+import { isBefore, startOfToday } from "date-fns";
+import { AlertTriangle, TrendingUp } from "lucide-react";
 
 interface DraggableTableHeaderProps<TData, TValue> {
   header: Header<TData, TValue>;
@@ -129,6 +134,11 @@ interface DataTableProps<TData, TValue> {
   data: TData[];
   storageKey?: string;
   viewToggle?: React.ReactNode;
+  externalDateFilter?: { from: Date | undefined; to: Date | undefined };
+  onDateFilterChange?: (range: {
+    from: Date | undefined;
+    to: Date | undefined;
+  }) => void;
 }
 
 export function DataTable<TData, TValue>({
@@ -136,7 +146,10 @@ export function DataTable<TData, TValue>({
   data,
   storageKey,
   viewToggle,
+  externalDateFilter,
+  onDateFilterChange,
 }: DataTableProps<TData, TValue>) {
+  const { isRepaymentMode, toggleRepaymentMode } = useDebtStore();
   const [sorting, setSorting] = React.useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
     [],
@@ -166,8 +179,31 @@ export function DataTable<TData, TValue>({
           const parsed = JSON.parse(savedState);
           // Only restore if valid
           if (Array.isArray(parsed.sorting)) setSorting(parsed.sorting);
-          if (Array.isArray(parsed.columnFilters))
-            setColumnFilters(parsed.columnFilters);
+
+          // Filter out invalid filters:
+          // 1. dueDate filters with function values (they don't serialize properly)
+          // 2. Filters with empty array values (they filter out everything)
+          if (Array.isArray(parsed.columnFilters)) {
+            const validFilters = parsed.columnFilters.filter(
+              (filter: ColumnFilter) => {
+                // Skip dueDate filters
+                if (filter.id === "dueDate") return false;
+
+                // Skip filters with empty arrays
+                if (Array.isArray(filter.value) && filter.value.length === 0) {
+                  return false;
+                }
+
+                return true;
+              },
+            );
+            console.log(
+              "[DataTable] Loading filters from localStorage:",
+              validFilters,
+            );
+            setColumnFilters(validFilters);
+          }
+
           if (
             typeof parsed.columnVisibility === "object" &&
             parsed.columnVisibility !== null
@@ -193,9 +229,24 @@ export function DataTable<TData, TValue>({
   React.useEffect(() => {
     if (!storageKey || !hasMounted) return;
 
+    // Filter out invalid filters before saving:
+    // 1. dueDate column filters (they use functions which don't serialize)
+    // 2. Filters with empty arrays (they're useless and cause issues)
+    const serializableFilters = columnFilters.filter((filter) => {
+      // Skip dueDate filters
+      if (filter.id === "dueDate") return false;
+
+      // Skip empty array filters
+      if (Array.isArray(filter.value) && filter.value.length === 0) {
+        return false;
+      }
+
+      return true;
+    });
+
     const stateToSave = {
       sorting,
-      columnFilters,
+      columnFilters: serializableFilters,
       columnVisibility,
       grouping,
       columnSizing,
@@ -218,9 +269,35 @@ export function DataTable<TData, TValue>({
     hasMounted,
   ]);
 
+  // Debug: Log filter state changes
+  React.useEffect(() => {
+    console.log("[DataTable] Column filters changed:", columnFilters);
+  }, [columnFilters]);
+
+  // Debug: Log data changes
+  React.useEffect(() => {
+    console.log("[DataTable] Data changed, count:", data.length);
+  }, [data]);
+
+  // Repayment Mode Filtering
+  const filteredData = React.useMemo(() => {
+    if (!isRepaymentMode) return data;
+
+    const today = startOfToday();
+    return data.filter((row: TData) => {
+      const task = row as Task;
+      if (task.status === "Done") return false;
+      const dateToCheck = task.doDate || task.dueDate;
+      if (!dateToCheck) return false;
+      const date =
+        dateToCheck instanceof Date ? dateToCheck : new Date(dateToCheck);
+      return isBefore(date, today);
+    });
+  }, [data, isRepaymentMode]);
+
   // eslint-disable-next-line react-hooks/incompatible-library
   const table = useReactTable({
-    data,
+    data: filteredData,
     columns,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
@@ -247,6 +324,34 @@ export function DataTable<TData, TValue>({
       columnOrder,
     },
   });
+
+  // Re-create table instance with filtered data if mode is active
+  // This is a bit heavy but ensures consistency.
+  // IMPORTANT: We need to use `filteredData` in `useReactTable`.
+  // So I'll modify the `useReactTable` call below to use `filteredData`.
+  // Wait, I can't easily modify code in the middle of a block with multi_replace if I don't target it.
+  // I will just use `filteredData` in the implementation below.
+
+  // NOTE: I am not modifying the useReactTable call in THIS chunk, I will do it in the next chunk or assume I can rewrite it.
+  // Actually, I can just rewrite the `useReactTable` block.
+
+  // Let's rewrite the `useReactTable` block.
+
+  // Debug: Log row counts
+  React.useEffect(() => {
+    const filteredRows = table.getRowModel().rows.length;
+    const coreRows = table.getCoreRowModel().rows.length;
+    console.log(
+      `[DataTable] Rows - Core: ${coreRows}, Filtered: ${filteredRows}`,
+    );
+
+    if (filteredRows === 0 && coreRows > 0) {
+      console.warn(
+        "[DataTable] ⚠️ All rows filtered out! Active filters:",
+        columnFilters,
+      );
+    }
+  }, [table, columnFilters]);
 
   // Set up drag and drop sensors
   const sensors = useSensors(
@@ -441,6 +546,34 @@ export function DataTable<TData, TValue>({
 
   return (
     <div className="space-y-4">
+      {/* Repayment Mode Banner */}
+      {isRepaymentMode && (
+        <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-4 flex items-center justify-between mb-4 animate-in slide-in-from-top-2">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-red-500/20 rounded-full">
+              <TrendingUp className="h-5 w-5 text-red-500" />
+            </div>
+            <div>
+              <h3 className="font-semibold text-red-500">
+                Repayment Mode Active
+              </h3>
+              <p className="text-sm text-red-500/80">
+                Focus on clearing your {filteredData.length} overdue tasks to
+                restore your streak.
+              </p>
+            </div>
+          </div>
+          <Button
+            variant="default"
+            size="sm"
+            className="bg-red-500 hover:bg-red-600 text-white border-none shadow-sm"
+            onClick={toggleRepaymentMode}
+          >
+            Exit Mode
+          </Button>
+        </div>
+      )}
+
       {/* Toolbar */}
       <div className="flex items-center justify-between">
         <div className="flex mx-2 mt-4 flex-1 justify-between space-x-2">
@@ -453,7 +586,6 @@ export function DataTable<TData, TValue>({
             className="h-8 w-[150px] lg:w-[250px]"
           />
           <div className="flex items-center gap-2">
-            {viewToggle}
             {sorting.length > 0 && (
               <Button
                 variant="ghost"
@@ -465,6 +597,12 @@ export function DataTable<TData, TValue>({
                 Clear Sort
               </Button>
             )}
+            {viewToggle}
+            <DataTableAdvancedFilters
+              table={table}
+              externalDateFilter={externalDateFilter}
+              onDateFilterChange={onDateFilterChange}
+            />
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button

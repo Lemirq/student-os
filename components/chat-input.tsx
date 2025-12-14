@@ -11,6 +11,7 @@ interface ChatInputProps {
   onStop?: () => void;
   files?: File[];
   onFilesChange?: (files: File[]) => void;
+  disabled?: boolean;
 }
 
 export default function ChatInput({
@@ -19,6 +20,7 @@ export default function ChatInput({
   onStop,
   files: controlledFiles,
   onFilesChange,
+  disabled,
 }: ChatInputProps) {
   const [input, setInput] = React.useState("");
   const [internalFiles, setInternalFiles] = React.useState<File[]>([]);
@@ -133,7 +135,7 @@ export default function ChatInput({
         onChange={(e) => setInput(e.target.value)}
         onInput={adjustTextareaHeight}
         onKeyDown={handleKeyDown}
-        disabled={isLoading}
+        disabled={isLoading || disabled}
       />
 
       <div className="flex items-center gap-2">
@@ -150,7 +152,7 @@ export default function ChatInput({
             size="icon"
             variant="ghost"
             className="size-8 text-muted-foreground hover:text-foreground rounded-full"
-            disabled={isLoading}
+            disabled={isLoading || disabled}
             onClick={() => fileInputRef.current?.click()}
           >
             <Plus className="size-4" />
@@ -166,7 +168,7 @@ export default function ChatInput({
             size="icon"
             variant="ghost"
             className="size-8 text-muted-foreground hover:text-foreground rounded-full"
-            disabled={isLoading}
+            disabled={isLoading || disabled}
           >
             <Mic className="size-4" />
             <span className="sr-only">Voice input</span>
@@ -186,7 +188,7 @@ export default function ChatInput({
               type="submit"
               size="icon"
               className="size-8 rounded-full"
-              disabled={!input.trim() && files.length === 0}
+              disabled={(!input.trim() && files.length === 0) || disabled}
             >
               <ArrowUp className="size-4" />
               <span className="sr-only">Send</span>

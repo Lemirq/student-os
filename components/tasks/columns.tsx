@@ -4,7 +4,13 @@ import { ColumnDef } from "@tanstack/react-table";
 import { Task, Course, GradeWeight, TaskStatus } from "@/types";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { format, isToday } from "date-fns";
+import {
+  format,
+  isToday,
+  startOfDay,
+  endOfDay,
+  isWithinInterval,
+} from "date-fns";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -142,7 +148,12 @@ export const columns: ColumnDef<TaskWithDetails>[] = [
     ),
     cell: ({ row }) => <StatusCell task={row.original} />,
     filterFn: (row, id, value) => {
-      return value.includes(row.getValue(id));
+      const rowValue = row.getValue(id);
+      const result = value.includes(rowValue);
+      console.log(
+        `[Filter:status] Row value: "${rowValue}", Filter: [${value}], Result: ${result}`,
+      );
+      return result;
     },
     size: 130,
     minSize: 100,
@@ -170,7 +181,12 @@ export const columns: ColumnDef<TaskWithDetails>[] = [
       );
     },
     filterFn: (row, id, value) => {
-      return value.includes(row.getValue(id));
+      const rowValue = row.getValue(id);
+      const result = value.includes(rowValue);
+      console.log(
+        `[Filter:priority] Row value: "${rowValue}", Filter: [${value}], Result: ${result}`,
+      );
+      return result;
     },
     size: 100,
     minSize: 80,
@@ -217,6 +233,41 @@ export const columns: ColumnDef<TaskWithDetails>[] = [
           {format(due, "MMM d")}
         </div>
       );
+    },
+    filterFn: (row, id, filterValue) => {
+      // Support date range filtering
+      if (
+        filterValue &&
+        typeof filterValue === "object" &&
+        ("from" in filterValue || "to" in filterValue)
+      ) {
+        const rowValue = row.getValue(id) as string | null;
+        if (!rowValue) {
+          console.log(`[Filter:dueDate] No date value, excluding row`);
+          return false;
+        }
+
+        const date = startOfDay(new Date(rowValue));
+        const { from, to } = filterValue as { from?: Date; to?: Date };
+
+        let result = true;
+        if (from && to) {
+          result = isWithinInterval(date, {
+            start: startOfDay(from),
+            end: endOfDay(to),
+          });
+        } else if (from) {
+          result = date >= startOfDay(from);
+        } else if (to) {
+          result = date <= endOfDay(to);
+        }
+
+        console.log(
+          `[Filter:dueDate] Row date: ${rowValue}, Range: ${from?.toDateString()} - ${to?.toDateString()}, Result: ${result}`,
+        );
+        return result;
+      }
+      return true;
     },
     size: 110,
     minSize: 90,

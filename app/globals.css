@@ -221,7 +221,7 @@
     @apply border-border bg-card;
   }
   .rbc-day-bg {
-    @apply border-border;
+    @apply border-border!;
   }
   .rbc-off-range-bg {
     @apply bg-transparent!;
@@ -236,12 +236,10 @@
   .rbc-header,
   .rbc-day-slot .rbc-time-column,
   .rbc-events-container,
-  .rbc-time-view {
-    @apply border-border! border-l-border! border-t-border! border-b-border! border-r-border!;
-  }
+  .rbc-time-view,
   .rbc-time-content > * + * > *,
-  rbc-timeslot-group,
-  rbc-day-slot .rbc-time-slot,
+  .rbc-timeslot-group,
+  .rbc-day-slot .rbc-time-slot,
   .rbc-time-content,
   .rbc-time-header-content,
   .rbc-agenda-date-cell,
@@ -256,20 +254,17 @@
   .rbc-event {
     @apply rounded-sm shadow-sm opacity-90 hover:opacity-100 transition-opacity;
   }
-  rbc-time-header rbc-overflowing {
-    @apply border-border! border-l-border! border-t-border! border-b-border! border-r-border!;
-  }
   /* Dark mode specific fix for text colors if needed */
   .dark .rbc-toolbar-label {
     @apply text-foreground;
   }
   .dark .rbc-day-bg + .rbc-day-bg {
-    @apply border-border;
+    @apply border-border!;
   }
   .dark .rbc-month-row + .rbc-month-row {
-    @apply border-border;
+    @apply border-border!;
   }
   .dark .rbc-header + .rbc-header {
-    @apply border-border;
+    @apply border-border!;
   }
 }

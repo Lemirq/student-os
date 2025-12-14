@@ -41,7 +41,6 @@ const formatDateOnly = (date: Date): string => {
 };
 
 export function EditSemesterDialog({ semester }: EditSemesterDialogProps) {
-  console.log(semester);
   const [open, setOpen] = useState(false);
   const [name, setName] = useState(semester.name || "");
   const [startDate, setStartDate] = useState<Date | null>(

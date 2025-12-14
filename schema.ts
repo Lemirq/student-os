@@ -132,6 +132,7 @@ export const tasks = pgTable(
     }).default("100.00"),
 
     description: text("description"),
+    notes: jsonb("notes"),
 
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
   }),

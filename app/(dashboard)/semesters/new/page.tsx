@@ -81,9 +81,7 @@ export default function NewSemesterPage() {
                   <FormControl>
                     <SmartDatetimeInput
                       value={field.value}
-                      onValueChange={(date) => {
-                        field.onChange(date ? format(date, "yyyy-MM-dd") : "");
-                      }}
+                      onValueChange={(date) => field.onChange(date ?? null)}
                       placeholder="e.g. Next Monday"
                     />
                   </FormControl>
@@ -100,9 +98,7 @@ export default function NewSemesterPage() {
                   <FormControl>
                     <SmartDatetimeInput
                       value={field.value}
-                      onValueChange={(date) => {
-                        field.onChange(date ? format(date, "yyyy-MM-dd") : "");
-                      }}
+                      onValueChange={(date) => field.onChange(date ?? null)}
                       placeholder="e.g. 4 months from now"
                     />
                   </FormControl>

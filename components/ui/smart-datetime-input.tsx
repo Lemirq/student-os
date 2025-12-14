@@ -118,7 +118,9 @@ export const SmartDatetimeInput = React.forwardRef<
             mode="single"
             selected={value ? new Date(value) : undefined}
             onSelect={handleCalendarSelect}
-            initialFocus
+            classNames={{
+              root: "w-full",
+            }}
           />
         </PopoverContent>
       </Popover>

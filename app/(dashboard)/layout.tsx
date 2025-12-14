@@ -11,6 +11,10 @@ import { getSidebarData } from "@/actions/sidebar";
 import { GlobalCreateTaskModal } from "@/components/tasks/global-create-task-modal";
 import { TaskCommandMenu } from "@/components/tasks/task-command-menu";
 import { Button } from "@/components/ui/button";
+import { createClient } from "@/utils/supabase/server";
+import { db } from "@/drizzle";
+import { users } from "@/schema";
+import { eq } from "drizzle-orm";
 
 export default async function DashboardLayout({
   children,
@@ -20,7 +24,14 @@ export default async function DashboardLayout({
   const { semesters } = await getSidebarData();
   const cookieStore = await cookies();
   const defaultOpen = cookieStore.get("sidebar_state")?.value === "true";
-
+  const aiEnabled =
+    (
+      await db
+        .select()
+        .from(users)
+        .where(eq(users.email, "sharmavihaan190@gmail.com"))
+        .limit(1)
+    ).length > 0;
   return (
     <SidebarProvider defaultOpen={defaultOpen}>
       <AppSidebar semesters={semesters} />
@@ -43,7 +54,7 @@ export default async function DashboardLayout({
         </header>
         <div className="flex dark flex-1 flex-col gap-4 p-4">{children}</div>
       </SidebarInset>
-      <AICopilotSidebar />
+      <AICopilotSidebar aiEnabled={aiEnabled} />
       <GlobalCreateTaskModal semesters={semesters} />
       <TaskCommandMenu />
     </SidebarProvider>

@@ -13,6 +13,11 @@ interface TaskExplorerProps {
   storageKey?: string;
   initialView?: ViewType;
   context?: { type: "semester" | "course"; id: string };
+  externalDateFilter?: { from: Date | undefined; to: Date | undefined };
+  onDateFilterChange?: (range: {
+    from: Date | undefined;
+    to: Date | undefined;
+  }) => void;
 }
 
 export function TaskExplorer({
@@ -20,6 +25,8 @@ export function TaskExplorer({
   storageKey,
   initialView = "list",
   context,
+  externalDateFilter,
+  onDateFilterChange,
 }: TaskExplorerProps) {
   const router = useRouter();
   const pathname = usePathname();
@@ -51,6 +58,8 @@ export function TaskExplorer({
           data={tasks}
           storageKey={storageKey}
           viewToggle={viewToggle}
+          externalDateFilter={externalDateFilter}
+          onDateFilterChange={onDateFilterChange}
         />
       )}
 
