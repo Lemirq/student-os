@@ -64,7 +64,7 @@ export default async function CoursePage({ params }: CoursePageProps) {
   const isBelowGoal = currentGrade < goalGrade;
 
   return (
-    <div className="h-[calc(100vh-4rem)] flex flex-col space-y-6">
+    <div className="py-2 h-[calc(100vh-4rem)] flex flex-col space-y-6">
       {/* Header */}
       <Card
         className="shrink-0 border-t-4 shadow-sm py-2"

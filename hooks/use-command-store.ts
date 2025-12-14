@@ -19,7 +19,7 @@ interface CommandState {
   tasks: Task[];
   view: CommandView;
   previousActiveElement: HTMLElement | null;
-  open: (tasks: Task | Task[]) => void;
+  open: (tasks: Task | Task[], view?: CommandView) => void;
   close: () => void;
   setView: (view: CommandView) => void;
 }
@@ -29,13 +29,13 @@ export const useCommandStore = create<CommandState>((set, get) => ({
   tasks: [],
   view: "MAIN",
   previousActiveElement: null,
-  open: (tasks) => {
+  open: (tasks, view = "MAIN") => {
     // Store the currently active element before opening
     const activeElement = document.activeElement as HTMLElement;
     set({
       isOpen: true,
       tasks: Array.isArray(tasks) ? tasks : [tasks],
-      view: "MAIN",
+      view: view,
       previousActiveElement: activeElement,
     });
   },

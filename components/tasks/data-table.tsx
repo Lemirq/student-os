@@ -377,6 +377,44 @@ export function DataTable<TData, TValue>({
           }
         }
         break;
+      case "d":
+      case "D":
+        if (e.shiftKey && !e.metaKey && !e.ctrlKey) {
+          e.preventDefault();
+
+          // Get selected tasks or current task
+          const selectedRows = table.getSelectedRowModel().rows;
+          if (selectedRows.length > 0) {
+            const selectedTasks = selectedRows.map((r) => r.original as Task);
+            // Ensure the currently focused task is included if it wasn't selected
+            if (!selectedTasks.some((t) => t.id === task.id)) {
+              selectedTasks.push(task);
+            }
+            open(selectedTasks, "EDIT_DUE_DATE");
+          } else {
+            open(task, "EDIT_DUE_DATE");
+          }
+        }
+        break;
+      case "s":
+      case "S":
+        if (e.shiftKey && !e.metaKey && !e.ctrlKey) {
+          e.preventDefault();
+
+          // Get selected tasks or current task
+          const selectedRows = table.getSelectedRowModel().rows;
+          if (selectedRows.length > 0) {
+            const selectedTasks = selectedRows.map((r) => r.original as Task);
+            // Ensure the currently focused task is included if it wasn't selected
+            if (!selectedTasks.some((t) => t.id === task.id)) {
+              selectedTasks.push(task);
+            }
+            open(selectedTasks, "EDIT_SCORE");
+          } else {
+            open(task, "EDIT_SCORE");
+          }
+        }
+        break;
       case "Enter":
         e.preventDefault();
         router.push(`/tasks/${task.id}`);
