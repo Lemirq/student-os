@@ -9,7 +9,6 @@ import {
 import { Bar, BarChart, XAxis, YAxis, Cell } from "recharts";
 import { Activity } from "lucide-react";
 import { format, parseISO } from "date-fns";
-import { useTheme } from "next-themes";
 
 interface WorkloadHeatmapProps {
   data: DashboardMetrics["workloadHeatmap"];
@@ -25,8 +24,7 @@ export function WorkloadHeatmap({ data }: WorkloadHeatmapProps) {
     formattedDate: format(parseISO(d.date), "MMM d"),
   }));
 
-  const isDark = theme === "dark";
-  const defaultBarColor = isDark ? "hsl(var(--chart-1))" : "hsl(var(--chart-1))";
+  const defaultBarColor = "hsl(var(--chart-1))";
   const warningBarColor = "hsl(var(--destructive))";
 
   const chartConfig = {
