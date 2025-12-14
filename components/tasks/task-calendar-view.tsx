@@ -46,6 +46,17 @@ interface TaskCalendarViewProps {
   context?: { type: "semester" | "course"; id: string };
 }
 
+interface CalendarEvent {
+  id: string;
+  title: string;
+  code?: string;
+  start: Date;
+  end: Date;
+  allDay: boolean;
+  resource: TaskWithDetails;
+  color?: string | null;
+}
+
 export function TaskCalendarView({ tasks, context }: TaskCalendarViewProps) {
   const router = useRouter();
   const { theme } = useTheme();
@@ -69,11 +80,11 @@ export function TaskCalendarView({ tasks, context }: TaskCalendarViewProps) {
       };
     });
 
-  const handleSelectEvent = (event: any) => {
+  const handleSelectEvent = (event: CalendarEvent) => {
     router.push(`/tasks/${event.id}`);
   };
 
-  const eventPropGetter = (event: any) => {
+  const eventPropGetter = (event: CalendarEvent) => {
     const backgroundColor = event.color || "#3b82f6";
     return {
       style: {
@@ -89,7 +100,7 @@ export function TaskCalendarView({ tasks, context }: TaskCalendarViewProps) {
     };
   };
 
-  const CustomToolbar = (toolbar: ToolbarProps) => {
+  const CustomToolbar = (toolbar: ToolbarProps<CalendarEvent>) => {
     const goToBack = () => {
       toolbar.onNavigate("PREV");
     };
@@ -138,7 +149,7 @@ export function TaskCalendarView({ tasks, context }: TaskCalendarViewProps) {
     );
   };
 
-  const CustomEvent = ({ event }: any) => {
+  const CustomEvent = ({ event }: { event: CalendarEvent }) => {
     return (
       <div className="flex items-center gap-1.5 px-2 py-0.5 text-xs font-medium w-full h-full">
         {event.code && (
