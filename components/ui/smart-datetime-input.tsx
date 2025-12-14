@@ -31,9 +31,18 @@ export const SmartDatetimeInput = React.forwardRef<
   const [open, setOpen] = React.useState(false);
 
   // Sync internal state when external value changes
+  // Sync internal state when external value changes
   React.useEffect(() => {
     if (value) {
-      const date = new Date(value);
+      let date: Date;
+      // Handle YYYY-MM-DD strings explicitly to avoid UTC conversion shifts
+      if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
+        const [y, m, d] = value.split("-").map(Number);
+        date = new Date(y, m - 1, d);
+      } else {
+        date = new Date(value);
+      }
+
       if (!isNaN(date.getTime())) {
         setInputValue(format(date, "MMM d, yyyy"));
         setParsedDate(date);
@@ -109,6 +118,7 @@ export const SmartDatetimeInput = React.forwardRef<
             variant="ghost"
             size="icon"
             className="absolute right-1 h-7 w-7 text-muted-foreground hover:bg-transparent"
+            type="button"
           >
             <CalendarIcon className="h-4 w-4" />
           </Button>

@@ -36,6 +36,7 @@ import {
 } from "@/components/ui/collapsible";
 import { Semester, Course } from "@/types";
 import { Kbd } from "@/components/ui/kbd";
+import { CreateSemesterDialog } from "@/components/semesters/create-semester-dialog";
 
 export function AppSidebar({
   semesters,
@@ -152,12 +153,11 @@ export function AppSidebar({
 
         <SidebarGroup>
           <SidebarGroupLabel>Semesters</SidebarGroupLabel>
-          <SidebarGroupAction title="Add Semester" asChild>
-            <Link href="/semesters/new">
-              {" "}
+          <CreateSemesterDialog>
+            <SidebarGroupAction title="Add Semester">
               <Plus /> <span className="sr-only">Add Semester</span>
-            </Link>
-          </SidebarGroupAction>
+            </SidebarGroupAction>
+          </CreateSemesterDialog>
           <SidebarMenu>
             {semesters.map((semester) => (
               <Collapsible

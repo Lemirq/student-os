@@ -59,7 +59,7 @@ export function StudyDebtWidget({ tasks }: StudyDebtWidgetProps) {
             <p className="text-xs text-muted-foreground">
               Your &quot;Debt&quot; is the number of tasks you promised to do in
               the past but didn&apos;t finish. Clicking the badge activates{" "}
-              <span className="font-medium text-primary">Repayment Mode</span>{" "}
+              <span className="font-medium text-red-500">Repayment Mode</span>{" "}
               to help you catch up.
             </p>
           </TooltipContent>
@@ -95,7 +95,7 @@ export function StudyDebtWidget({ tasks }: StudyDebtWidgetProps) {
             <p className="text-xs text-muted-foreground">
               Your &quot;Debt&quot; is the number of tasks you promised to do in
               the past but didn&apos;t finish. Clicking the badge activates{" "}
-              <span className="font-medium text-primary">Repayment Mode</span>{" "}
+              <span className="font-medium text-red-500">Repayment Mode</span>{" "}
               to help you catch up.
             </p>
           </TooltipContent>
@@ -127,7 +127,7 @@ export function StudyDebtWidget({ tasks }: StudyDebtWidgetProps) {
           <p className="text-xs text-muted-foreground">
             Your &quot;Debt&quot; is the number of tasks you promised to do in
             the past but didn&apos;t finish. Clicking the badge activates{" "}
-            <span className="font-medium text-primary">Repayment Mode</span> to
+            <span className="font-medium text-red-500">Repayment Mode</span> to
             help you catch up.
           </p>
         </TooltipContent>
