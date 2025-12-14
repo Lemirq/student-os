@@ -51,7 +51,8 @@ export async function createSemester(data: z.infer<typeof semesterSchema>) {
     .returning();
 
   revalidatePath("/");
-  redirect(`/semesters/${insertedSemester.id}`);
+  revalidatePath("/");
+  return transformId(insertedSemester.id);
 }
 
 export async function createCourse(data: z.infer<typeof courseSchema>) {
@@ -63,36 +64,45 @@ export async function createCourse(data: z.infer<typeof courseSchema>) {
   // Ensure user exists in users table
   await ensureUserExists(user.user.id, user.user.email || "");
 
-  const validated = courseSchema.parse(data);
-  if (!validated.semesterId) {
-    throw new Error("Semester ID is required");
+  try {
+    const validated = courseSchema.parse(data);
+    if (!validated.semesterId) {
+      throw new Error("Semester ID is required");
+    }
+
+    const semester = await db.query.semesters.findFirst({
+      where: and(
+        eq(semesters.id, validated.semesterId),
+        eq(semesters.userId, user.user.id),
+      ),
+    });
+
+    if (!semester) {
+      throw new Error("Semester not found or unauthorized");
+    }
+
+    const [insertedCourse]: Course[] = await db
+      .insert(courses)
+      .values({
+        semesterId: validated.semesterId,
+        userId: user.user.id,
+        code: validated.code,
+        name: validated.name,
+        color: validated.color,
+        goalGrade: validated.goalGrade ? String(validated.goalGrade) : null,
+      })
+      .returning();
+
+    if (!insertedCourse) {
+      throw new Error("Failed to insert course - no return value");
+    }
+
+    revalidatePath("/");
+    return transformId(insertedCourse.id);
+  } catch (error) {
+    console.error("Error in createCourse server action:", error);
+    throw error;
   }
-
-  const semester = await db.query.semesters.findFirst({
-    where: and(
-      eq(semesters.id, validated.semesterId),
-      eq(semesters.userId, user.user.id),
-    ),
-  });
-
-  if (!semester) {
-    throw new Error("Semester not found or unauthorized");
-  }
-
-  const [insertedCourse]: Course[] = await db
-    .insert(courses)
-    .values({
-      semesterId: validated.semesterId,
-      userId: user.user.id,
-      code: validated.code,
-      name: validated.name,
-      color: validated.color,
-      goalGrade: validated.goalGrade ? String(validated.goalGrade) : null,
-    })
-    .returning();
-
-  revalidatePath("/");
-  redirect(`/courses/${insertedCourse.id}`);
 }
 
 export async function createGradeWeight(
@@ -303,11 +313,13 @@ export async function deleteCourse(courseId: string) {
   }
 
   await db.delete(courses).where(eq(courses.id, courseId));
-
-  revalidatePath("/");
   if (course.semester) {
     redirect(`/semesters/${course.semester.id}`);
   } else {
     redirect("/dashboard");
   }
+}
+
+function transformId(id: string) {
+  return { id };
 }

@@ -29,6 +29,8 @@ import { format } from "date-fns";
 import { toast } from "sonner";
 import { Plus } from "lucide-react";
 
+import { useRouter } from "next/navigation";
+
 interface CreateSemesterDialogProps {
   children?: React.ReactNode;
 }
@@ -36,6 +38,7 @@ interface CreateSemesterDialogProps {
 export function CreateSemesterDialog({ children }: CreateSemesterDialogProps) {
   const [open, setOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
+  const router = useRouter();
 
   const form = useForm<z.infer<typeof semesterSchema>>({
     resolver: zodResolver(semesterSchema),
@@ -51,10 +54,11 @@ export function CreateSemesterDialog({ children }: CreateSemesterDialogProps) {
   function onSubmit(values: z.infer<typeof semesterSchema>) {
     startTransition(async () => {
       try {
-        await createSemester(values);
+        const { id } = await createSemester(values);
         toast.success("Semester created successfully");
         setOpen(false);
         form.reset();
+        router.push(`/semesters/${id}`);
       } catch (error) {
         toast.error("Failed to create semester");
         console.error(error);

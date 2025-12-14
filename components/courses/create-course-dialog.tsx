@@ -28,6 +28,8 @@ import { toast } from "sonner";
 import { Plus } from "lucide-react";
 import { SidebarMenuSubButton } from "@/components/ui/sidebar";
 
+import { useRouter } from "next/navigation";
+
 interface CreateCourseDialogProps {
   semesterId: string;
   children?: React.ReactNode;
@@ -39,6 +41,7 @@ export function CreateCourseDialog({
 }: CreateCourseDialogProps) {
   const [open, setOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
+  const router = useRouter();
 
   const form = useForm<z.infer<typeof courseSchema>>({
     resolver: zodResolver(courseSchema),
@@ -54,10 +57,11 @@ export function CreateCourseDialog({
   function onSubmit(values: z.infer<typeof courseSchema>) {
     startTransition(async () => {
       try {
-        await createCourse(values);
+        const { id } = await createCourse(values);
         toast.success("Course created successfully");
         setOpen(false);
         form.reset();
+        router.push(`/courses/${id}`);
       } catch (error) {
         toast.error("Failed to create course");
         console.error(error);
