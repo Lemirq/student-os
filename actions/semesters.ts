@@ -99,3 +99,8 @@ export async function updateSemester(
 
   revalidatePath(`/semesters/${semesterId}`);
 }
+
+export async function deleteSemester(semesterId: string): Promise<void> {
+  await db.delete(semesters).where(eq(semesters.id, semesterId));
+  revalidatePath("/dashboard");
+}

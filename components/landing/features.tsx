@@ -46,6 +46,23 @@ const features = [
   },
 ];
 
+import * as motion from "framer-motion/client";
+
+const container = {
+  hidden: { opacity: 0 },
+  show: {
+    opacity: 1,
+    transition: {
+      staggerChildren: 0.1,
+    },
+  },
+};
+
+const item = {
+  hidden: { opacity: 0, y: 20 },
+  show: { opacity: 1, y: 0 },
+};
+
 export function Features() {
   return (
     <section
@@ -61,9 +78,16 @@ export function Features() {
           students, for students.
         </p>
       </div>
-      <div className="mx-auto grid justify-center gap-4 sm:grid-cols-2 md:max-w-5xl md:grid-cols-3">
+      <motion.div
+        variants={container}
+        initial="hidden"
+        whileInView="show"
+        viewport={{ once: true }}
+        className="mx-auto grid justify-center gap-4 sm:grid-cols-2 md:max-w-5xl md:grid-cols-3"
+      >
         {features.map((feature) => (
-          <div
+          <motion.div
+            variants={item}
             key={feature.name}
             className="relative overflow-hidden rounded-lg border bg-background p-2"
           >
@@ -76,9 +100,9 @@ export function Features() {
                 </p>
               </div>
             </div>
-          </div>
+          </motion.div>
         ))}
-      </div>
+      </motion.div>
     </section>
   );
 }
