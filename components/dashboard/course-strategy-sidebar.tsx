@@ -1,7 +1,12 @@
 "use client";
 
 import * as React from "react";
-import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
+import { PieChart, Pie, Cell } from "recharts";
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+} from "@/components/ui/chart";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Slider } from "@/components/ui/slider";
 import { CourseData } from "@/actions/get-course-data";
@@ -111,10 +116,26 @@ export function CourseStrategySidebar({ course }: CourseStrategySidebarProps) {
     {
       name: "Completed",
       value: completedWeight,
-      color: course.color || "#000",
+      fill: course.color || "hsl(var(--chart-1))",
     },
-    { name: "Remaining", value: remainingWeight, color: "#e5e7eb" }, // gray-200
+    {
+      name: "Remaining",
+      value: remainingWeight,
+      fill: "hsl(var(--muted))",
+    },
   ];
+
+  const chartConfig = {
+    value: {
+      label: "Weight",
+    },
+    Completed: {
+      label: "Completed",
+    },
+    Remaining: {
+      label: "Remaining",
+    },
+  };
 
   // Calculate total weight for grade weights
   const totalWeight = React.useMemo(() => {
@@ -399,7 +420,7 @@ export function CourseStrategySidebar({ course }: CourseStrategySidebarProps) {
         </CardHeader>
         <CardContent>
           <div className="h-[200px] w-full relative">
-            <ResponsiveContainer width="100%" height="100%">
+            <ChartContainer config={chartConfig} className="mx-auto aspect-square h-[200px]">
               <PieChart>
                 <Pie
                   data={pieData}
@@ -412,15 +433,19 @@ export function CourseStrategySidebar({ course }: CourseStrategySidebarProps) {
                   dataKey="value"
                   stroke="none"
                 >
-                  <Cell fill={pieData[0].color} />
-                  <Cell fill={pieData[1].color} fillOpacity={0.3} />
+                  {pieData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.fill} fillOpacity={index === 1 ? 0.3 : 1} />
+                  ))}
                 </Pie>
-                <Tooltip
-                  formatter={(value: number) => `${value.toFixed(1)}%`}
-                  contentStyle={{ borderRadius: "8px" }}
+                <ChartTooltip
+                  content={
+                    <ChartTooltipContent
+                      formatter={(value: number) => `${value.toFixed(1)}%`}
+                    />
+                  }
                 />
               </PieChart>
-            </ResponsiveContainer>
+            </ChartContainer>
             <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
               <span className="text-3xl font-bold">
                 {completedWeight.toFixed(0)}%
