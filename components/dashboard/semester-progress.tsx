@@ -36,14 +36,14 @@ export function SemesterProgress({
   onWeekSelect,
 }: SemesterProgressProps) {
   return (
-    <Card className="gap-2 py-2">
+    <Card className="gap-2 py-2 h-full">
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
         <CardTitle className="text-sm font-medium">Semester Progress</CardTitle>
         <Calendar className="h-4 w-4 text-muted-foreground" />
       </CardHeader>
       <CardContent>
         <div className="space-y-2">
-          <div className="flex items-end justify-between">
+          <div className="flex items-end justify-between flex-wrap gap-2">
             <div className="text-2xl font-bold">
               Week {data.weekNumber}{" "}
               <span className="text-muted-foreground text-sm font-normal">

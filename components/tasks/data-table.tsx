@@ -643,7 +643,7 @@ export function DataTable<TData, TValue>({
           onDragEnd={handleDragEnd}
           sensors={sensors}
         >
-          <Table style={{ width: "100%", minWidth: table.getTotalSize() }}>
+          <Table>
             <TableHeader>
               {table.getHeaderGroups().map((headerGroup) => (
                 <TableRow key={headerGroup.id}>

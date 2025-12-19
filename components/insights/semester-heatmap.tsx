@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import {
   format,
   startOfWeek,
+  endOfWeek,
   addWeeks,
   isWithinInterval,
   isSameWeek,
@@ -82,10 +83,15 @@ function getHeatmapData(
 
   // Generate all weeks from start to end
   while (currentWeekStart <= semesterEnd) {
-    const weekEnd = addWeeks(currentWeekStart, 1);
+    const weekEnd = endOfWeek(currentWeekStart, { weekStartsOn: 1 }); // Sunday 23:59:59
+    const nextWeekStart = addWeeks(currentWeekStart, 1); // Next Monday 00:00:00
 
     // Calculate total weight for tasks in this week
     let totalWeight = 0;
+
+    console.groupCollapsed(
+      `[Heatmap] Processing Week ${weekNumber} (${format(currentWeekStart, "MMM d")} - ${format(weekEnd, "MMM d")})`,
+    );
 
     tasks.forEach((task) => {
       if (!task.dueDate) return;
@@ -108,10 +114,18 @@ function getHeatmapData(
               gradeWeightData.weight / gradeWeightData.count;
 
             console.log(
-              `[Heatmap] Task "${task.id}": ${gradeWeightData.weight}% ÷ ${gradeWeightData.count} tasks = ${effectiveWeight.toFixed(2)}% effective weight`,
+              `[Heatmap] Found task "${task.id}" due ${format(dueDate, "MMM d ha")}\n` +
+                `   Category Weight: ${gradeWeightData.weight}%\n` +
+                `   Total Tasks in Category: ${gradeWeightData.count}\n` +
+                `   Calculation: ${gradeWeightData.weight} / ${gradeWeightData.count} = ${effectiveWeight.toFixed(4)}%\n` +
+                `   Running Total: ${totalWeight.toFixed(4)}% + ${effectiveWeight.toFixed(4)}% = ${(totalWeight + effectiveWeight).toFixed(4)}%`,
             );
             totalWeight += effectiveWeight;
           }
+        } else {
+          console.log(
+            `[Heatmap] Found task "${task.id}" (No Grade Weight linked)`,
+          );
         }
       }
     });
@@ -141,8 +155,9 @@ function getHeatmapData(
     }
 
     console.log(
-      `[Heatmap] Week ${weekNumber}: ${totalWeight.toFixed(1)}% Points at Stake → ${levelLabel}`,
+      `[Heatmap] Week ${weekNumber} Final: ${totalWeight.toFixed(1)}% Points at Stake → ${levelLabel}`,
     );
+    console.groupEnd();
 
     weeks.push({
       startDate: currentWeekStart,
@@ -152,7 +167,7 @@ function getHeatmapData(
       weekNumber,
     });
 
-    currentWeekStart = weekEnd;
+    currentWeekStart = nextWeekStart;
     weekNumber++;
   }
 
@@ -200,7 +215,7 @@ export function SemesterHeatmap({
             <TooltipTrigger asChild>
               <div
                 className={cn(
-                  "h-2 flex-1 rounded-sm transition-all cursor-pointer hover:opacity-80",
+                  "h-1.5 flex-1 transition-all cursor-pointer hover:opacity-80",
                   week.level === 0 && "bg-green-500/60", // No tasks - green (most chill)
                   week.level === 1 && "bg-green-400/70", // Chill - light green
                   week.level === 2 && "bg-primary", // Normal - blue

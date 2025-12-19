@@ -32,7 +32,7 @@ export function SemesterContent({ semester, metrics }: SemesterContentProps) {
   return (
     <>
       {/* Dashboard Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-12 max-h-[500px] grid-rows-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-12 max-h-[500px] grid-rows-3 gap-2">
         {/* Top Row: Progress & Quick Capture */}
         <div className="md:col-span-8 row-span-1">
           <SemesterProgress
