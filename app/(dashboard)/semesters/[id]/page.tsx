@@ -7,6 +7,7 @@ import { Plus } from "lucide-react";
 import { format } from "date-fns";
 import { EditSemesterDialog } from "@/components/semesters/edit-semester-dialog";
 import { SemesterContent } from "@/components/semesters/semester-content";
+import { CreateCourseDialog } from "@/components/courses/create-course-dialog";
 import { StudyDebtWidget } from "@/components/insights/study-debt-widget";
 
 // Helper to format date-only strings correctly without timezone issues
@@ -45,14 +46,14 @@ export default async function SemesterPage({
             {formatDateOnly(semester.endDate)}
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="fr gap-2 items-start">
           <StudyDebtWidget tasks={semester.tasks} />
           <EditSemesterDialog semester={semester} />
-          <Link href={`/semesters/${semester.id}/courses/new`}>
-            <Button>
+          <CreateCourseDialog semesterId={semester.id}>
+            <Button size="lg">
               <Plus className="mr-2 h-4 w-4" /> Add Course
             </Button>
-          </Link>
+          </CreateCourseDialog>
         </div>
       </div>
 

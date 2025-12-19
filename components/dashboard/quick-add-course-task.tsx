@@ -48,6 +48,7 @@ export function QuickAddCourseTask({
         onKeyDown={handleKeyDown}
         placeholder={`Add task to ${courseCode}...`}
         disabled={isPending}
+        className="flex-1"
       />
     </div>
   );

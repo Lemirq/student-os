@@ -64,24 +64,24 @@ export default async function CoursePage({ params }: CoursePageProps) {
   const isBelowGoal = currentGrade < goalGrade;
 
   return (
-    <div className="py-2 h-[calc(100vh-4rem)] flex flex-col space-y-6">
+    <div className="py-2 h-auto lg:h-[calc(100vh-4rem)] flex flex-col space-y-6">
       {/* Header */}
       <Card
         className="shrink-0 border-t-4 shadow-sm py-2"
         style={{ borderTopColor: course.color || "#000" }}
       >
-        <CardContent className="p-6 space-y-4">
-          <div className="flex items-center justify-between">
+        <CardContent className="p-4 lg:p-6 space-y-4">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
             <div>
-              <h1 className="text-3xl font-bold tracking-tight">
+              <h1 className="text-2xl lg:text-3xl font-bold tracking-tight wrap-break-word">
                 {course.code}{" "}
-                <span className="text-muted-foreground font-normal ml-2">
+                <span className="text-muted-foreground font-normal lg:ml-2 block lg:inline">
                   {course.name}
                 </span>
               </h1>
             </div>
-            <div className="flex items-center gap-4">
-              <div className="text-right">
+            <div className="flex flex-wrap items-center gap-4">
+              <div className="text-left lg:text-right">
                 <div className="text-xs text-muted-foreground uppercase tracking-wider font-semibold mb-1">
                   Current Grade
                 </div>
@@ -94,7 +94,7 @@ export default async function CoursePage({ params }: CoursePageProps) {
                 </div>
               </div>
 
-              <div className="h-10 w-px bg-border mx-2" />
+              <div className="hidden lg:block h-10 w-px bg-border mx-2" />
 
               <Badge variant="outline" className="text-sm py-1 px-3">
                 Goal: {goalGrade}%
@@ -110,7 +110,7 @@ export default async function CoursePage({ params }: CoursePageProps) {
       </Card>
 
       {/* Main Grid Layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-2 flex-1 min-h-0">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-2 flex-1 min-h-0">
         {/* Left Column: Tasks */}
         <div className="lg:col-span-2 flex flex-col min-h-0">
           <Card className="flex-1 flex flex-col min-h-0 border-none shadow-none bg-transparent">
@@ -119,7 +119,7 @@ export default async function CoursePage({ params }: CoursePageProps) {
                 courseId={course.id}
                 courseCode={course.code}
               />
-              <div className="flex-1 min-h-0">
+              <div className="flex-1 min-h-0 overflow-y-auto">
                 <TaskExplorer
                   tasks={course.tasks}
                   storageKey={`course-tasks-table-${course.id}`}

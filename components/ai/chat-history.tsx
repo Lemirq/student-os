@@ -87,7 +87,7 @@ export function ChatHistory({
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-64 p-0" align="end">
-        <Sidebar collapsible="none" className="bg-transparent">
+        <Sidebar collapsible="none" className="bg-transparent max-h-[700px]">
           <SidebarContent>
             <SidebarGroup className="border-b p-2">
               <Button

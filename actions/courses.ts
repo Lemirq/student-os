@@ -38,6 +38,13 @@ export async function createSemester(data: z.infer<typeof semesterSchema>) {
 
   const validated = semesterSchema.parse(data);
 
+  if (validated.isCurrent) {
+    await db
+      .update(semesters)
+      .set({ isCurrent: false })
+      .where(eq(semesters.userId, user.user.id));
+  }
+
   const [insertedSemester]: Semester[] = await db
     .insert(semesters)
     .values({
@@ -50,7 +57,6 @@ export async function createSemester(data: z.infer<typeof semesterSchema>) {
     })
     .returning();
 
-  revalidatePath("/");
   revalidatePath("/");
   return transformId(insertedSemester.id);
 }

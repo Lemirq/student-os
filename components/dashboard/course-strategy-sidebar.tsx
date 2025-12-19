@@ -203,7 +203,7 @@ export function CourseStrategySidebar({ course }: CourseStrategySidebarProps) {
   };
 
   return (
-    <div className="space-y-6 sticky top-6">
+    <div className="space-y-6 lg:sticky lg:top-6">
       {/* Widget A: Grade Weights */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">

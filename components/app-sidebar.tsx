@@ -122,7 +122,7 @@ export function AppSidebar({
 
   return (
     <Sidebar collapsible="icon">
-      <SidebarHeader>
+      <SidebarHeader className="h-16 border-b">
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton size="lg" asChild>
@@ -184,7 +184,7 @@ export function AppSidebar({
                     <Link href={`/semesters/${semester.id}`}>
                       <BookOpen />
                       <span>
-                        {semester.name} <Kbd>G G</Kbd>
+                        {semester.name} {semester.isCurrent && <Kbd>G G</Kbd>}
                       </span>
                     </Link>
                   </SidebarMenuButton>
@@ -219,7 +219,7 @@ export function AppSidebar({
                                   }}
                                 />
                                 <span>{course.code}</span>
-                                {shortcutNumber && (
+                                {shortcutNumber && semester.isCurrent && (
                                   <Kbd className="ml-auto opacity-60 group-hover/menu-item:opacity-100 group-data-[collapsible=icon]:hidden">
                                     <span className="text-xs">G</span>
                                     {shortcutNumber}

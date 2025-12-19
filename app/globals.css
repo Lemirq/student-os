@@ -268,3 +268,11 @@
     @apply border-border!;
   }
 }
+
+@utility fc {
+  @apply flex flex-col justify-center items-center;
+}
+
+@utility fr {
+  @apply flex flex-row justify-center items-center;
+}

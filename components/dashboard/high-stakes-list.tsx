@@ -23,7 +23,7 @@ export function HighStakesList({ tasks }: HighStakesListProps) {
           {tasks.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-32 text-muted-foreground text-sm">
               <CheckCircle2 className="h-8 w-8 mb-2 opacity-50" />
-              <p>No high stakes tasks upcoming!</p>
+              <p className="text-center">No high stakes tasks upcoming!</p>
             </div>
           ) : (
             <div className="space-y-4">

@@ -277,7 +277,11 @@ function Sidebar({
     <div
       className="group peer text-sidebar-foreground hidden md:block"
       data-state={side === "right" ? rightState : state}
-      data-collapsible={state === "collapsed" ? collapsible : ""}
+      data-collapsible={
+        (side === "right" ? rightState : state) === "collapsed"
+          ? collapsible
+          : ""
+      }
       data-variant={variant}
       data-side={side}
       data-slot="sidebar"

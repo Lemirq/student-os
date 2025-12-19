@@ -68,7 +68,8 @@ export function StudyDebtWidget({ tasks }: StudyDebtWidgetProps) {
           <TooltipTrigger asChild>
             <Button
               variant="outline"
-              className="h-8 gap-2 text-muted-foreground border-border/50 bg-background/50"
+              size="sm"
+              className="gap-2 text-muted-foreground border-border/50 bg-background/50"
             >
               <CheckCircle2 className="h-4 w-4 text-green-500/80" />
               <span className="hidden sm:inline">Debt Free</span>

@@ -2,15 +2,13 @@
 
 import { DashboardMetrics } from "@/actions/dashboard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Bar, BarChart, Cell, XAxis, YAxis } from "recharts";
 import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  Tooltip,
-  ResponsiveContainer,
-  Cell,
-} from "recharts";
+  ChartConfig,
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+} from "@/components/ui/chart";
 import { Activity } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { useTheme } from "next-themes";
@@ -18,6 +16,13 @@ import { useTheme } from "next-themes";
 interface WorkloadHeatmapProps {
   data: DashboardMetrics["workloadHeatmap"];
 }
+
+const chartConfig = {
+  taskCount: {
+    label: "Tasks",
+    color: "var(--chart-1)",
+  },
+} satisfies ChartConfig;
 
 export function WorkloadHeatmap({ data }: WorkloadHeatmapProps) {
   const { theme } = useTheme();
@@ -30,8 +35,8 @@ export function WorkloadHeatmap({ data }: WorkloadHeatmapProps) {
   }));
 
   const isDark = theme === "dark";
-  const defaultBarColor = isDark ? "var(--chart-1)" : "var(--chart-1)"; // slate-200 : slate-900
-  const warningBarColor = "var(--destructive)"; // red-500
+  const defaultBarColor = "var(--chart-1)";
+  const warningBarColor = "var(--destructive)";
 
   return (
     <Card className="h-full">
@@ -41,10 +46,11 @@ export function WorkloadHeatmap({ data }: WorkloadHeatmapProps) {
           7-Day Workload
         </CardTitle>
       </CardHeader>
-      <CardContent>
-        <div className="h-[200px] w-full">
-          <ResponsiveContainer width="100%" height="100%">
+      <CardContent className="px-0 h-full pr-3">
+        <div className="h-full w-full">
+          <ChartContainer config={chartConfig} className="h-full w-full">
             <BarChart
+              accessibilityLayer
               data={chartData}
               margin={{ top: 5, right: 5, bottom: 5, left: -20 }}
             >
@@ -62,28 +68,9 @@ export function WorkloadHeatmap({ data }: WorkloadHeatmapProps) {
                 allowDecimals={false}
                 tick={{ fill: "currentColor", opacity: 0.7 }}
               />
-              <Tooltip
-                cursor={{ fill: "transparent" }}
-                content={({ active, payload }) => {
-                  if (active && payload && payload.length) {
-                    const item = payload[0].payload;
-                    return (
-                      <div className="rounded-lg border bg-background p-2 shadow-sm">
-                        <div className="grid grid-cols-2 gap-2">
-                          <div className="flex flex-col">
-                            <span className="text-[0.70rem] uppercase text-muted-foreground">
-                              {item.formattedDate}
-                            </span>
-                            <span className="font-bold text-muted-foreground">
-                              {item.taskCount} Tasks
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  }
-                  return null;
-                }}
+              <ChartTooltip
+                cursor={false}
+                content={<ChartTooltipContent hideLabel />}
               />
               <Bar dataKey="taskCount" radius={[4, 4, 0, 0]}>
                 {chartData.map((entry, index) => (
@@ -96,7 +83,7 @@ export function WorkloadHeatmap({ data }: WorkloadHeatmapProps) {
                 ))}
               </Bar>
             </BarChart>
-          </ResponsiveContainer>
+          </ChartContainer>
         </div>
       </CardContent>
     </Card>

@@ -25,10 +25,31 @@ import { Input } from "@/components/ui/input";
 import { courseSchema } from "@/lib/schemas";
 import { createCourse } from "@/actions/courses";
 import { toast } from "sonner";
-import { Plus } from "lucide-react";
+import { Plus, Check } from "lucide-react";
 import { SidebarMenuSubButton } from "@/components/ui/sidebar";
+import { cn } from "@/lib/utils";
 
 import { useRouter } from "next/navigation";
+
+const COLORS = [
+  "#ef4444", // Red
+  "#f97316", // Orange
+  "#f59e0b", // Amber
+  "#84cc16", // Lime
+  "#22c55e", // Green
+  "#10b981", // Emerald
+  "#14b8a6", // Teal
+  "#06b6d4", // Cyan
+  "#3b82f6", // Blue
+  "#6366f1", // Indigo
+  "#8b5cf6", // Violet
+  "#a855f7", // Purple
+  "#d946ef", // Fuchsia
+  "#ec4899", // Pink
+  "#f43f5e", // Rose
+  "#71717a", // Zinc
+  "#000000", // Black
+];
 
 interface CreateCourseDialogProps {
   semesterId: string;
@@ -125,18 +146,20 @@ export function CreateCourseDialog({
                 <FormItem>
                   <FormLabel>Color</FormLabel>
                   <FormControl>
-                    <div className="flex items-center gap-2">
-                      <Input
-                        type="color"
-                        className="w-12 h-10 p-1"
-                        {...field}
-                        value={field.value || ""}
-                      />
-                      <Input
-                        placeholder="#3b82f6"
-                        {...field}
-                        value={field.value || ""}
-                      />
+                    <div className="flex flex-wrap gap-2">
+                      {COLORS.map((color) => (
+                        <div
+                          key={color}
+                          className={cn(
+                            "w-8 h-8 cursor-pointer flex items-center justify-center transition-all hover:scale-110",
+                            field.value === color
+                              ? "ring-1 ring-offset-2 ring-white"
+                              : "hover:bg-opacity-80",
+                          )}
+                          style={{ backgroundColor: color }}
+                          onClick={() => field.onChange(color)}
+                        ></div>
+                      ))}
                     </div>
                   </FormControl>
                   <FormMessage />

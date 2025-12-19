@@ -6,6 +6,7 @@ import { eq, inArray, and } from "drizzle-orm";
 import { Semester, Course, Task, GradeWeight } from "@/types";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/utils/supabase/server";
+import { redirect } from "next/navigation";
 
 export type SemesterData = Semester & {
   courses: Course[];
@@ -132,5 +133,5 @@ export async function deleteSemester(semesterId: string): Promise<void> {
   await db
     .delete(semesters)
     .where(and(eq(semesters.id, semesterId), eq(semesters.userId, user.id)));
-  revalidatePath("/dashboard");
+  redirect("/dashboard");
 }

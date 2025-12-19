@@ -200,9 +200,8 @@ export function AICopilotSidebar({ aiEnabled }: { aiEnabled: boolean }) {
   return (
     <Sidebar
       side="right"
-      collapsible="none"
       className={cn(
-        "hidden lg:flex h-[calc(100svh-2rem)] ml-0 m-4 rounded-xl border shadow-xl bg-sidebar/60 backdrop-blur-xl sticky top-4 transition-colors",
+        "hidden lg:flex h-full ml-0 border-l bg-sidebar transition-colors",
         isDragging && "border-primary/50 bg-primary/5",
       )}
       onDragOver={onDragOver}
@@ -220,8 +219,8 @@ export function AICopilotSidebar({ aiEnabled }: { aiEnabled: boolean }) {
           </p>
         </div>
       )}
-      <SidebarHeader className="border-b p-4 bg-transparent">
-        <div className="flex items-center justify-between">
+      <SidebarHeader className="border-b h-16 bg-transparent fc">
+        <div className="flex items-center justify-between w-full">
           <div className="flex items-center gap-2 font-semibold">
             <Sparkles className="size-4" />
             <span>StudentOS AI</span>

@@ -575,64 +575,64 @@ export function DataTable<TData, TValue>({
       )}
 
       {/* Toolbar */}
-      <div className="flex items-center justify-between">
-        <div className="flex mx-2 mt-4 flex-1 justify-between space-x-2">
+      <div className="flex flex-col gap-4 py-4 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex-1 w-full lg:w-auto">
           <Input
             placeholder="Filter tasks..."
             value={(table.getColumn("title")?.getFilterValue() as string) ?? ""}
             onChange={(event) =>
               table.getColumn("title")?.setFilterValue(event.target.value)
             }
-            className="h-8 w-[150px] lg:w-[250px]"
+            className="h-8 w-full lg:w-[250px]"
           />
-          <div className="flex items-center gap-2">
-            {sorting.length > 0 && (
+        </div>
+        <div className="flex items-center gap-2 flex-wrap">
+          {sorting.length > 0 && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8"
+              onClick={() => setSorting([])}
+            >
+              <X className="mr-2 h-4 w-4" />
+              Clear Sort
+            </Button>
+          )}
+          {viewToggle}
+          <DataTableAdvancedFilters
+            table={table}
+            externalDateFilter={externalDateFilter}
+            onDateFilterChange={onDateFilterChange}
+          />
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
               <Button
-                variant="ghost"
+                variant="outline"
                 size="sm"
-                className="h-8"
-                onClick={() => setSorting([])}
+                className="h-8 ml-auto lg:ml-0"
               >
-                <X className="mr-2 h-4 w-4" />
-                Clear Sort
+                <SlidersHorizontal className="mr-2 h-4 w-4" />
+                Group
               </Button>
-            )}
-            {viewToggle}
-            <DataTableAdvancedFilters
-              table={table}
-              externalDateFilter={externalDateFilter}
-              onDateFilterChange={onDateFilterChange}
-            />
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="ml-auto h-8 lg:flex"
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-[150px]">
+              {groupByOptions.map((option) => (
+                <DropdownMenuCheckboxItem
+                  key={option.label}
+                  checked={
+                    JSON.stringify(grouping) === JSON.stringify(option.value)
+                  }
+                  onCheckedChange={(checked) => {
+                    if (checked) setGrouping(option.value as string[]);
+                    else setGrouping([]);
+                  }}
                 >
-                  <SlidersHorizontal className="mr-2 h-4 w-4" />
-                  Group By
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-[150px]">
-                {groupByOptions.map((option) => (
-                  <DropdownMenuCheckboxItem
-                    key={option.label}
-                    checked={
-                      JSON.stringify(grouping) === JSON.stringify(option.value)
-                    }
-                    onCheckedChange={(checked) => {
-                      if (checked) setGrouping(option.value as string[]);
-                      else setGrouping([]);
-                    }}
-                  >
-                    {option.label}
-                  </DropdownMenuCheckboxItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
-            <DataTableViewOptions table={table} />
-          </div>
+                  {option.label}
+                </DropdownMenuCheckboxItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <DataTableViewOptions table={table} />
         </div>
       </div>
 
