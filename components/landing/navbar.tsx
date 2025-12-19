@@ -5,11 +5,11 @@ import { GraduationCap } from "lucide-react";
 export function Navbar() {
   return (
     <nav className="fixed top-0 w-full z-50 border-b bg-background/95 backdrop-blur supports-backdrop-filter:bg-background/60">
-      <div className="container mx-auto flex h-14 items-center">
+      <div className="container mx-auto flex h-14 items-center px-4">
         <div className="mr-4 flex">
           <Link href="/" className="mr-6 flex items-center space-x-2">
             <GraduationCap className="h-6 w-6" />
-            <span className="hidden font-bold sm:inline-block">Student OS</span>
+            <span className="font-bold sm:inline-block">Student OS</span>
           </Link>
           <nav className="hidden md:flex items-center space-x-6 text-sm font-medium">
             <Link

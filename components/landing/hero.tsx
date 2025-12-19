@@ -5,8 +5,8 @@ import * as motion from "framer-motion/client";
 
 export function Hero() {
   return (
-    <section className="space-y-6 pb-8 pt-6 md:pb-12 md:pt-10 lg:py-32">
-      <div className="container mx-auto flex max-w-5xl flex-col items-center gap-4 text-center">
+    <section className="space-y-6 pb-8 pt-36 lg:py-32">
+      <div className="container mx-auto flex max-w-5xl flex-col items-center gap-4 text-center px-4">
         {/* <Link
           href="/dashboard"
           className="rounded-2xl bg-muted px-4 py-1.5 text-sm font-medium"
