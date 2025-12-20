@@ -60,6 +60,18 @@ export function AppSidebar({
     return semesters.flatMap((semester) => semester.courses);
   }, [semesters]);
 
+  // Group semesters by year level
+  const groupedSemesters = React.useMemo(() => {
+    const groups = new Map<number, (Semester & { courses: Course[] })[]>();
+    semesters.forEach((s) => {
+      const year = s.yearLevel;
+      if (!groups.has(year)) groups.set(year, []);
+      groups.get(year)!.push(s);
+    });
+    // Sort by year level ascending
+    return Array.from(groups.entries()).sort((a, b) => a[0] - b[0]);
+  }, [semesters]);
+
   // Hotkeys
   useHotkeys("g+t", () => router.push("/dashboard"));
   useHotkeys("g+s", () => router.push("/settings"));
@@ -168,76 +180,105 @@ export function AppSidebar({
             </SidebarGroupAction>
           </CreateSemesterDialog>
           <SidebarMenu>
-            {semesters.map((semester) => (
+            {groupedSemesters.map(([year, yearSemesters]) => (
               <Collapsible
-                key={semester.id}
-                asChild
-                defaultOpen={semester.isCurrent ?? false}
+                key={year}
+                defaultOpen={yearSemesters.some((s) => s.isCurrent)}
                 className="group/collapsible"
               >
                 <SidebarMenuItem>
-                  <SidebarMenuButton
-                    asChild
-                    tooltip={semester.name}
-                    isActive={pathname.startsWith(`/semesters/${semester.id}`)}
-                  >
-                    <Link href={`/semesters/${semester.id}`}>
-                      <BookOpen />
-                      <span>
-                        {semester.name} {semester.isCurrent && <Kbd>G G</Kbd>}
-                      </span>
-                    </Link>
-                  </SidebarMenuButton>
                   <CollapsibleTrigger asChild>
-                    <SidebarMenuAction className="data-[state=open]:rotate-90">
-                      <ChevronRight />
-                      <span className="sr-only">Toggle</span>
-                    </SidebarMenuAction>
+                    <SidebarMenuButton tooltip={`Year ${year}`}>
+                      <span className="font-medium">Year {year}</span>
+                      <ChevronRight className="ml-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
+                    </SidebarMenuButton>
                   </CollapsibleTrigger>
                   <CollapsibleContent>
-                    <SidebarMenuSub>
-                      {semester.courses.map((course) => {
-                        const courseIndex = allCourses.findIndex(
-                          (c) => c.id === course.id,
-                        );
-                        const shortcutNumber =
-                          courseIndex !== -1 && courseIndex < 9
-                            ? courseIndex + 1
-                            : null;
-
-                        return (
-                          <SidebarMenuSubItem key={course.id}>
+                    <SidebarMenuSub className="border-border mx-1">
+                      {yearSemesters.map((semester) => (
+                        <Collapsible
+                          key={semester.id}
+                          asChild
+                          defaultOpen={semester.isCurrent ?? false}
+                          className="group/semester-collapsible"
+                        >
+                          <SidebarMenuSubItem>
                             <SidebarMenuSubButton
                               asChild
-                              isActive={pathname === `/courses/${course.id}`}
+                              isActive={pathname.startsWith(
+                                `/semesters/${semester.id}`,
+                              )}
+                              className="pr-8" // Make room for the action
                             >
-                              <Link href={`/courses/${course.id}`}>
-                                <span
-                                  className="mr-2 size-2 rounded-full border border-sidebar-border"
-                                  style={{
-                                    backgroundColor: course.color || "#000000",
-                                  }}
-                                />
-                                <span>{course.code}</span>
-                                {shortcutNumber && semester.isCurrent && (
-                                  <Kbd className="ml-auto opacity-60 group-hover/menu-item:opacity-100 group-data-[collapsible=icon]:hidden">
-                                    <span className="text-xs">G</span>
-                                    {shortcutNumber}
-                                  </Kbd>
-                                )}
+                              <Link href={`/semesters/${semester.id}`}>
+                                <span>
+                                  {semester.name}{" "}
+                                  {semester.isCurrent && <Kbd>G G</Kbd>}
+                                </span>
                               </Link>
                             </SidebarMenuSubButton>
+                            <CollapsibleTrigger asChild>
+                              <SidebarMenuAction className="data-[state=open]:rotate-90">
+                                <ChevronRight />
+                                <span className="sr-only">Toggle</span>
+                              </SidebarMenuAction>
+                            </CollapsibleTrigger>
+                            <CollapsibleContent>
+                              <SidebarMenuSub className="border-border mr-0 ml-1">
+                                {semester.courses.map((course) => {
+                                  const courseIndex = allCourses.findIndex(
+                                    (c) => c.id === course.id,
+                                  );
+                                  const shortcutNumber =
+                                    courseIndex !== -1 && courseIndex < 9
+                                      ? courseIndex + 1
+                                      : null;
+
+                                  return (
+                                    <SidebarMenuSubItem key={course.id}>
+                                      <SidebarMenuSubButton
+                                        className="px-0"
+                                        asChild
+                                        isActive={
+                                          pathname === `/courses/${course.id}`
+                                        }
+                                      >
+                                        <Link href={`/courses/${course.id}`}>
+                                          <span
+                                            className="mr-2 size-2 rounded-full border"
+                                            style={{
+                                              backgroundColor:
+                                                course.color || "#000000",
+                                            }}
+                                          />
+                                          <span>{course.code}</span>
+                                          {shortcutNumber &&
+                                            semester.isCurrent && (
+                                              <Kbd className="ml-auto opacity-60 group-hover/menu-item:opacity-100 group-data-[collapsible=icon]:hidden">
+                                                <span className="text-xs">
+                                                  G
+                                                </span>
+                                                {shortcutNumber}
+                                              </Kbd>
+                                            )}
+                                        </Link>
+                                      </SidebarMenuSubButton>
+                                    </SidebarMenuSubItem>
+                                  );
+                                })}
+                                <SidebarMenuSubItem>
+                                  <CreateCourseDialog semesterId={semester.id}>
+                                    <SidebarMenuSubButton>
+                                      <Plus className="mr-2 size-4" />
+                                      <span>Add Course</span>
+                                    </SidebarMenuSubButton>
+                                  </CreateCourseDialog>
+                                </SidebarMenuSubItem>
+                              </SidebarMenuSub>
+                            </CollapsibleContent>
                           </SidebarMenuSubItem>
-                        );
-                      })}
-                      <SidebarMenuSubItem>
-                        <CreateCourseDialog semesterId={semester.id}>
-                          <SidebarMenuSubButton>
-                            <Plus className="mr-2 size-4" />
-                            <span>Add Course</span>
-                          </SidebarMenuSubButton>
-                        </CreateCourseDialog>
-                      </SidebarMenuSubItem>
+                        </Collapsible>
+                      ))}
                     </SidebarMenuSub>
                   </CollapsibleContent>
                 </SidebarMenuItem>

@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Slider } from "@/components/ui/slider";
 import { CourseData } from "@/actions/get-course-data";
@@ -105,16 +104,6 @@ export function CourseStrategySidebar({ course }: CourseStrategySidebarProps) {
     const futureContribution = (whatIfScore[0] / 100) * remainingWeight;
     return currentWeightedScore + futureContribution;
   }, [currentWeightedScore, remainingWeight, whatIfScore]);
-
-  // Data for Pie Chart
-  const pieData = [
-    {
-      name: "Completed",
-      value: completedWeight,
-      color: course.color || "#000",
-    },
-    { name: "Remaining", value: remainingWeight, color: "#e5e7eb" }, // gray-200
-  ];
 
   // Calculate total weight for grade weights
   const totalWeight = React.useMemo(() => {
@@ -387,47 +376,6 @@ export function CourseStrategySidebar({ course }: CourseStrategySidebarProps) {
             <Plus className="h-3 w-3 mr-2" />
             Add Grade Weight
           </Button>
-        </CardContent>
-      </Card>
-
-      {/* Widget B: Weight Distribution */}
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-medium text-muted-foreground">
-            Weight Distribution
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="h-[200px] w-full relative">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={pieData}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={60}
-                  outerRadius={80}
-                  startAngle={90}
-                  endAngle={-270}
-                  dataKey="value"
-                  stroke="none"
-                >
-                  <Cell fill={pieData[0].color} />
-                  <Cell fill={pieData[1].color} fillOpacity={0.3} />
-                </Pie>
-                <Tooltip
-                  formatter={(value: number) => `${value.toFixed(1)}%`}
-                  contentStyle={{ borderRadius: "8px" }}
-                />
-              </PieChart>
-            </ResponsiveContainer>
-            <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-              <span className="text-3xl font-bold">
-                {completedWeight.toFixed(0)}%
-              </span>
-              <span className="text-xs text-muted-foreground">decided</span>
-            </div>
-          </div>
         </CardContent>
       </Card>
 

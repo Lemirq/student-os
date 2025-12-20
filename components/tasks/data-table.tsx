@@ -575,17 +575,15 @@ export function DataTable<TData, TValue>({
       )}
 
       {/* Toolbar */}
-      <div className="flex flex-col gap-4 py-4 lg:flex-row lg:items-center lg:justify-between">
-        <div className="flex-1 w-full lg:w-auto">
-          <Input
-            placeholder="Filter tasks..."
-            value={(table.getColumn("title")?.getFilterValue() as string) ?? ""}
-            onChange={(event) =>
-              table.getColumn("title")?.setFilterValue(event.target.value)
-            }
-            className="h-8 w-full lg:w-[250px]"
-          />
-        </div>
+      <div className="flex flex-wrap gap-4 py-4 flex-row items-center justify-between">
+        <Input
+          placeholder="Filter tasks..."
+          value={(table.getColumn("title")?.getFilterValue() as string) ?? ""}
+          onChange={(event) =>
+            table.getColumn("title")?.setFilterValue(event.target.value)
+          }
+          className="h-8 flex-1 min-w-[200px]"
+        />
         <div className="flex items-center gap-2 flex-wrap">
           {sorting.length > 0 && (
             <Button
@@ -606,11 +604,7 @@ export function DataTable<TData, TValue>({
           />
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-8 ml-auto lg:ml-0"
-              >
+              <Button variant="outline" size="sm" className="h-8 lg:ml-0">
                 <SlidersHorizontal className="mr-2 h-4 w-4" />
                 Group
               </Button>

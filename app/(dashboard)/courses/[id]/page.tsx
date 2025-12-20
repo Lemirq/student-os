@@ -1,6 +1,7 @@
 import { getCourseData } from "@/actions/get-course-data";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import { Progress } from "@/components/ui/progress";
 import { notFound } from "next/navigation";
 import { CourseStrategySidebar } from "@/components/dashboard/course-strategy-sidebar";
 import { TaskExplorer } from "@/components/tasks/task-explorer";
@@ -78,6 +79,19 @@ export default async function CoursePage({ params }: CoursePageProps) {
                 <span className="text-muted-foreground font-normal lg:ml-2 block lg:inline">
                   {course.name}
                 </span>
+                <div className="flex items-center gap-2 w-full">
+                  <Progress
+                    value={totalWeightDecided || 0}
+                    style={{
+                      backgroundColor: "#000",
+                    }}
+                    barClassName="w-full h-2"
+                    barStyle={{ backgroundColor: course.color || "#000" }}
+                  />
+                  <span className="text-sm font-medium">
+                    {totalWeightDecided.toFixed(0)}%
+                  </span>
+                </div>
               </h1>
             </div>
             <div className="flex flex-wrap items-center gap-4">

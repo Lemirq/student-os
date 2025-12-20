@@ -158,10 +158,10 @@ export function DataTableAdvancedFilters<TData>({
           )}
         </div>
 
-        <div className="max-h-[500px] overflow-y-auto p-4 space-y-6">
+        <div className="max-h-[500px] overflow-y-auto p-0">
           {/* Status Filter */}
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
+          <div className="flex flex-col gap-2 p-4 border-b">
+            <div className="flex items-center justify-between w-full">
               <Label className="text-sm font-medium">Status</Label>
               {statusFilter.length > 0 && (
                 <Button
@@ -177,30 +177,27 @@ export function DataTableAdvancedFilters<TData>({
                 </Button>
               )}
             </div>
-            <div className="space-y-2">
-              {statusOptions.map((status) => (
-                <div key={status} className="flex items-center space-x-2">
-                  <Checkbox
-                    id={`status-${status}`}
-                    checked={statusFilter.includes(status)}
-                    onCheckedChange={() =>
-                      toggleArrayFilter(statusColumn, status)
-                    }
-                  />
-                  <label
-                    htmlFor={`status-${status}`}
-                    className="text-sm cursor-pointer"
+            <div className="flex flex-wrap gap-2">
+              {statusOptions.map((status) => {
+                const isActive = statusFilter.includes(status);
+                return (
+                  <Button
+                    key={status}
+                    variant={isActive ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => toggleArrayFilter(statusColumn, status)}
+                    className="h-7 text-xs"
                   >
                     {status}
-                  </label>
-                </div>
-              ))}
+                  </Button>
+                );
+              })}
             </div>
           </div>
 
           {/* Priority Filter */}
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
+          <div className="flex flex-col gap-2 p-4 border-b">
+            <div className="flex items-center justify-between w-full">
               <Label className="text-sm font-medium">Priority</Label>
               {priorityFilter.length > 0 && (
                 <Button
@@ -216,35 +213,42 @@ export function DataTableAdvancedFilters<TData>({
                 </Button>
               )}
             </div>
-            <div className="space-y-2">
-              {priorityOptions.map((priority) => (
-                <div key={priority} className="flex items-center space-x-2">
-                  <Checkbox
-                    id={`priority-${priority}`}
-                    checked={priorityFilter.includes(priority)}
-                    onCheckedChange={() =>
-                      toggleArrayFilter(priorityColumn, priority)
-                    }
-                  />
-                  <label
-                    htmlFor={`priority-${priority}`}
+            <div className="flex flex-wrap gap-2">
+              {priorityOptions.map((priority) => {
+                const isActive = priorityFilter.includes(priority);
+                return (
+                  <Button
+                    key={priority}
+                    variant={isActive ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => toggleArrayFilter(priorityColumn, priority)}
                     className={cn(
-                      "text-sm cursor-pointer",
-                      priority === "High" && "text-red-600 font-medium",
-                      priority === "Medium" && "text-yellow-600 font-medium",
+                      "h-7 text-xs",
+                      isActive &&
+                        priority === "High" &&
+                        "bg-red-600 hover:bg-red-700",
+                      isActive &&
+                        priority === "Medium" &&
+                        "bg-yellow-600 hover:bg-yellow-700",
+                      !isActive &&
+                        priority === "High" &&
+                        "text-red-600 hover:text-red-700 border-red-200 hover:bg-red-50",
+                      !isActive &&
+                        priority === "Medium" &&
+                        "text-yellow-600 hover:text-yellow-700 border-yellow-200 hover:bg-yellow-50",
                     )}
                   >
                     {priority}
-                  </label>
-                </div>
-              ))}
+                  </Button>
+                );
+              })}
             </div>
           </div>
 
           {/* Course Filter */}
           {courseOptions.length > 0 && (
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
+            <div className="flex flex-col gap-2 p-4 border-b">
+              <div className="flex items-center justify-between w-full">
                 <Label className="text-sm font-medium">Course</Label>
                 {courseFilter.length > 0 && (
                   <Button
@@ -260,31 +264,28 @@ export function DataTableAdvancedFilters<TData>({
                   </Button>
                 )}
               </div>
-              <div className="space-y-2 max-h-[200px] overflow-y-auto">
-                {courseOptions.map((course) => (
-                  <div key={course} className="flex items-center space-x-2">
-                    <Checkbox
-                      id={`course-${course}`}
-                      checked={courseFilter.includes(course)}
-                      onCheckedChange={() =>
-                        toggleArrayFilter(courseColumn, course)
-                      }
-                    />
-                    <label
-                      htmlFor={`course-${course}`}
-                      className="text-sm cursor-pointer"
+              <div className="flex flex-wrap gap-2 max-h-[200px] overflow-y-auto">
+                {courseOptions.map((course) => {
+                  const isActive = courseFilter.includes(course);
+                  return (
+                    <Button
+                      key={course}
+                      variant={isActive ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => toggleArrayFilter(courseColumn, course)}
+                      className="h-7 text-xs"
                     >
                       {course}
-                    </label>
-                  </div>
-                ))}
+                    </Button>
+                  );
+                })}
               </div>
             </div>
           )}
 
           {/* Due Date Range Filter */}
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
+          <div className="flex flex-col gap-2 p-4">
+            <div className="flex items-center justify-between w-full">
               <Label className="text-sm font-medium">Due Date</Label>
               {(dateRange.from || dateRange.to) && (
                 <Button
@@ -312,6 +313,9 @@ export function DataTableAdvancedFilters<TData>({
                 </div>
               )}
               <Calendar
+                classNames={{
+                  root: "border-none",
+                }}
                 mode="range"
                 selected={{
                   from: dateRange.from,
@@ -323,7 +327,7 @@ export function DataTableAdvancedFilters<TData>({
                     to: range?.to,
                   });
                 }}
-                className="rounded-md border"
+                className=""
               />
             </div>
           </div>

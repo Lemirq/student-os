@@ -49,6 +49,7 @@ const COLORS = [
   "#f43f5e", // Rose
   "#71717a", // Zinc
   "#000000", // Black
+  "#ffffff", // White
 ];
 
 interface CreateCourseDialogProps {
