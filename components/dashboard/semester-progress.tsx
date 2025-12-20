@@ -54,7 +54,11 @@ export function SemesterProgress({
               {data.percentage}% Complete
             </span>
           </div>
-          <Progress value={data.percentage} className="h-2" />
+          <Progress
+            value={data.percentage}
+            className="h-2"
+            barClassName="bg-primary"
+          />
           {data.isOnBreak && (
             <p className="text-xs text-muted-foreground mt-2">
               Currently on break

@@ -46,7 +46,7 @@ export function WorkloadHeatmap({ data }: WorkloadHeatmapProps) {
           7-Day Workload
         </CardTitle>
       </CardHeader>
-      <CardContent className="px-0 h-full pr-3">
+      <CardContent className="px-0 h-full pb-10 pr-3">
         <div className="h-full w-full">
           <ChartContainer config={chartConfig} className="h-full w-full">
             <BarChart
