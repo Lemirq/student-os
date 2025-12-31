@@ -163,7 +163,7 @@ export default function ChatInput({
         <div className="flex-1" />
 
         <div className="flex items-center gap-2">
-          <Button
+          {/*<Button
             type="button"
             size="icon"
             variant="ghost"
@@ -172,7 +172,7 @@ export default function ChatInput({
           >
             <Mic className="size-4" />
             <span className="sr-only">Voice input</span>
-          </Button>
+          </Button>*/}
           {isLoading ? (
             <Button
               type="button"

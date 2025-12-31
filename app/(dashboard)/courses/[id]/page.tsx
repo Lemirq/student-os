@@ -62,13 +62,14 @@ export default async function CoursePage({ params }: CoursePageProps) {
 
   const goalGrade = parseFloat(course.goalGrade?.toString() || "85");
   const isBelowGoal = currentGrade < goalGrade;
-
   return (
     <div className="py-2 h-auto lg:h-[calc(100vh-4rem)] flex flex-col space-y-6">
       {/* Header */}
       <Card
         className="shrink-0 border-t-4 shadow-sm py-2"
-        style={{ borderTopColor: course.color || "#000" }}
+        style={{
+          borderTopColor: course.color || "#000",
+        }}
       >
         <CardContent className="p-4 lg:p-6 space-y-4">
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">

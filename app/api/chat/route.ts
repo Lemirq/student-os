@@ -10,12 +10,18 @@ import {
 } from "ai";
 import { z } from "zod";
 import { db } from "@/drizzle";
+import {
+  tavilySearch,
+  tavilyExtract,
+  tavilyCrawl,
+  tavilyMap,
+} from "@tavily/ai-sdk";
 
 export type StudentOSToolCallsMessage = UIMessage;
 import { tasks, courses, gradeWeights } from "@/schema";
 import { eq, and, ilike, isNull, gte, lte, inArray } from "drizzle-orm";
 import { createClient } from "@/utils/supabase/server";
-import { openRouterApiKey } from "@/lib/env";
+import { openRouterApiKey, tavilyApiKey } from "@/lib/env";
 import { PageContext } from "@/actions/page-context";
 import { formatContextForAI } from "@/lib/utils";
 
@@ -106,6 +112,10 @@ ${
     7. **Clean Up:** Call 'find_missing_data'. Shows missing data UI directly.
     8. **Grade Weights:** Call 'manage_grade_weights' with action and course. Shows grade weights UI directly.
     9. **Update Score:** Call 'update_task_score' with task name and score. Shows update confirmation UI directly.
+    10. **Web Search:** Call 'web_search' to search the web for current information, news, or research.
+    11. **Extract Content:** Call 'extract_content' to extract clean content from any URL.
+    12. **Crawl Website:** Call 'crawl_website' to crawl and extract content from multiple pages of a website.
+    13. **Map Website:** Call 'map_website' to discover and map the structure of a website.
 
     IMPORTANT: Do NOT chain tools. Each tool call handles everything including UI. Do not display raw JSON.`;
   console.log(system);
@@ -897,6 +907,35 @@ Extract tasks from: "${request}"
               return { success: false, error: "Invalid action" };
           }
         },
+      }),
+
+      // -----------------------------------------------------------------------
+      // 5. WEB SEARCH & RESEARCH TOOLS (Tavily)
+      // -----------------------------------------------------------------------
+      web_search: tavilySearch({
+        apiKey: tavilyApiKey,
+        searchDepth: "advanced",
+        includeAnswer: true,
+        maxResults: 5,
+        topic: "general",
+      }),
+
+      extract_content: tavilyExtract({
+        apiKey: tavilyApiKey,
+        extractDepth: "advanced",
+        format: "markdown",
+      }),
+
+      crawl_website: tavilyCrawl({
+        apiKey: tavilyApiKey,
+        maxDepth: 2,
+        limit: 50,
+      }),
+
+      map_website: tavilyMap({
+        apiKey: tavilyApiKey,
+        maxDepth: 1,
+        limit: 50,
       }),
     },
   });

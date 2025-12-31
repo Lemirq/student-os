@@ -148,6 +148,66 @@ export type StudentOSTools = {
       is_valid?: boolean;
     };
   };
+  web_search: {
+    input: {
+      query: string;
+      searchDepth?: "basic" | "advanced";
+      topic?: "general" | "news" | "finance";
+      includeAnswer?: boolean;
+      maxResults?: number;
+    };
+    output: {
+      results: Array<{
+        title: string;
+        url: string;
+        content: string;
+        score?: number;
+      }>;
+      answer?: string;
+    };
+  };
+  extract_content: {
+    input: {
+      urls: string[];
+      extractDepth?: "basic" | "advanced";
+      format?: "markdown" | "text";
+    };
+    output: {
+      results: Array<{
+        url: string;
+        content: string;
+        images?: string[];
+      }>;
+    };
+  };
+  crawl_website: {
+    input: {
+      url: string;
+      maxDepth?: number;
+      limit?: number;
+      instructions?: string;
+    };
+    output: {
+      results: Array<{
+        url: string;
+        content: string;
+      }>;
+    };
+  };
+  map_website: {
+    input: {
+      url: string;
+      maxDepth?: number;
+      limit?: number;
+      instructions?: string;
+    };
+    output: {
+      results: Array<{
+        url: string;
+        title?: string;
+      }>;
+    };
+  };
 };
 
 export type StudentOSDataTypes = Record<string, never>;

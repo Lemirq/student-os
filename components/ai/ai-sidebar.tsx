@@ -9,6 +9,10 @@ import {
   FileText,
   Upload,
   Brain,
+  Search,
+  Globe,
+  ExternalLink,
+  Link2,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { useChat } from "@ai-sdk/react";
@@ -113,64 +117,81 @@ export function AICopilotSidebar({ aiEnabled }: { aiEnabled: boolean }) {
     }
   }, [chatId, pendingMessages, setMessages]);
 
-  const scrollRef = React.useRef<HTMLDivElement>(null);
-  const scrollAreaRef = React.useRef<HTMLDivElement>(null);
+  const messagesContainerRef = React.useRef<HTMLDivElement>(null);
   const [isAtBottom, setIsAtBottom] = React.useState(true);
-  const messagesLength = messages.length;
 
-  // Use IntersectionObserver to track if the user is at the bottom
-  React.useEffect(() => {
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        setIsAtBottom(entry.isIntersecting);
-      },
-      {
-        root: null,
-        threshold: 0, // Trigger as soon as any part is visible
-      },
-    );
-
-    if (scrollRef.current) {
-      observer.observe(scrollRef.current);
-    }
-
-    return () => {
-      observer.disconnect();
-    };
-  }, [messagesLength]); // Re-attach when the list potentially mounts/unmounts
-
-  const scrollToBottom = React.useCallback(() => {
-    if (scrollRef.current) {
-      const viewport = scrollRef.current.closest(
-        '[data-slot="scroll-area-viewport"]',
-      );
-      if (viewport) {
-        viewport.scrollTo({
-          top: viewport.scrollHeight,
-          behavior: "smooth",
+  const scrollToBottom = React.useCallback(
+    (behavior: ScrollBehavior = "smooth") => {
+      const container = messagesContainerRef.current;
+      if (container) {
+        container.scrollTo({
+          top: container.scrollHeight,
+          behavior,
         });
       }
-    }
+    },
+    [],
+  );
+
+  // Check if user is at bottom of scroll container
+  const checkIfAtBottom = React.useCallback(() => {
+    const container = messagesContainerRef.current;
+    if (!container) return false;
+
+    const threshold = 50; // pixels from bottom to consider "at bottom"
+    const isBottom =
+      container.scrollHeight - container.scrollTop - container.clientHeight <=
+      threshold;
+
+    return isBottom;
   }, []);
 
+  // Track scroll position to determine if user is at bottom
+  React.useEffect(() => {
+    const container = messagesContainerRef.current;
+    if (!container) return;
+
+    const handleScroll = () => {
+      const atBottom = checkIfAtBottom();
+      setIsAtBottom(atBottom);
+    };
+
+    container.addEventListener("scroll", handleScroll, { passive: true });
+
+    // Initial check
+    handleScroll();
+
+    return () => {
+      container.removeEventListener("scroll", handleScroll);
+    };
+  }, [checkIfAtBottom]);
+
+  // Auto-scroll when new messages arrive, but only if user is at bottom
   React.useEffect(() => {
     if (messages.length === 0) return;
 
-    // Check if the last message is from the user
     const lastMessage = messages[messages.length - 1];
     const isUserMessage = lastMessage.role === "user";
 
-    // Scroll to bottom if:
-    // 1. The user just sent a message (always force scroll)
-    // 2. We were already at the bottom (sticky scroll)
+    // Always scroll to bottom when:
+    // 1. User just sent a message (force scroll)
+    // 2. User is already at bottom (continue following)
     if (isUserMessage || isAtBottom) {
-      // Use a small timeout to ensure DOM is updated
+      // Use instant scroll for user messages, smooth for AI responses
+      const behavior = isUserMessage ? "instant" : "smooth";
       const timer = setTimeout(() => {
-        scrollToBottom();
-      }, 100);
+        scrollToBottom(behavior as ScrollBehavior);
+      }, 50);
       return () => clearTimeout(timer);
     }
-  }, [messages, status, scrollToBottom, isAtBottom]);
+  }, [messages, isAtBottom, scrollToBottom]);
+
+  // Also scroll during streaming if user is at bottom
+  React.useEffect(() => {
+    if (status === "streaming" && isAtBottom) {
+      scrollToBottom("auto");
+    }
+  }, [status, isAtBottom, scrollToBottom]);
 
   // Autosave chat
   React.useEffect(() => {
@@ -305,7 +326,7 @@ export function AICopilotSidebar({ aiEnabled }: { aiEnabled: boolean }) {
         </div>
       </SidebarHeader>
 
-      <SidebarContent className="scrollbar-sleek">
+      <SidebarContent ref={messagesContainerRef} className="scrollbar-sleek">
         {/* if the user's email isn't sharmavihaan190@gmail.com, then restrict access to AI */}
         {!aiEnabled ? (
           <div className="flex flex-col items-center justify-center h-[calc(100vh-15rem)] text-center p-6">
@@ -316,7 +337,7 @@ export function AICopilotSidebar({ aiEnabled }: { aiEnabled: boolean }) {
             </h3>
           </div>
         ) : (
-          <div ref={scrollAreaRef}>
+          <div>
             <DottedGlowBackground
               className="pointer-events-none mask-radial-to-90% mask-radial-at-center opacity-20 dark:opacity-100"
               opacity={0.4}
@@ -1151,6 +1172,369 @@ export function AICopilotSidebar({ aiEnabled }: { aiEnabled: boolean }) {
                             }
                           }
 
+                          // -----------------------------------------------------------------------
+                          // TOOL: web_search (Tavily search)
+                          // -----------------------------------------------------------------------
+                          case "tool-web_search": {
+                            const callId = p.toolCallId;
+                            switch (p.state) {
+                              case "input-streaming":
+                              case "input-available":
+                                return (
+                                  <div
+                                    key={callId}
+                                    className="bg-muted p-3 rounded-lg text-sm w-full animate-pulse"
+                                  >
+                                    <div className="flex items-center gap-2">
+                                      <Search className="size-3.5 animate-pulse" />
+                                      <span>Searching the web...</span>
+                                    </div>
+                                  </div>
+                                );
+                              case "output-available": {
+                                const output = p.output;
+                                const results = output?.results || [];
+                                const answer = output?.answer;
+
+                                return (
+                                  <div
+                                    key={callId}
+                                    className="bg-muted/50 border border-border/50 p-4 rounded-lg my-2 text-sm w-full"
+                                  >
+                                    <div className="flex items-center gap-2 mb-3 text-blue-600 dark:text-blue-400">
+                                      <Search className="size-4" />
+                                      <span className="font-semibold text-sm">
+                                        Web Search Results
+                                      </span>
+                                    </div>
+
+                                    {answer && (
+                                      <div className="mb-3 p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg">
+                                        <div className="text-xs font-medium text-blue-600 dark:text-blue-400 mb-1">
+                                          AI Summary
+                                        </div>
+                                        <div className="text-xs text-muted-foreground">
+                                          {answer}
+                                        </div>
+                                      </div>
+                                    )}
+
+                                    {results.length > 0 ? (
+                                      <div className="space-y-2">
+                                        <div className="text-xs font-medium text-muted-foreground mb-2">
+                                          Sources ({results.length})
+                                        </div>
+                                        {results.map(
+                                          (
+                                            result: {
+                                              title: string;
+                                              url: string;
+                                              content: string;
+                                              score?: number;
+                                            },
+                                            i: number,
+                                          ) => (
+                                            <div
+                                              key={i}
+                                              className="p-3 bg-background/50 rounded border border-border/30 hover:border-blue-400/50 transition-colors"
+                                            >
+                                              <div className="flex items-start justify-between gap-2 mb-1">
+                                                <a
+                                                  href={result.url}
+                                                  target="_blank"
+                                                  rel="noopener noreferrer"
+                                                  className="font-medium text-xs text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1 flex-1"
+                                                >
+                                                  {result.title}
+                                                  <ExternalLink className="size-3 shrink-0" />
+                                                </a>
+                                              </div>
+                                              <div className="text-[10px] text-muted-foreground/70 truncate mb-2">
+                                                {result.url}
+                                              </div>
+                                              <div className="text-xs text-muted-foreground line-clamp-3">
+                                                {result.content}
+                                              </div>
+                                            </div>
+                                          ),
+                                        )}
+                                      </div>
+                                    ) : (
+                                      <div className="text-xs text-muted-foreground italic">
+                                        No results found
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              }
+                              default:
+                                return null;
+                            }
+                          }
+
+                          // -----------------------------------------------------------------------
+                          // TOOL: extract_content (Tavily extract)
+                          // -----------------------------------------------------------------------
+                          case "tool-extract_content": {
+                            const callId = p.toolCallId;
+                            switch (p.state) {
+                              case "input-streaming":
+                              case "input-available":
+                                return (
+                                  <div
+                                    key={callId}
+                                    className="bg-muted p-3 rounded-lg text-sm w-full animate-pulse"
+                                  >
+                                    <div className="flex items-center gap-2">
+                                      <FileText className="size-3.5 animate-pulse" />
+                                      <span>Extracting content...</span>
+                                    </div>
+                                  </div>
+                                );
+                              case "output-available": {
+                                const output = p.output;
+                                const results = output?.results || [];
+
+                                return (
+                                  <div
+                                    key={callId}
+                                    className="bg-muted/50 border border-border/50 p-4 rounded-lg my-2 text-sm w-full"
+                                  >
+                                    <div className="flex items-center gap-2 mb-3 text-green-600 dark:text-green-400">
+                                      <FileText className="size-4" />
+                                      <span className="font-semibold text-sm">
+                                        Extracted Content
+                                      </span>
+                                    </div>
+
+                                    {results.length > 0 ? (
+                                      <div className="space-y-3">
+                                        {results.map(
+                                          (
+                                            result: {
+                                              url: string;
+                                              content: string;
+                                              images?: string[];
+                                            },
+                                            i: number,
+                                          ) => (
+                                            <div
+                                              key={i}
+                                              className="p-3 bg-background/50 rounded border border-border/30"
+                                            >
+                                              <div className="flex items-center gap-1 mb-2">
+                                                <Link2 className="size-3 text-muted-foreground" />
+                                                <a
+                                                  href={result.url}
+                                                  target="_blank"
+                                                  rel="noopener noreferrer"
+                                                  className="text-[10px] text-blue-600 dark:text-blue-400 hover:underline truncate"
+                                                >
+                                                  {result.url}
+                                                </a>
+                                              </div>
+                                              <div className="prose prose-xs dark:prose-invert max-w-none text-xs">
+                                                <ReactMarkdown>
+                                                  {result.content.length > 500
+                                                    ? result.content.slice(
+                                                        0,
+                                                        500,
+                                                      ) + "..."
+                                                    : result.content}
+                                                </ReactMarkdown>
+                                              </div>
+                                            </div>
+                                          ),
+                                        )}
+                                      </div>
+                                    ) : (
+                                      <div className="text-xs text-muted-foreground italic">
+                                        No content extracted
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              }
+                              default:
+                                return null;
+                            }
+                          }
+
+                          // -----------------------------------------------------------------------
+                          // TOOL: crawl_website (Tavily crawl)
+                          // -----------------------------------------------------------------------
+                          case "tool-crawl_website": {
+                            const callId = p.toolCallId;
+                            switch (p.state) {
+                              case "input-streaming":
+                              case "input-available":
+                                return (
+                                  <div
+                                    key={callId}
+                                    className="bg-muted p-3 rounded-lg text-sm w-full animate-pulse"
+                                  >
+                                    <div className="flex items-center gap-2">
+                                      <Globe className="size-3.5 animate-pulse" />
+                                      <span>Crawling website...</span>
+                                    </div>
+                                  </div>
+                                );
+                              case "output-available": {
+                                const output = p.output;
+                                const results = output?.results || [];
+
+                                return (
+                                  <div
+                                    key={callId}
+                                    className="bg-muted/50 border border-border/50 p-4 rounded-lg my-2 text-sm w-full"
+                                  >
+                                    <div className="flex items-center gap-2 mb-3 text-purple-600 dark:text-purple-400">
+                                      <Globe className="size-4" />
+                                      <span className="font-semibold text-sm">
+                                        Website Crawl Results
+                                      </span>
+                                      <Badge
+                                        variant="outline"
+                                        className="ml-auto"
+                                      >
+                                        {results.length} pages
+                                      </Badge>
+                                    </div>
+
+                                    {results.length > 0 ? (
+                                      <div className="space-y-2 max-h-[400px] overflow-y-auto scrollbar-sleek">
+                                        {results.map(
+                                          (
+                                            result: {
+                                              url: string;
+                                              content: string;
+                                            },
+                                            i: number,
+                                          ) => (
+                                            <div
+                                              key={i}
+                                              className="p-2.5 bg-background/50 rounded border border-border/30 hover:border-purple-400/50 transition-colors"
+                                            >
+                                              <a
+                                                href={result.url}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="text-[10px] text-blue-600 dark:text-blue-400 hover:underline truncate flex items-center gap-1 mb-1.5"
+                                              >
+                                                <ExternalLink className="size-2.5 shrink-0" />
+                                                {result.url}
+                                              </a>
+                                              <div className="text-xs text-muted-foreground line-clamp-2">
+                                                {result.content.slice(0, 150)}
+                                                {result.content.length > 150
+                                                  ? "..."
+                                                  : ""}
+                                              </div>
+                                            </div>
+                                          ),
+                                        )}
+                                      </div>
+                                    ) : (
+                                      <div className="text-xs text-muted-foreground italic">
+                                        No pages crawled
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              }
+                              default:
+                                return null;
+                            }
+                          }
+
+                          // -----------------------------------------------------------------------
+                          // TOOL: map_website (Tavily map)
+                          // -----------------------------------------------------------------------
+                          case "tool-map_website": {
+                            const callId = p.toolCallId;
+                            switch (p.state) {
+                              case "input-streaming":
+                              case "input-available":
+                                return (
+                                  <div
+                                    key={callId}
+                                    className="bg-muted p-3 rounded-lg text-sm w-full animate-pulse"
+                                  >
+                                    <div className="flex items-center gap-2">
+                                      <Globe className="size-3.5 animate-pulse" />
+                                      <span>Mapping website...</span>
+                                    </div>
+                                  </div>
+                                );
+                              case "output-available": {
+                                const output = p.output;
+                                const results = output?.results || [];
+
+                                return (
+                                  <div
+                                    key={callId}
+                                    className="bg-muted/50 border border-border/50 p-4 rounded-lg my-2 text-sm w-full"
+                                  >
+                                    <div className="flex items-center gap-2 mb-3 text-orange-600 dark:text-orange-400">
+                                      <Globe className="size-4" />
+                                      <span className="font-semibold text-sm">
+                                        Website Map
+                                      </span>
+                                      <Badge
+                                        variant="outline"
+                                        className="ml-auto"
+                                      >
+                                        {results.length} pages
+                                      </Badge>
+                                    </div>
+
+                                    {results.length > 0 ? (
+                                      <div className="space-y-1.5 max-h-[400px] overflow-y-auto scrollbar-sleek">
+                                        {results.map(
+                                          (
+                                            result: {
+                                              url: string;
+                                              title?: string;
+                                            },
+                                            i: number,
+                                          ) => (
+                                            <div
+                                              key={i}
+                                              className="p-2 bg-background/50 rounded border border-border/30 hover:border-orange-400/50 transition-colors"
+                                            >
+                                              <a
+                                                href={result.url}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="text-xs text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1.5"
+                                              >
+                                                <ExternalLink className="size-3 shrink-0" />
+                                                <span className="truncate">
+                                                  {result.title || result.url}
+                                                </span>
+                                              </a>
+                                              {result.title && (
+                                                <div className="text-[10px] text-muted-foreground/70 truncate mt-0.5 ml-4">
+                                                  {result.url}
+                                                </div>
+                                              )}
+                                            </div>
+                                          ),
+                                        )}
+                                      </div>
+                                    ) : (
+                                      <div className="text-xs text-muted-foreground italic">
+                                        No pages found
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              }
+                              default:
+                                return null;
+                            }
+                          }
+
                           default:
                             // Fallback for unknown parts
                             return null;
@@ -1183,7 +1567,6 @@ export function AICopilotSidebar({ aiEnabled }: { aiEnabled: boolean }) {
                     </Button>
                   </div>
                 )}
-                <div ref={scrollRef} className="h-px w-full" />
               </div>
             )}
           </div>

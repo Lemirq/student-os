@@ -5,6 +5,7 @@ export const NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY =
   process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY ?? "";
 
 export const openRouterApiKey = process.env.OPENROUTER_API_KEY ?? "";
+export const tavilyApiKey = process.env.TAVILY_API_KEY ?? "";
 export const UPSTASH_REDIS_REST_URL = process.env.UPSTASH_REDIS_REST_URL ?? "";
 export const UPSTASH_REDIS_REST_TOKEN =
   process.env.UPSTASH_REDIS_REST_TOKEN ?? "";
