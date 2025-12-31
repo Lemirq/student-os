@@ -43,6 +43,13 @@
       "when": 1765684023841,
       "tag": "0005_amazing_talkback",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1767207242730,
+      "tag": "0006_late_sabretooth",
+      "breakpoints": true
     }
   ]
 }

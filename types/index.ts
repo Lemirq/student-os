@@ -18,3 +18,136 @@ export type User = InferSelectModel<typeof users>;
 
 export type TaskStatus = "Todo" | "In Progress" | "Done";
 export type TaskPriority = "Low" | "Medium" | "High";
+
+// AI Tool Types for useChat and UIMessagePart
+export type StudentOSTools = {
+  parse_syllabus: {
+    input: {
+      raw_text: string;
+      course_code?: string;
+    };
+    output: {
+      course: string;
+      tasks: Array<{
+        title: string;
+        weight: number;
+        due_date: string;
+        type: string;
+      }>;
+      ui: {
+        preview: boolean;
+        title: string;
+        taskCount: number;
+        validTaskCount: number;
+        invalidCount: number;
+        summary: string;
+      };
+    };
+  };
+  calculate_grade_requirements: {
+    input: {
+      course_code: string;
+    };
+    output: {
+      current_grade: string;
+      goal_grade: number;
+      remaining_weight: number;
+      required_avg_on_remaining: string;
+      status: "Impossible" | "Secured" | "Possible";
+      error?: string;
+    };
+  };
+  update_task_score: {
+    input: {
+      task_name: string;
+      score: number;
+    };
+    output: {
+      success: boolean;
+      task?: string;
+      score?: number;
+      status?: string;
+      message?: string;
+    };
+  };
+  create_tasks_natural_language: {
+    input: {
+      request: string;
+    };
+    output: {
+      tasks: Array<{
+        id: string;
+        title: string;
+        dueDate: string | null;
+        status: string;
+        scoreReceived: string | null;
+        scoreMax: string | null;
+      }>;
+    };
+  };
+  auto_schedule_tasks: {
+    input: Record<string, never>;
+    output: {
+      message: string;
+      updates: Array<{
+        title: string;
+        new_do_date: string;
+      }>;
+    };
+  };
+  rebalance_priorities: {
+    input: Record<string, never>;
+    output: {
+      message: string;
+      count: number;
+    };
+  };
+  query_schedule: {
+    input: {
+      start_date: string;
+      end_date: string;
+    };
+    output: {
+      tasks: Task[];
+      start_date: string;
+      end_date: string;
+      count: number;
+    };
+  };
+  find_missing_data: {
+    input: Record<string, never>;
+    output: {
+      tasks_without_weights?: Array<{ title: string }>;
+      tasks_without_dates?: Array<{ title: string }>;
+      suggestion?: string;
+    };
+  };
+  manage_grade_weights: {
+    input: {
+      action: "list" | "add" | "update" | "delete";
+      course_code: string;
+      grade_weight_name?: string;
+      weight_percent?: number;
+      grade_weight_id?: string;
+    };
+    output: {
+      success: boolean;
+      error?: string;
+      action?: "added" | "updated" | "deleted";
+      course?: {
+        code: string;
+        name: string;
+        id?: string;
+      };
+      grade_weights?: Array<{
+        id: string;
+        name: string;
+        weight_percent: number;
+      }>;
+      total_weight?: number;
+      is_valid?: boolean;
+    };
+  };
+};
+
+export type StudentOSDataTypes = Record<string, never>;

@@ -26,6 +26,14 @@ export async function importSyllabusTasks(
   // Validate the input data
   const validatedData = importSyllabusSchema.parse(data);
 
+  // Filter out tasks with empty or invalid dates upfront
+  const tasksWithDates = validatedData.tasks.filter(
+    (task) => task.due_date && task.due_date.trim() !== "",
+  );
+  const tasksWithoutDates = validatedData.tasks.filter(
+    (task) => !task.due_date || task.due_date.trim() === "",
+  );
+
   const supabase = await createClient();
 
   const { data: user } = await supabase.auth.getUser();
@@ -141,54 +149,62 @@ export async function importSyllabusTasks(
   // ============================================================================
 
   // Build task records with proper date parsing and grade weight linking
-  const tasksToInsert = validatedData.tasks.map((task) => {
-    // Use chrono-node to parse date strings more robustly
-    const parsedDate = chrono.parseDate(task.due_date);
+  const invalidDateTasks: string[] = [];
+  const tasksToInsert = validatedData.tasks
+    .map((task) => {
+      // Skip tasks with empty due dates
+      if (!task.due_date || task.due_date.trim() === "") {
+        invalidDateTasks.push(task.title);
+        return null;
+      }
 
-    // Fallback to native Date if chrono fails (or if date string is standard ISO)
-    const dueDate = parsedDate || new Date(task.due_date);
+      // Use chrono-node to parse date strings more robustly
+      const parsedDate = chrono.parseDate(task.due_date);
 
-    let gradeWeightId = null;
-    if (task.weight !== undefined && task.weight !== null) {
-      const key = `${task.type}-${task.weight}`;
-      gradeWeightId = weightMap.get(key) || null;
-    }
+      // Fallback to native Date if chrono fails (or if date string is standard ISO)
+      const dueDate = parsedDate || new Date(task.due_date);
 
-    // Check if date is valid
-    if (isNaN(dueDate.getTime())) {
-      console.warn(
-        `Invalid date found for task "${task.title}": ${task.due_date}. Defaulting to null.`,
-      );
+      let gradeWeightId = null;
+      if (task.weight !== undefined && task.weight !== null) {
+        const key = `${task.type}-${task.weight}`;
+        gradeWeightId = weightMap.get(key) || null;
+      }
+
+      // Check if date is valid
+      if (isNaN(dueDate.getTime())) {
+        console.warn(
+          `Invalid date found for task "${task.title}": ${task.due_date}. Skipping task.`,
+        );
+        invalidDateTasks.push(task.title);
+        return null;
+      }
+
       return {
         userId: userId,
         courseId: course.id,
         gradeWeightId: gradeWeightId,
         title: task.title,
-        dueDate: null, // Set to null if invalid
+        dueDate: dueDate,
         status: "Todo",
         priority: "Medium",
       };
-    }
+    })
+    .filter((task) => task !== null);
 
-    return {
-      userId: userId,
-      courseId: course.id,
-      gradeWeightId: gradeWeightId,
-      title: task.title,
-      dueDate: dueDate,
-      status: "Todo",
-      priority: "Medium",
-    };
-  });
-
-  // Step 3: Insert all tasks
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  await db.insert(tasks).values(tasksToInsert as any);
+  // Only insert if we have valid tasks
+  let insertedCount = 0;
+  if (tasksToInsert.length > 0) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await db.insert(tasks).values(tasksToInsert as any);
+    insertedCount = tasksToInsert.length;
+  }
 
   // Return detailed results for toast notification
   return {
-    success: true,
-    count: validatedData.tasks.length,
+    success: insertedCount > 0,
+    count: insertedCount,
+    skippedCount: invalidDateTasks.length,
+    skippedTasks: invalidDateTasks,
     courseCreated: !existingCourses[0], // true if course was newly created
     courseCode: validatedData.course,
     weightsCreated: neededWeights.size, // number of grade weights created

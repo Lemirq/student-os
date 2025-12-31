@@ -5,7 +5,6 @@ import { Progress } from "@/components/ui/progress";
 import { notFound } from "next/navigation";
 import { CourseStrategySidebar } from "@/components/dashboard/course-strategy-sidebar";
 import { TaskExplorer } from "@/components/tasks/task-explorer";
-import { columns } from "@/components/tasks/columns";
 import { QuickAddCourseTask } from "@/components/dashboard/quick-add-course-task";
 import { EditCourseDialog } from "@/components/courses/edit-course-dialog";
 

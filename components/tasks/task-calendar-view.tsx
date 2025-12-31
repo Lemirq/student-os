@@ -151,13 +151,13 @@ export function TaskCalendarView({ tasks, context }: TaskCalendarViewProps) {
 
   const CustomEvent = ({ event }: { event: CalendarEvent }) => {
     return (
-      <div className="flex items-center gap-1.5 px-2 py-0.5 text-xs font-medium w-full h-full">
+      <div className="gap-1.5 px-2 py-0.5 text-xs font-medium w-full h-full fc items-start">
         {event.code && (
           <span className="font-bold opacity-90 text-[10px] uppercase tracking-wider shrink-0">
             {event.code}
           </span>
         )}
-        <span className="truncate">{event.title}</span>
+        <span className="w-full break-words text-wrap">{event.title}</span>
       </div>
     );
   };

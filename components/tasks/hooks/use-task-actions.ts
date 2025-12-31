@@ -36,5 +36,17 @@ export const useTaskActions = () => {
     });
   };
 
-  return { cycleStatus, setStatus, removeTask };
+  const setDueDate = async (task: Task, date: Date | null) => {
+    const promise = updateTask(task.id, { dueDate: date });
+    toast.promise(promise, {
+      loading: "Updating due date...",
+      success: date
+        ? `Due date set to ${date.toLocaleDateString()}`
+        : "Due date cleared",
+      error: "Failed to update due date",
+    });
+    return promise;
+  };
+
+  return { cycleStatus, setStatus, removeTask, setDueDate };
 };

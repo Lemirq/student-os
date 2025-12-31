@@ -1,10 +1,11 @@
-import { openai } from "@ai-sdk/openai";
+import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 
 import {
   convertToModelMessages,
   streamText,
   tool,
-  generateObject,
+  generateText,
+  Output,
   UIMessage,
 } from "ai";
 import { z } from "zod";
@@ -14,11 +15,22 @@ export type StudentOSToolCallsMessage = UIMessage;
 import { tasks, courses, gradeWeights } from "@/schema";
 import { eq, and, ilike, isNull, gte, lte, inArray } from "drizzle-orm";
 import { createClient } from "@/utils/supabase/server";
+import { openRouterApiKey } from "@/lib/env";
+import { PageContext } from "@/actions/page-context";
+import { formatContextForAI } from "@/lib/utils";
 
 export const maxDuration = 60; // Allow longer timeouts for complex DB ops
 
+const openRouterClient = createOpenRouter({
+  apiKey: openRouterApiKey,
+});
+const glm = openRouterClient.chat("z-ai/glm-4.7");
+
 export async function POST(req: Request) {
-  const { messages } = await req.json();
+  const { messages, pageContext } = (await req.json()) as {
+    messages: UIMessage[];
+    pageContext?: PageContext;
+  };
   const supabase = await createClient();
   const {
     data: { user },
@@ -43,11 +55,22 @@ export async function POST(req: Request) {
           .where(inArray(gradeWeights.courseId, courseIds))
       : [];
 
-  const coreMessages = convertToModelMessages(messages);
+  const coreMessages = await convertToModelMessages(messages);
   // for debugging: console.log(JSON.stringify(coreMessages, null, 2));
+
+  // Format page context for the system prompt
+  const pageContextString = pageContext
+    ? formatContextForAI(pageContext)
+    : "User's current page is unknown.";
+
   const system = `You are a helpful and precise Student Assistant. You have access to the student's database.
     Today is ${new Date().toDateString()}.
-    
+
+    CURRENT PAGE CONTEXT:
+    ${pageContextString}
+    Use this information to infer implicit references like "this course", "add a task here", "for this class", etc.
+    When the user refers to "this course" or similar, use the course ID/code from the context above.
+
     STUDENT'S COURSES:
 ${
   userCourses.length > 0
@@ -71,22 +94,24 @@ ${
         .join("\n")
     : "(No grade weights added yet)"
 }
-    
+
     RULES:
-    1. **Syllabus Import:** When a user provides a syllabus (text/file), FIRST call 'parse_syllabus'. THEN, immediately call 'showSyllabus' with the parsed data. Do not speak, just show the UI.
-    2. **Schedule Check:** When asked about schedule/tasks, call 'query_schedule' -> 'showSchedule'.
-    3. **Grades:** When asked "What do I need for an A?", call 'calculate_grade_requirements' -> 'showGradeRequirements'.
-    4. **Scheduling:** When asked to "plan my week" or "schedule tasks", call 'auto_schedule_tasks' -> 'showScheduleUpdate'.
-    5. **Priorities:** When asked to "rebalance" or "what's important?", call 'rebalance_priorities' -> 'showPriorityRebalance'.
-    6. **Quick Add:** When the user says "I have a quiz Friday...", call 'create_tasks_natural_language' -> 'showCreatedTasks'. Use the course codes and grade weight IDs provided above.
-    7. **Clean Up:** When asked to find missing info, call 'find_missing_data' -> 'showMissingData'.
-    8. **Grade Weights:** When asked to view, add, update, or delete grade weights, call 'manage_grade_weights' -> 'showGradeWeights'. Always show the full updated list after any changes.
-    
-    Do not display raw JSON in text. Use the 'show*' tools to render the UI components.`;
+    Each tool handles its own UI rendering - call each tool ONCE and it returns everything needed.
+    1. **Syllabus Import:** Call 'parse_syllabus' with the raw text. Shows preview UI directly.
+    2. **Schedule Check:** Call 'query_schedule' with date range. Shows schedule UI directly.
+    3. **Grades:** Call 'calculate_grade_requirements' with course code. Shows grade analysis UI directly.
+    4. **Scheduling:** Call 'auto_schedule_tasks'. Shows scheduling results UI directly.
+    5. **Priorities:** Call 'rebalance_priorities'. Shows priority changes UI directly.
+    6. **Quick Add:** Call 'create_tasks_natural_language' with the request. Shows created tasks UI directly.
+    7. **Clean Up:** Call 'find_missing_data'. Shows missing data UI directly.
+    8. **Grade Weights:** Call 'manage_grade_weights' with action and course. Shows grade weights UI directly.
+    9. **Update Score:** Call 'update_task_score' with task name and score. Shows update confirmation UI directly.
+
+    IMPORTANT: Do NOT chain tools. Each tool call handles everything including UI. Do not display raw JSON.`;
   console.log(system);
   const result = streamText({
-    // model: google("gemini-2.5-flash"), will cause ts error, add // @ts-expect-error Beta library hasn't updated to support google yet
-    model: openai("gpt-4o"),
+    // @ts-expect-error OpenRouter provider types are incompatible with AI SDK beta
+    model: glm,
     messages: coreMessages,
     // -----------------------------------------------------------------------
     // THE BRAIN: System Prompt controls the "Workflow"
@@ -95,34 +120,103 @@ ${
 
     tools: {
       // -----------------------------------------------------------------------
-      // 1. SYLLABUS TOOLS
+      // 1. SYLLABUS TOOL (Composite: parse + UI generation in one step)
       // -----------------------------------------------------------------------
       parse_syllabus: tool({
         description:
-          "ONLY parses syllabus text into structured data. Does NOT create any database records. Returns data for preview only.",
+          "Parses syllabus text and returns structured data with UI preview. Does NOT create database records - user must click Import button. Call this once and it handles everything.",
         inputSchema: z.object({
-          raw_text: z.string().describe("The raw text content"),
-          course_code: z.string().optional(),
+          raw_text: z.string().describe("The raw text content of the syllabus"),
+          course_code: z
+            .string()
+            .optional()
+            .describe("Optional course code if already known"),
         }),
         execute: async ({ raw_text }) => {
-          // This tool ONLY parses - no database operations
-          const { object } = await generateObject({
-            model: openai("gpt-4o-mini"), // Fast & Cheap for parsing
-            schema: z.object({
-              course: z.string().describe("Course code e.g. CSC108"),
-              tasks: z.array(
-                z.object({
-                  title: z.string(),
-                  weight: z.number(),
-                  due_date: z.string(),
-                  type: z.string(),
-                }),
-              ),
+          // Build context about existing courses
+          const existingCoursesContext =
+            userCourses.length > 0
+              ? `EXISTING COURSES (use these exact codes if the syllabus matches one of them):
+${userCourses.map((c) => `- ${c.code}: ${c.name}`).join("\n")}`
+              : "No existing courses.";
+
+          // Parse syllabus into structured data
+          const { output: parsed } = await generateText({
+            // @ts-expect-error OpenRouter provider types are incompatible with AI SDK beta
+            model: glm,
+            output: Output.object({
+              schema: z.object({
+                course: z
+                  .string()
+                  .describe(
+                    "Course code e.g. CSC108. MUST match an existing course code if one exists for this course.",
+                  ),
+                tasks: z.array(
+                  z.object({
+                    title: z
+                      .string()
+                      .describe("Name of the assignment, exam, or task"),
+                    weight: z
+                      .number()
+                      .describe(
+                        "Grade weight as a percentage (e.g., 10 for 10%)",
+                      ),
+                    due_date: z
+                      .string()
+                      .describe(
+                        "Due date in ISO format YYYY-MM-DD. If no specific date is given, estimate based on context (e.g., 'midterm' = middle of semester, 'final' = end of semester). If truly unknown, use empty string.",
+                      ),
+                    type: z
+                      .string()
+                      .describe(
+                        "Category: Assignment, Quiz, Midterm, Final, Project, Lab, etc.",
+                      ),
+                  }),
+                ),
+              }),
             }),
-            prompt: `Extract tasks, exams, and weights from this syllabus: \n\n${raw_text}`,
+            prompt: `Extract all graded tasks, assignments, exams, and assessments from this syllabus.
+
+${existingCoursesContext}
+
+IMPORTANT RULES:
+1. COURSE CODE: If the syllabus is for a course that matches one of the existing courses above, you MUST use the exact same course code. Do not create variations like "CSC108H" if "CSC108" already exists.
+2. due_date MUST be in YYYY-MM-DD format (e.g., "2025-02-15")
+3. If a specific date is mentioned (e.g., "February 15"), convert it to YYYY-MM-DD
+4. If only a week is mentioned (e.g., "Week 5"), estimate the date based on a typical semester starting in January or September
+5. If no date can be determined, use an empty string ""
+6. Do NOT include descriptive text in due_date field
+
+Today's date: ${new Date().toISOString().split("T")[0]}
+
+Syllabus content:
+${raw_text}`,
           });
-          // Return parsed data only - user must click "Import to Database" in UI
-          return { ...object, raw_text };
+
+          // Generate UI metadata directly (no extra LLM call needed)
+          const validTaskCount = parsed.tasks.filter(
+            (t) => t.due_date && /^\d{4}-\d{2}-\d{2}/.test(t.due_date),
+          ).length;
+          const invalidCount = parsed.tasks.length - validTaskCount;
+
+          // Return composite result with both data and UI metadata
+          return {
+            // Core parsed data for the SyllabusPreviewCard
+            course: parsed.course,
+            tasks: parsed.tasks,
+            // UI metadata - eliminates need for separate showSyllabus call
+            ui: {
+              preview: true,
+              title: `Syllabus for ${parsed.course}`,
+              taskCount: parsed.tasks.length,
+              validTaskCount,
+              invalidCount,
+              summary:
+                invalidCount > 0
+                  ? `Found ${parsed.tasks.length} tasks (${invalidCount} missing dates)`
+                  : `Found ${parsed.tasks.length} tasks`,
+            },
+          };
         },
       }),
 
@@ -223,9 +317,12 @@ ${
               .from(tasks)
               .where(eq(tasks.userId, user.id));
             if (allTasks.length > 0) {
-              const { object: match } = await generateObject({
-                model: openai("gpt-4o-mini"),
-                schema: z.object({ taskId: z.string().nullable() }),
+              const { output: match } = await generateText({
+                // @ts-expect-error OpenRouter provider types are incompatible with AI SDK beta
+                model: glm,
+                output: Output.object({
+                  schema: z.object({ taskId: z.string().nullable() }),
+                }),
                 prompt: `User wants "${task_name}". Match to one of: ${JSON.stringify(allTasks)}`,
               });
               if (match.taskId) {
@@ -260,48 +357,51 @@ ${
           request: z.string(),
         }),
         execute: async ({ request }) => {
-          const { object } = await generateObject({
-            model: openai("gpt-4o-mini"),
-            schema: z.object({
-              tasks: z.array(
-                z.object({
-                  title: z.string(),
-                  course_code: z
-                    .string()
-                    .describe("Use exact course code from available courses"),
-                  grade_weight_id: z
-                    .string()
-                    .describe(
-                      "Use exact grade weight ID from available weights",
-                    ),
-                  description: z
-                    .string()
-                    .describe("Task description with location/time details"),
-                  due_date: z.string().describe("ISO Date string"),
-                  priority: z.enum(["Low", "Medium", "High"]),
-                  status: z
-                    .enum(["Todo", "In Progress", "Done", "Submitted"])
-                    .nullable()
-                    .describe(
-                      "Task status - use 'Done' if graded, 'Submitted' if submitted but not graded, 'Todo' for new tasks, or null if unknown",
-                    ),
-                  score_received: z
-                    .number()
-                    .nullable()
-                    .describe(
-                      "The score/grade received (as a number, e.g., 60 for 60%), or null if not graded",
-                    ),
-                  score_max: z
-                    .number()
-                    .nullable()
-                    .describe(
-                      "Maximum possible score (e.g., 100), or null to use default",
-                    ),
-                }),
-              ),
+          const { output: object } = await generateText({
+            // @ts-expect-error OpenRouter provider types are incompatible with AI SDK beta
+            model: glm,
+            output: Output.object({
+              schema: z.object({
+                tasks: z.array(
+                  z.object({
+                    title: z.string(),
+                    course_code: z
+                      .string()
+                      .describe("Use exact course code from available courses"),
+                    grade_weight_id: z
+                      .string()
+                      .describe(
+                        "Use exact grade weight ID from available weights",
+                      ),
+                    description: z
+                      .string()
+                      .describe("Task description with location/time details"),
+                    due_date: z.string().describe("ISO Date string"),
+                    priority: z.enum(["Low", "Medium", "High"]),
+                    status: z
+                      .enum(["Todo", "In Progress", "Done", "Submitted"])
+                      .nullable()
+                      .describe(
+                        "Task status - use 'Done' if graded, 'Submitted' if submitted but not graded, 'Todo' for new tasks, or null if unknown",
+                      ),
+                    score_received: z
+                      .number()
+                      .nullable()
+                      .describe(
+                        "The score/grade received (as a number, e.g., 60 for 60%), or null if not graded",
+                      ),
+                    score_max: z
+                      .number()
+                      .nullable()
+                      .describe(
+                        "Maximum possible score (e.g., 100), or null to use default",
+                      ),
+                  }),
+                ),
+              }),
             }),
             prompt: `Current date: ${new Date().toISOString()}.
-            
+
 Available courses: ${userCourses.map((c) => c.code).join(", ")}
 Available grade weights: ${userGradeWeights
               .map((gw) => {
@@ -427,10 +527,14 @@ Extract tasks from: "${request}"
       }),
 
       query_schedule: tool({
-        description: "Get tasks due in range.",
-        inputSchema: z.object({ start_date: z.string(), end_date: z.string() }),
+        description:
+          "Get tasks due in a date range. Returns tasks with UI metadata for display.",
+        inputSchema: z.object({
+          start_date: z.string().describe("Start date in ISO format"),
+          end_date: z.string().describe("End date in ISO format"),
+        }),
         execute: async ({ start_date, end_date }) => {
-          return await db
+          const scheduledTasks = await db
             .select()
             .from(tasks)
             .where(
@@ -440,6 +544,13 @@ Extract tasks from: "${request}"
                 lte(tasks.dueDate, new Date(end_date)),
               ),
             );
+
+          return {
+            tasks: scheduledTasks,
+            start_date,
+            end_date,
+            count: scheduledTasks.length,
+          };
         },
       }),
 
@@ -786,63 +897,6 @@ Extract tasks from: "${request}"
               return { success: false, error: "Invalid action" };
           }
         },
-      }),
-
-      // -----------------------------------------------------------------------
-      // 5. UI DISPLAY TOOLS (The "Show" Layer)
-      // -----------------------------------------------------------------------
-      showSyllabus: tool({
-        description: "Show parsed syllabus.",
-        inputSchema: z.object({ data: z.any() }),
-        execute: async ({ data }) => ({ data }),
-      }),
-      showSchedule: tool({
-        description: "Show schedule list.",
-        inputSchema: z.object({ tasks: z.any() }),
-        execute: async ({ tasks }) => ({ tasks }),
-      }),
-      showGradeRequirements: tool({
-        description: "Show grade prediction card.",
-        inputSchema: z.object({ data: z.any() }),
-        execute: async ({ data }) => ({ data }),
-      }),
-      showTaskUpdate: tool({
-        description: "Show update confirmation.",
-        inputSchema: z.object({ taskUpdate: z.any() }),
-        execute: async ({ taskUpdate }) => ({ taskUpdate }),
-      }),
-      showCreatedTasks: tool({
-        description: "Show created tasks list.",
-        inputSchema: z.object({ tasks: z.any() }),
-        execute: async ({ tasks }) => ({ tasks }),
-      }),
-      showScheduleUpdate: tool({
-        description: "Show auto-schedule results.",
-        inputSchema: z.object({ updates: z.any() }),
-        execute: async ({ updates }) => ({ updates }),
-      }),
-      showPriorityRebalance: tool({
-        description: "Show priority changes.",
-        inputSchema: z.object({ count: z.number() }),
-        execute: async ({ count }) => ({ count }),
-      }),
-      showMissingData: tool({
-        description: "Show cleanup list.",
-        inputSchema: z.object({
-          tasks_without_dates: z.any(),
-          suggestion: z.string(),
-        }),
-        execute: async ({ tasks_without_dates, suggestion }) => ({
-          tasks_without_dates,
-          suggestion,
-        }),
-      }),
-      showGradeWeights: tool({
-        description: "Show grade weights management results.",
-        inputSchema: z.object({
-          result: z.any().describe("The result from manage_grade_weights"),
-        }),
-        execute: async ({ result }) => ({ result }),
       }),
     },
   });

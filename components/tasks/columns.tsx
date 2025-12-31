@@ -1,5 +1,6 @@
 "use client";
 
+import * as React from "react";
 import { ColumnDef } from "@tanstack/react-table";
 import { Task, Course, GradeWeight, TaskStatus } from "@/types";
 import { Badge } from "@/components/ui/badge";
@@ -17,9 +18,17 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { Button } from "@/components/ui/button";
 import { useTaskActions } from "./hooks/use-task-actions";
 import { DataTableColumnHeader } from "./data-table-column-header";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
+import { CalendarIcon, X } from "lucide-react";
 
 export type TaskWithDetails = Task & {
   course: Course | null;
@@ -73,6 +82,74 @@ const StatusCell = ({ task }: { task: Task }) => {
   );
 };
 
+const DueDateCell = ({ task }: { task: Task }) => {
+  const { setDueDate } = useTaskActions();
+  const [open, setOpen] = React.useState(false);
+
+  const date = task.dueDate ? new Date(task.dueDate) : null;
+  const isOverdue = date && date < new Date() && !isToday(date);
+  const isDueToday = date && isToday(date);
+
+  const handleSelect = (selectedDate: Date | undefined) => {
+    setDueDate(task, selectedDate || null);
+    setOpen(false);
+  };
+
+  const handleClear = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setDueDate(task, null);
+    setOpen(false);
+  };
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className="outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 rounded-full"
+        >
+          <Badge
+            variant="outline"
+            className={
+              isOverdue
+                ? "bg-red-100 text-red-800 hover:bg-red-100/80 border-transparent shadow-none"
+                : isDueToday
+                  ? "bg-orange-100 text-orange-800 hover:bg-orange-100/80 border-transparent shadow-none"
+                  : "text-muted-foreground"
+            }
+          >
+            <CalendarIcon className="h-3 w-3 mr-1" />
+            {date ? format(date, "MMM d") : "No date"}
+          </Badge>
+        </button>
+      </PopoverTrigger>
+      <PopoverContent className="w-auto p-0" align="start">
+        <div className="p-2 border-b flex items-center justify-between">
+          <span className="text-sm font-medium">Due Date</span>
+          {date && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-6 px-2 text-xs"
+              onClick={handleClear}
+            >
+              <X className="h-3 w-3 mr-1" />
+              Clear
+            </Button>
+          )}
+        </div>
+        <Calendar
+          mode="single"
+          selected={date || undefined}
+          defaultMonth={date || undefined}
+          onSelect={handleSelect}
+          initialFocus
+        />
+      </PopoverContent>
+    </Popover>
+  );
+};
+
 export const columns: ColumnDef<TaskWithDetails>[] = [
   {
     id: "select",
@@ -105,6 +182,7 @@ export const columns: ColumnDef<TaskWithDetails>[] = [
     cell: ({ row }) => (
       <div className="font-medium">{row.getValue("title")}</div>
     ),
+    meta: { label: "Title" },
     size: 300,
     minSize: 150,
     maxSize: 600,
@@ -137,6 +215,7 @@ export const columns: ColumnDef<TaskWithDetails>[] = [
     filterFn: (row, id, value) => {
       return value.includes(row.getValue(id));
     },
+    meta: { label: "Course" },
     size: 120,
     minSize: 80,
     maxSize: 200,
@@ -155,6 +234,7 @@ export const columns: ColumnDef<TaskWithDetails>[] = [
       );
       return result;
     },
+    meta: { label: "Status" },
     size: 130,
     minSize: 100,
     maxSize: 200,
@@ -188,6 +268,7 @@ export const columns: ColumnDef<TaskWithDetails>[] = [
       );
       return result;
     },
+    meta: { label: "Priority" },
     size: 100,
     minSize: 80,
     maxSize: 150,
@@ -203,6 +284,7 @@ export const columns: ColumnDef<TaskWithDetails>[] = [
         <span className="text-muted-foreground text-sm">{gw.name}</span>
       ) : null;
     },
+    meta: { label: "Category" },
     size: 150,
     minSize: 100,
     maxSize: 250,
@@ -212,28 +294,7 @@ export const columns: ColumnDef<TaskWithDetails>[] = [
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Due Date" />
     ),
-    cell: ({ row }) => {
-      const date = row.getValue("dueDate") as string | null;
-      if (!date) return <span className="text-muted-foreground">-</span>;
-
-      const due = new Date(date);
-      const isOverdue = due < new Date() && !isToday(due);
-      const isDueToday = isToday(due);
-
-      return (
-        <div
-          className={
-            isOverdue
-              ? "text-red-500 font-bold"
-              : isDueToday
-                ? "text-orange-500 font-bold"
-                : "text-muted-foreground"
-          }
-        >
-          {format(due, "MMM d")}
-        </div>
-      );
-    },
+    cell: ({ row }) => <DueDateCell task={row.original} />,
     filterFn: (row, id, filterValue) => {
       // Support date range filtering
       if (
@@ -269,6 +330,7 @@ export const columns: ColumnDef<TaskWithDetails>[] = [
       }
       return true;
     },
+    meta: { label: "Due Date" },
     size: 110,
     minSize: 90,
     maxSize: 150,
@@ -287,6 +349,7 @@ export const columns: ColumnDef<TaskWithDetails>[] = [
         </span>
       );
     },
+    meta: { label: "Do Date" },
     size: 110,
     minSize: 90,
     maxSize: 150,
@@ -315,6 +378,7 @@ export const columns: ColumnDef<TaskWithDetails>[] = [
         <span className="text-muted-foreground">{percentage.toFixed(2)}%</span>
       );
     },
+    meta: { label: "Score" },
     size: 100,
     minSize: 80,
     maxSize: 150,

@@ -53,7 +53,10 @@ export function Sidebar({ semesters }: SidebarProps) {
   return (
     <div className="flex h-screen w-64 flex-col border-r bg-muted/40">
       <div className="flex h-14 items-center border-b px-4 lg:h-[60px] lg:px-6">
-        <Link href="/" className="flex items-center gap-2 font-semibold">
+        <Link
+          href="/dashboard"
+          className="flex items-center gap-2 font-semibold"
+        >
           <GraduationCap className="h-6 w-6" />
           <span className="">StudentOS</span>
         </Link>

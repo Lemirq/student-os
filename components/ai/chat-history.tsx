@@ -141,14 +141,22 @@ export function ChatHistory({
                             </span>
                           </div>
                           <div className="absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover/menu-button:opacity-100 transition-opacity">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                            <div
+                              role="button"
+                              tabIndex={0}
+                              className="hover:bg-accent text-muted-foreground hover:text-destructive flex aspect-square w-6 items-center justify-center rounded-md p-0 transition-transform cursor-pointer"
                               onClick={(e) => handleDelete(e, chat.id)}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter" || e.key === " ") {
+                                  handleDelete(
+                                    e as unknown as React.MouseEvent,
+                                    chat.id,
+                                  );
+                                }
+                              }}
                             >
                               <Trash2 className="size-3" />
-                            </Button>
+                            </div>
                           </div>
                         </SidebarMenuButton>
                       </SidebarMenuItem>

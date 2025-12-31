@@ -135,6 +135,7 @@ export const tasks = pgTable(
     notes: jsonb("notes"),
 
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
   }),
   (table) => ({
     priorityCheck: check(

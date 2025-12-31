@@ -4,6 +4,7 @@ import { TaskMainContent } from "@/components/tasks/task-main-content";
 import { notFound } from "next/navigation";
 import { Task } from "@/types";
 import { TaskCommandInitializer } from "@/components/tasks/task-command-initializer";
+import Link from "next/link";
 
 interface TaskPageProps {
   params: Promise<{ id: string }>;
@@ -28,7 +29,9 @@ export default async function TaskPage({ params }: TaskPageProps) {
       <div className="flex-1 min-w-0 overflow-y-auto">
         <div className="p-8 pb-20 max-w-4xl mx-auto">
           <div className="mb-6 flex items-center gap-2 text-sm text-muted-foreground">
-            <span>{task.course?.code || "No Course"}</span>
+            <Link href={`/courses/${task.course?.id || ""}`}>
+              {task.course?.code || "No Course"}
+            </Link>
             <span>/</span>
             <span>Tasks</span>
             <span>/</span>
@@ -41,7 +44,7 @@ export default async function TaskPage({ params }: TaskPageProps) {
       </div>
 
       {/* Right Sidebar (Rigid) */}
-      <div className="w-[300px] shrink-0 border-l bg-background overflow-y-auto">
+      <div className="w-[350px] shrink-0 border-l bg-background overflow-y-auto">
         <div className="p-6">
           <TaskProperties task={task} />
         </div>

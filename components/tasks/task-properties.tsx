@@ -259,17 +259,17 @@ export function TaskProperties({ task }: TaskPropertiesProps) {
         <div className="grid grid-cols-3 gap-2 items-start pt-2">
           <span className="text-sm text-muted-foreground pt-2">Score</span>
           <div className="col-span-2 space-y-2">
-            <div className="flex items-center gap-2">
+            <div className="w-full flex items-center gap-2">
               <Input
                 defaultValue={task.scoreReceived?.toString() ?? ""}
                 placeholder="-"
-                className="h-8 w-16 text-right"
+                className="h-8 w-full text-right"
                 onBlur={(e) => handleScoreBlur(e, "received")}
               />
               <span className="text-muted-foreground">/</span>
               <Input
                 defaultValue={task.scoreMax?.toString() ?? "100"}
-                className="h-8 w-16"
+                className="h-8 w-full"
                 onBlur={(e) => handleScoreBlur(e, "max")}
               />
             </div>

@@ -101,6 +101,17 @@ export async function updateTask(id: string, data: Partial<Task>) {
       }
     }
 
+    // Handle completedAt timestamp based on status changes
+    if (data.status !== undefined) {
+      if (data.status === "Done" && existingTask.status !== "Done") {
+        // Task is being marked as done - set completedAt
+        updateData.completedAt = new Date();
+      } else if (data.status !== "Done" && existingTask.status === "Done") {
+        // Task is being unmarked as done - clear completedAt
+        updateData.completedAt = null;
+      }
+    }
+
     await db.update(tasks).set(updateData).where(eq(tasks.id, id));
 
     revalidatePath("/dashboard");

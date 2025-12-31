@@ -1,16 +1,20 @@
 "use client";
 
 import * as React from "react";
+import { usePathname, useParams } from "next/navigation";
 import {
   Sparkles,
   Trash2,
   GraduationCap,
   FileText,
   Upload,
+  Brain,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { useChat } from "@ai-sdk/react";
-import { lastAssistantMessageIsCompleteWithToolCalls } from "ai";
+import { lastAssistantMessageIsCompleteWithToolCalls, UIMessagePart } from "ai";
+import { StudentOSTools, StudentOSDataTypes } from "@/types";
+import { getPageContext, PageContext } from "@/actions/page-context";
 
 import {
   Sidebar,
@@ -19,7 +23,6 @@ import {
   SidebarHeader,
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { DottedGlowBackground } from "../ui/dotted-glow-background";
 import ChatInput from "@/components/chat-input";
 import { StudentOSToolCallsMessage } from "@/app/api/chat/route";
@@ -29,17 +32,56 @@ import { format } from "date-fns";
 import { ChatHistory } from "./chat-history";
 import { saveChat } from "@/actions/chats";
 import { cn } from "@/lib/utils";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 
 export function AICopilotSidebar({ aiEnabled }: { aiEnabled: boolean }) {
   const [chatId, setChatId] = React.useState<string>("");
   const [mounted, setMounted] = React.useState(false);
   const [files, setFiles] = React.useState<File[]>([]);
   const [isDragging, setIsDragging] = React.useState(false);
+  const [pageContext, setPageContext] = React.useState<PageContext>({
+    type: "unknown",
+  });
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [pendingMessages, setPendingMessages] = React.useState<any[] | null>(
+    null,
+  );
+
+  // Route hooks for page context awareness
+  const pathname = usePathname();
+  const params = useParams();
 
   React.useEffect(() => {
     setMounted(true);
     setChatId(crypto.randomUUID());
   }, []);
+
+  // Fetch page context when route changes
+  React.useEffect(() => {
+    if (!mounted) return;
+
+    const fetchContext = async () => {
+      const paramsRecord: Record<string, string> = {};
+      // Convert params to Record<string, string>
+      if (params) {
+        Object.entries(params).forEach(([key, value]) => {
+          if (typeof value === "string") {
+            paramsRecord[key] = value;
+          }
+        });
+      }
+
+      const context = await getPageContext(pathname, paramsRecord);
+      setPageContext(context);
+    };
+
+    fetchContext();
+  }, [pathname, params, mounted]);
 
   const {
     messages,
@@ -62,6 +104,14 @@ export function AICopilotSidebar({ aiEnabled }: { aiEnabled: boolean }) {
       console.log("Tool call:", toolCall);
     },
   });
+
+  // Apply pending messages after chatId changes
+  React.useEffect(() => {
+    if (pendingMessages !== null) {
+      setMessages(pendingMessages as unknown as StudentOSToolCallsMessage[]);
+      setPendingMessages(null);
+    }
+  }, [chatId, pendingMessages, setMessages]);
 
   const scrollRef = React.useRef<HTMLDivElement>(null);
   const scrollAreaRef = React.useRef<HTMLDivElement>(null);
@@ -142,19 +192,24 @@ export function AICopilotSidebar({ aiEnabled }: { aiEnabled: boolean }) {
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const handleSelectChat = (id: string, loadedMessages: any[]) => {
+    setPendingMessages(loadedMessages);
     setChatId(id);
-    setMessages(loadedMessages as unknown as StudentOSToolCallsMessage[]);
   };
 
   const handleNewChat = () => {
     const newId = crypto.randomUUID();
+    setPendingMessages([]);
     setChatId(newId);
-    setMessages([]);
     setFiles([]);
   };
 
   const handleSubmit = async (text: string, submittedFiles?: File[]) => {
     const filesToSend = submittedFiles || files;
+
+    // Pass page context via body - server will inject it into the system prompt
+    const options = {
+      body: { pageContext },
+    };
 
     if (filesToSend && filesToSend.length > 0) {
       // Convert File[] to FileList for the AI SDK if needed, or pass as is if supported.
@@ -162,14 +217,20 @@ export function AICopilotSidebar({ aiEnabled }: { aiEnabled: boolean }) {
       const dataTransfer = new DataTransfer();
       filesToSend.forEach((file) => dataTransfer.items.add(file));
 
-      sendMessage({
-        text,
-        files: dataTransfer.files,
-      });
+      sendMessage(
+        {
+          text,
+          files: dataTransfer.files,
+        },
+        options,
+      );
     } else {
-      sendMessage({
-        text,
-      });
+      sendMessage(
+        {
+          text,
+        },
+        options,
+      );
     }
     setFiles([]);
   };
@@ -201,7 +262,7 @@ export function AICopilotSidebar({ aiEnabled }: { aiEnabled: boolean }) {
     <Sidebar
       side="right"
       className={cn(
-        "hidden lg:flex h-full ml-0 border-l bg-sidebar transition-colors",
+        "hidden lg:flex h-full ml-0 border bg-sidebar transition-colors",
         isDragging && "border-primary/50 bg-primary/5",
       )}
       onDragOver={onDragOver}
@@ -244,7 +305,7 @@ export function AICopilotSidebar({ aiEnabled }: { aiEnabled: boolean }) {
         </div>
       </SidebarHeader>
 
-      <SidebarContent>
+      <SidebarContent className="scrollbar-sleek">
         {/* if the user's email isn't sharmavihaan190@gmail.com, then restrict access to AI */}
         {!aiEnabled ? (
           <div className="flex flex-col items-center justify-center h-[calc(100vh-15rem)] text-center p-6">
@@ -255,7 +316,7 @@ export function AICopilotSidebar({ aiEnabled }: { aiEnabled: boolean }) {
             </h3>
           </div>
         ) : (
-          <ScrollArea className="h-full" ref={scrollAreaRef}>
+          <div ref={scrollAreaRef}>
             <DottedGlowBackground
               className="pointer-events-none mask-radial-to-90% mask-radial-at-center opacity-20 dark:opacity-100"
               opacity={0.4}
@@ -292,19 +353,21 @@ export function AICopilotSidebar({ aiEnabled }: { aiEnabled: boolean }) {
                     }`}
                   >
                     <div
-                      className={`flex flex-col gap-1 max-w-[85%] ${
+                      className={`flex flex-col gap-1 max-w-[90%] ${
                         m.role === "user" ? "items-end" : "items-start"
                       }`}
                     >
                       {m.parts?.map((part, i) => {
-                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                        const p = part as any;
+                        const p = part as UIMessagePart<
+                          StudentOSDataTypes,
+                          StudentOSTools
+                        >;
                         switch (p.type) {
                           case "text":
                             return (
                               <div
                                 key={i}
-                                className={`p-3 rounded-lg text-sm prose dark:prose-invert max-w-none ${
+                                className={`p-3 rounded-lg text-sm prose dark:prose-invert max-w-none wrap-anywhere overflow-hidden ${
                                   m.role === "user"
                                     ? "bg-primary text-primary-foreground prose-headings:text-primary-foreground prose-p:text-primary-foreground prose-strong:text-primary-foreground prose-a:text-primary-foreground"
                                     : "bg-muted"
@@ -345,24 +408,69 @@ export function AICopilotSidebar({ aiEnabled }: { aiEnabled: boolean }) {
                             );
 
                           // -----------------------------------------------------------------------
-                          // TOOL: showSyllabus
+                          // REASONING: Show AI's thinking process in accordion
                           // -----------------------------------------------------------------------
-                          case "tool-showSyllabus": {
+                          case "reasoning": {
+                            const wordCount = p.text.trim().split(/\s+/).length;
+                            const defaultOpen = wordCount < 100;
+                            return (
+                              <Accordion
+                                key={i}
+                                type="single"
+                                collapsible
+                                defaultValue={
+                                  defaultOpen ? "reasoning" : undefined
+                                }
+                                className="w-full"
+                              >
+                                <AccordionItem
+                                  value="reasoning"
+                                  className="border-none"
+                                >
+                                  <AccordionTrigger className="flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground transition-colors py-1.5 px-2 rounded-md hover:bg-muted/50 hover:no-underline">
+                                    <Brain className="size-3.5 text-purple-500" />
+                                    <span className="font-medium">
+                                      Reasoning
+                                    </span>
+                                  </AccordionTrigger>
+                                  <AccordionContent>
+                                    <div className="mt-1 p-3 rounded-lg bg-purple-500/5 border border-purple-500/20 text-xs text-muted-foreground overflow-hidden">
+                                      <div className="prose prose-xs dark:prose-invert max-w-none prose-p:text-muted-foreground prose-p:text-xs prose-p:leading-relaxed wrap-anywhere">
+                                        <ReactMarkdown>{p.text}</ReactMarkdown>
+                                      </div>
+                                    </div>
+                                  </AccordionContent>
+                                </AccordionItem>
+                              </Accordion>
+                            );
+                          }
+
+                          // -----------------------------------------------------------------------
+                          // TOOL: parse_syllabus (composite tool - handles parsing + UI)
+                          // -----------------------------------------------------------------------
+                          case "tool-parse_syllabus": {
                             const callId = p.toolCallId;
                             switch (p.state) {
                               case "input-streaming":
                               case "input-available":
-                              // return (
-                              //   <div
-                              //     key={callId}
-                              //     className="bg-muted p-3 rounded-lg text-sm w-full animate-pulse"
-                              //   >
-                              //     Generating syllabus preview...
-                              //   </div>
-                              // );
+                                return (
+                                  <div
+                                    key={callId}
+                                    className="bg-muted p-3 rounded-lg text-sm w-full animate-pulse"
+                                  >
+                                    Parsing syllabus...
+                                  </div>
+                                );
                               case "output-available": {
-                                const data = p.output?.data; // The tool returns { data }
-                                if (!data) return null;
+                                // The composite tool returns { course, tasks, ui }
+                                const output = p.output;
+                                if (!output?.course || !output?.tasks)
+                                  return null;
+                                // Pass the data in the format SyllabusPreviewCard expects
+                                const data = {
+                                  course: output.course,
+                                  tasks: output.tasks,
+                                };
                                 return (
                                   <div key={callId}>
                                     <SyllabusPreviewCard data={data} />
@@ -370,14 +478,21 @@ export function AICopilotSidebar({ aiEnabled }: { aiEnabled: boolean }) {
                                 );
                               }
                               default:
-                                return <div>Generating</div>;
+                                return (
+                                  <div
+                                    key={callId}
+                                    className="bg-muted p-3 rounded-lg text-sm w-full animate-pulse"
+                                  >
+                                    Processing...
+                                  </div>
+                                );
                             }
                           }
 
                           // -----------------------------------------------------------------------
-                          // TOOL: showSchedule
+                          // TOOL: query_schedule (composite - handles schedule query + UI)
                           // -----------------------------------------------------------------------
-                          case "tool-showSchedule": {
+                          case "tool-query_schedule": {
                             const callId = p.toolCallId;
                             switch (p.state) {
                               case "input-streaming":
@@ -391,15 +506,15 @@ export function AICopilotSidebar({ aiEnabled }: { aiEnabled: boolean }) {
                                   </div>
                                 );
                               case "output-available": {
-                                const args = p.input; // Start/End date are in input
-                                const tasks = p.output?.tasks; // Tasks are in output
+                                const output = p.output;
+                                const tasks = output?.tasks;
 
                                 return (
                                   <div key={callId}>
                                     <div className="bg-muted p-3 rounded-lg text-sm w-full">
                                       <h4 className="font-medium mb-2">
-                                        Schedule ({args?.start_date || "..."} -{" "}
-                                        {args?.end_date || "..."})
+                                        Schedule ({output?.start_date || "..."}{" "}
+                                        - {output?.end_date || "..."})
                                       </h4>
                                       {tasks && tasks.length > 0 ? (
                                         <ul className="space-y-2">
@@ -436,31 +551,87 @@ export function AICopilotSidebar({ aiEnabled }: { aiEnabled: boolean }) {
                           }
 
                           // -----------------------------------------------------------------------
-                          // TOOL: showTaskUpdate
+                          // TOOL: calculate_grade_requirements (composite - handles grade calc + UI)
                           // -----------------------------------------------------------------------
-                          case "tool-showTaskUpdate": {
+                          case "tool-calculate_grade_requirements": {
                             const callId = p.toolCallId;
                             switch (p.state) {
                               case "input-streaming":
                               case "input-available":
-                                return <div key={callId}>Updating task...</div>;
-                              case "output-available":
-                                const update = p.output?.taskUpdate;
                                 return (
-                                  <div key={callId} className="my-2">
-                                    <Badge
-                                      variant="outline"
-                                      className="bg-green-500/10 text-green-600 border-green-200"
-                                    >
-                                      ✅ {update?.status || "Updated"}
-                                    </Badge>
-                                    {update?.task && (
-                                      <div className="text-xs text-muted-foreground mt-1">
-                                        Updated {update.task} to {update.score}%
-                                      </div>
-                                    )}
+                                  <div
+                                    key={callId}
+                                    className="bg-muted p-3 rounded-lg text-sm w-full animate-pulse"
+                                  >
+                                    Calculating grades...
                                   </div>
                                 );
+                              case "output-available": {
+                                const data = p.output;
+                                if (!data || data.error) {
+                                  return (
+                                    <div
+                                      key={callId}
+                                      className="bg-destructive/10 border border-destructive/20 p-3 rounded-lg my-2 text-sm w-full"
+                                    >
+                                      <div className="text-destructive font-medium">
+                                        ❌{" "}
+                                        {data?.error || "Failed to calculate"}
+                                      </div>
+                                    </div>
+                                  );
+                                }
+                                return (
+                                  <div
+                                    key={callId}
+                                    className="bg-muted p-4 rounded-lg my-2 text-sm w-full"
+                                  >
+                                    <h4 className="font-semibold mb-2">
+                                      Grade Analysis
+                                    </h4>
+                                    <div className="grid grid-cols-2 gap-2 mb-3">
+                                      <div>
+                                        <span className="text-xs text-muted-foreground block">
+                                          Current Grade
+                                        </span>
+                                        <span className="font-medium text-lg">
+                                          {data.current_grade}%
+                                        </span>
+                                      </div>
+                                      <div>
+                                        <span className="text-xs text-muted-foreground block">
+                                          Goal Grade
+                                        </span>
+                                        <span className="font-medium text-lg">
+                                          {data.goal_grade}%
+                                        </span>
+                                      </div>
+                                    </div>
+                                    <div className="bg-background/50 p-2 rounded border">
+                                      <span className="text-xs text-muted-foreground block">
+                                        Required on Remaining (
+                                        {data.remaining_weight}%)
+                                      </span>
+                                      <div className="flex items-baseline gap-2">
+                                        <span className="font-bold text-xl text-primary">
+                                          {data.required_avg_on_remaining}%
+                                        </span>
+                                        <Badge
+                                          variant={
+                                            data.status === "Impossible"
+                                              ? "destructive"
+                                              : data.status === "Secured"
+                                                ? "default"
+                                                : "outline"
+                                          }
+                                        >
+                                          {data.status}
+                                        </Badge>
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              }
                               default:
                                 return null;
                             }
@@ -538,87 +709,23 @@ export function AICopilotSidebar({ aiEnabled }: { aiEnabled: boolean }) {
                           }
 
                           // -----------------------------------------------------------------------
-                          // TOOL: showGradeRequirements
+                          // TOOL: auto_schedule_tasks (composite - handles scheduling + UI)
                           // -----------------------------------------------------------------------
-                          case "tool-showGradeRequirements": {
+                          case "tool-auto_schedule_tasks": {
                             const callId = p.toolCallId;
                             switch (p.state) {
                               case "input-streaming":
                               case "input-available":
-                                return (
-                                  <div key={callId}>Calculating grades...</div>
-                                );
-                              case "output-available":
-                                const data = p.output?.data;
-                                if (!data) return null;
                                 return (
                                   <div
                                     key={callId}
-                                    className="bg-muted p-4 rounded-lg my-2 text-sm w-full"
+                                    className="bg-muted p-3 rounded-lg text-sm w-full animate-pulse"
                                   >
-                                    <h4 className="font-semibold mb-2">
-                                      Grade Analysis
-                                    </h4>
-                                    <div className="grid grid-cols-2 gap-2 mb-3">
-                                      <div>
-                                        <span className="text-xs text-muted-foreground block">
-                                          Current Grade
-                                        </span>
-                                        <span className="font-medium text-lg">
-                                          {data.current_grade}%
-                                        </span>
-                                      </div>
-                                      <div>
-                                        <span className="text-xs text-muted-foreground block">
-                                          Goal Grade
-                                        </span>
-                                        <span className="font-medium text-lg">
-                                          {data.goal_grade}%
-                                        </span>
-                                      </div>
-                                    </div>
-                                    <div className="bg-background/50 p-2 rounded border">
-                                      <span className="text-xs text-muted-foreground block">
-                                        Required on Remaining (
-                                        {data.remaining_weight}%)
-                                      </span>
-                                      <div className="flex items-baseline gap-2">
-                                        <span className="font-bold text-xl text-primary">
-                                          {data.required_avg_on_remaining}%
-                                        </span>
-                                        <Badge
-                                          variant={
-                                            data.status === "Impossible"
-                                              ? "destructive"
-                                              : data.status === "Secured"
-                                                ? "default"
-                                                : "outline"
-                                          }
-                                        >
-                                          {data.status}
-                                        </Badge>
-                                      </div>
-                                    </div>
+                                    Scheduling tasks...
                                   </div>
                                 );
-                              default:
-                                return null;
-                            }
-                          }
-
-                          // -----------------------------------------------------------------------
-                          // TOOL: showScheduleUpdate
-                          // -----------------------------------------------------------------------
-                          case "tool-showScheduleUpdate": {
-                            const callId = p.toolCallId;
-                            switch (p.state) {
-                              case "input-streaming":
-                              case "input-available":
-                                return (
-                                  <div key={callId}>Scheduling tasks...</div>
-                                );
-                              case "output-available":
-                                const updates = p.output?.updates;
+                              case "output-available": {
+                                const output = p.output;
                                 return (
                                   <div
                                     key={callId}
@@ -627,71 +734,92 @@ export function AICopilotSidebar({ aiEnabled }: { aiEnabled: boolean }) {
                                     <div className="flex items-center gap-2 mb-2 text-green-600">
                                       <Sparkles className="size-4" />
                                       <span className="font-medium">
-                                        {updates?.message || "Schedule Updated"}
+                                        {output?.message || "Schedule Updated"}
                                       </span>
                                     </div>
-                                    <ul className="space-y-1 text-xs text-muted-foreground">
-                                      {updates?.updates?.map(
-                                        (
-                                          u: {
-                                            title: string;
-                                            new_do_date: string;
-                                          },
-                                          i: number,
-                                        ) => (
-                                          <li key={i}>
-                                            📅 <b>{u?.title}</b> &rarr;{" "}
-                                            {format(
-                                              new Date(u?.new_do_date),
-                                              "MMM d",
-                                            )}
-                                          </li>
-                                        ),
-                                      )}
-                                    </ul>
+                                    {output?.updates &&
+                                    output.updates.length > 0 ? (
+                                      <ul className="space-y-1 text-xs text-muted-foreground">
+                                        {output.updates.map(
+                                          (
+                                            u: {
+                                              title: string;
+                                              new_do_date: string;
+                                            },
+                                            i: number,
+                                          ) => (
+                                            <li key={i}>
+                                              📅 <b>{u?.title}</b> &rarr;{" "}
+                                              {format(
+                                                new Date(u?.new_do_date),
+                                                "MMM d",
+                                              )}
+                                            </li>
+                                          ),
+                                        )}
+                                      </ul>
+                                    ) : (
+                                      <div className="text-xs text-muted-foreground italic">
+                                        No tasks needed scheduling.
+                                      </div>
+                                    )}
                                   </div>
                                 );
+                              }
                               default:
                                 return null;
                             }
                           }
 
                           // -----------------------------------------------------------------------
-                          // TOOL: showPriorityRebalance
+                          // TOOL: rebalance_priorities (composite - handles rebalance + UI)
                           // -----------------------------------------------------------------------
-                          case "tool-showPriorityRebalance": {
+                          case "tool-rebalance_priorities": {
                             const callId = p.toolCallId;
                             switch (p.state) {
                               case "input-streaming":
                               case "input-available":
                                 return (
-                                  <div key={callId}>
+                                  <div
+                                    key={callId}
+                                    className="bg-muted p-3 rounded-lg text-sm w-full animate-pulse"
+                                  >
                                     Rebalancing priorities...
                                   </div>
                                 );
-                              case "output-available":
-                                const count = p.output?.count;
+                              case "output-available": {
+                                const output = p.output;
                                 return (
-                                  <div key={callId} className="my-2">
-                                    <Badge
-                                      variant="secondary"
-                                      className="gap-1 py-1"
-                                    >
-                                      <Sparkles className="size-3" />
-                                      {count?.message ||
-                                        "Priorities Rebalanced"}
-                                    </Badge>
+                                  <div
+                                    key={callId}
+                                    className="bg-muted/50 border border-border/50 p-3 rounded-lg my-2 text-sm w-full"
+                                  >
+                                    <div className="flex items-center gap-2 text-green-600 dark:text-green-400">
+                                      <Sparkles className="size-3.5" />
+                                      <span className="font-medium text-xs">
+                                        {output?.message ||
+                                          "Priorities Rebalanced"}
+                                      </span>
+                                    </div>
+                                    {output?.count > 0 && (
+                                      <div className="text-xs text-muted-foreground mt-1">
+                                        Set {output.count} high-stakes task
+                                        {output.count !== 1 ? "s" : ""} to High
+                                        priority
+                                      </div>
+                                    )}
                                   </div>
                                 );
+                              }
                               default:
                                 return null;
                             }
                           }
 
                           // -----------------------------------------------------------------------
-                          // TOOL: showCreatedTasks
+                          // TOOL: create_tasks_natural_language (composite - handles task creation + UI)
                           // -----------------------------------------------------------------------
-                          case "tool-showCreatedTasks": {
+                          case "tool-create_tasks_natural_language": {
                             const callId = p.toolCallId;
                             switch (p.state) {
                               case "input-streaming":
@@ -704,11 +832,9 @@ export function AICopilotSidebar({ aiEnabled }: { aiEnabled: boolean }) {
                                     Creating tasks...
                                   </div>
                                 );
-                              case "output-available":
-                                const tasks = p.output?.tasks;
-                                const taskArray = Array.isArray(tasks)
-                                  ? tasks
-                                  : tasks?.tasks || [];
+                              case "output-available": {
+                                const output = p.output;
+                                const taskArray = output?.tasks || [];
                                 const taskCount = taskArray.length;
 
                                 if (taskCount === 0) {
@@ -786,33 +912,38 @@ export function AICopilotSidebar({ aiEnabled }: { aiEnabled: boolean }) {
                                     </div>
                                   </div>
                                 );
+                              }
                               default:
                                 return null;
                             }
                           }
 
                           // -----------------------------------------------------------------------
-                          // TOOL: showMissingData
+                          // TOOL: find_missing_data (composite - handles missing data check + UI)
                           // -----------------------------------------------------------------------
-                          case "tool-showMissingData": {
+                          case "tool-find_missing_data": {
                             const callId = p.toolCallId;
                             switch (p.state) {
                               case "input-streaming":
                               case "input-available":
                                 return (
-                                  <div key={callId}>
+                                  <div
+                                    key={callId}
+                                    className="bg-muted p-3 rounded-lg text-sm w-full animate-pulse"
+                                  >
                                     Checking for missing data...
                                   </div>
                                 );
-                              case "output-available":
-                                const data = p.output; // { tasks_without_dates, suggestion }
+                              case "output-available": {
+                                const output = p.output;
                                 const tasks_without_weights =
                                   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                                  (data?.tasks_without_weights as any[]) || [];
+                                  (output?.tasks_without_weights as any[]) ||
+                                  [];
                                 const tasks_without_dates =
                                   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                                  (data?.tasks_without_dates as any[]) || [];
-                                const suggestion = data?.suggestion;
+                                  (output?.tasks_without_dates as any[]) || [];
+                                const suggestion = output?.suggestion;
                                 const hasIssues =
                                   tasks_without_weights.length > 0 ||
                                   tasks_without_dates.length > 0;
@@ -821,9 +952,12 @@ export function AICopilotSidebar({ aiEnabled }: { aiEnabled: boolean }) {
                                   return (
                                     <div
                                       key={callId}
-                                      className="text-sm text-green-600 my-2"
+                                      className="bg-green-500/10 border border-green-200 p-3 rounded-lg my-2 text-sm w-full"
                                     >
-                                      ✅ All data looks clean!
+                                      <div className="text-green-600 font-medium flex items-center gap-2">
+                                        <span>✅</span>
+                                        <span>All data looks clean!</span>
+                                      </div>
                                     </div>
                                   );
                                 }
@@ -833,16 +967,16 @@ export function AICopilotSidebar({ aiEnabled }: { aiEnabled: boolean }) {
                                     key={callId}
                                     className="bg-orange-500/10 border border-orange-200 p-4 rounded-lg my-2 text-sm w-full"
                                   >
-                                    <h4 className="font-medium text-orange-800 mb-2">
+                                    <h4 className="font-medium text-orange-800 dark:text-orange-400 mb-2">
                                       Missing Data Found
                                     </h4>
                                     {tasks_without_weights.length > 0 && (
                                       <div className="mb-3">
-                                        <span className="text-xs font-semibold text-orange-800/80 block mb-1">
+                                        <span className="text-xs font-semibold text-orange-800/80 dark:text-orange-400/80 block mb-1">
                                           Missing Grade Weights (
                                           {tasks_without_weights.length})
                                         </span>
-                                        <ul className="list-disc list-inside text-xs text-orange-800/70">
+                                        <ul className="list-disc list-inside text-xs text-orange-800/70 dark:text-orange-400/70">
                                           {tasks_without_weights
                                             .slice(0, 3)
                                             .map((t, i) => (
@@ -860,11 +994,11 @@ export function AICopilotSidebar({ aiEnabled }: { aiEnabled: boolean }) {
                                     )}
                                     {tasks_without_dates.length > 0 && (
                                       <div className="mb-2">
-                                        <span className="text-xs font-semibold text-orange-800/80 block mb-1">
+                                        <span className="text-xs font-semibold text-orange-800/80 dark:text-orange-400/80 block mb-1">
                                           Missing Due Dates (
                                           {tasks_without_dates.length})
                                         </span>
-                                        <ul className="list-disc list-inside text-xs text-orange-800/70">
+                                        <ul className="list-disc list-inside text-xs text-orange-800/70 dark:text-orange-400/70">
                                           {tasks_without_dates
                                             .slice(0, 3)
                                             .map((t, i) => (
@@ -880,31 +1014,37 @@ export function AICopilotSidebar({ aiEnabled }: { aiEnabled: boolean }) {
                                         </ul>
                                       </div>
                                     )}
-                                    <div className="mt-2 text-xs text-orange-800 italic border-t border-orange-200 pt-2">
-                                      {suggestion}
-                                    </div>
+                                    {suggestion && (
+                                      <div className="mt-2 text-xs text-orange-800 dark:text-orange-400 italic border-t border-orange-200 dark:border-orange-800 pt-2">
+                                        {suggestion}
+                                      </div>
+                                    )}
                                   </div>
                                 );
+                              }
                               default:
                                 return null;
                             }
                           }
 
                           // -----------------------------------------------------------------------
-                          // TOOL: showGradeWeights
+                          // TOOL: manage_grade_weights (composite - handles grade weights CRUD + UI)
                           // -----------------------------------------------------------------------
-                          case "tool-showGradeWeights": {
+                          case "tool-manage_grade_weights": {
                             const callId = p.toolCallId;
                             switch (p.state) {
                               case "input-streaming":
                               case "input-available":
                                 return (
-                                  <div key={callId}>
+                                  <div
+                                    key={callId}
+                                    className="bg-muted p-3 rounded-lg text-sm w-full animate-pulse"
+                                  >
                                     Managing grade weights...
                                   </div>
                                 );
                               case "output-available": {
-                                const result = p.output?.result;
+                                const result = p.output;
 
                                 if (!result) return null;
 
@@ -923,7 +1063,7 @@ export function AICopilotSidebar({ aiEnabled }: { aiEnabled: boolean }) {
                                 }
 
                                 const course = result.course;
-                                const gradeWeights = result.grade_weights || [];
+                                const weights = result.grade_weights || [];
                                 const totalWeight = result.total_weight || 0;
                                 const isValid = result.is_valid;
                                 const action = result.action;
@@ -955,23 +1095,22 @@ export function AICopilotSidebar({ aiEnabled }: { aiEnabled: boolean }) {
                                       <div className="mb-2 text-xs text-green-600 flex items-center gap-1">
                                         <Sparkles className="size-3" />
                                         <span>
-                                          {action === "added" &&
-                                            "✅ Weight added"}
+                                          {action === "added" && "Weight added"}
                                           {action === "updated" &&
-                                            "✅ Weight updated"}
+                                            "Weight updated"}
                                           {action === "deleted" &&
-                                            "✅ Weight deleted"}
+                                            "Weight deleted"}
                                         </span>
                                       </div>
                                     )}
 
-                                    {gradeWeights.length === 0 ? (
+                                    {weights.length === 0 ? (
                                       <div className="text-muted-foreground italic text-xs">
                                         No grade weights defined yet.
                                       </div>
                                     ) : (
                                       <div className="space-y-2">
-                                        {gradeWeights.map(
+                                        {weights.map(
                                           (
                                             weight: {
                                               id: string;
@@ -999,10 +1138,9 @@ export function AICopilotSidebar({ aiEnabled }: { aiEnabled: boolean }) {
                                       </div>
                                     )}
 
-                                    {!isValid && gradeWeights.length > 0 && (
+                                    {!isValid && weights.length > 0 && (
                                       <div className="mt-3 text-xs text-destructive border-t border-border pt-2">
-                                        ⚠️ Warning: Weights do not add up to
-                                        100%
+                                        Warning: Weights do not add up to 100%
                                       </div>
                                     )}
                                   </div>
@@ -1023,7 +1161,7 @@ export function AICopilotSidebar({ aiEnabled }: { aiEnabled: boolean }) {
                 ))}
                 {status === "submitted" && (
                   <div className="flex items-start gap-2">
-                    <div className="bg-muted p-3 rounded-lg text-sm max-w-[85%]">
+                    <div className="bg-muted p-3 rounded-lg text-sm max-w-[90%]">
                       <div className="flex items-center gap-2">
                         <div className="w-1.5 h-1.5 bg-foreground/40 rounded-full animate-bounce [animation-delay:-0.3s]" />
                         <div className="w-1.5 h-1.5 bg-foreground/40 rounded-full animate-bounce [animation-delay:-0.15s]" />
@@ -1048,7 +1186,7 @@ export function AICopilotSidebar({ aiEnabled }: { aiEnabled: boolean }) {
                 <div ref={scrollRef} className="h-px w-full" />
               </div>
             )}
-          </ScrollArea>
+          </div>
         )}
       </SidebarContent>
 

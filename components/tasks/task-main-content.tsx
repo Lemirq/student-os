@@ -18,16 +18,14 @@ interface TaskMainContentProps {
 export function TaskMainContent({ task }: TaskMainContentProps) {
   const [title, setTitle] = React.useState(task.title);
   const [description, setDescription] = React.useState(task.description || "");
-  // @ts-expect-error - TODO: fix this
-  const [notes, setNotes] = React.useState<string | null>(task.notes || null);
+  const [notes, setNotes] = React.useState<unknown>(task.notes || null);
   const [isSaving, setIsSaving] = React.useState(false);
   const [showSaved, setShowSaved] = React.useState(false);
 
   const debouncedNotes = useDebounce(notes, 2000);
 
   // Track the last saved value to prevent duplicate saves
-  // @ts-expect-error - TODO: fix this
-  const lastSavedNotes = React.useRef<string | null>(task.notes);
+  const lastSavedNotes = React.useRef<unknown>(task.notes);
 
   const handleTitleBlur = async () => {
     if (title === task.title) return;
