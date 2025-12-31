@@ -31,6 +31,7 @@ import { DottedGlowBackground } from "../ui/dotted-glow-background";
 import ChatInput from "@/components/chat-input";
 import { StudentOSToolCallsMessage } from "@/app/api/chat/route";
 import { SyllabusPreviewCard } from "./syllabus-preview-card";
+import { useAIContext } from "@/hooks/use-ai-context";
 import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
 import { ChatHistory } from "./chat-history";
@@ -59,6 +60,9 @@ export function AICopilotSidebar({ aiEnabled }: { aiEnabled: boolean }) {
   // Route hooks for page context awareness
   const pathname = usePathname();
   const params = useParams();
+
+  // Fetch AI context (courses + grade weights) with caching
+  const { data: aiContext } = useAIContext();
 
   React.useEffect(() => {
     setMounted(true);
@@ -227,9 +231,12 @@ export function AICopilotSidebar({ aiEnabled }: { aiEnabled: boolean }) {
   const handleSubmit = async (text: string, submittedFiles?: File[]) => {
     const filesToSend = submittedFiles || files;
 
-    // Pass page context via body - server will inject it into the system prompt
+    // Pass page context and cached AI context via body
     const options = {
-      body: { pageContext },
+      body: {
+        pageContext,
+        aiContext, // Pass cached courses + grade weights
+      },
     };
 
     if (filesToSend && filesToSend.length > 0) {

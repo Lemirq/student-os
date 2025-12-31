@@ -27,6 +27,8 @@ import { updateCourse, deleteCourse } from "@/actions/courses";
 import { toast } from "sonner";
 import { Course } from "@/types";
 import { Settings, Check, Trash2 } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
+import { queryKeys } from "@/lib/query-keys";
 
 const PRESET_COLORS = [
   { name: "Red", value: "#ef4444" },
@@ -62,6 +64,7 @@ export function EditCourseDialog({ course }: EditCourseDialogProps) {
     course.goalGrade?.toString() || "85",
   );
   const [isPending, startTransition] = useTransition();
+  const queryClient = useQueryClient();
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -74,6 +77,10 @@ export function EditCourseDialog({ course }: EditCourseDialogProps) {
           color,
           goal_grade: parseFloat(goalGrade),
         });
+
+        // Invalidate sidebar to refetch
+        queryClient.invalidateQueries({ queryKey: queryKeys.sidebar.all });
+
         toast.success("Course updated successfully");
         setOpen(false);
       } catch (error) {

@@ -28,6 +28,8 @@ import { createSemester } from "@/actions/courses";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { Plus } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
+import { queryKeys } from "@/lib/query-keys";
 
 import { useRouter } from "next/navigation";
 
@@ -39,6 +41,7 @@ export function CreateSemesterDialog({ children }: CreateSemesterDialogProps) {
   const [open, setOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
+  const queryClient = useQueryClient();
 
   const form = useForm<z.infer<typeof semesterSchema>>({
     resolver: zodResolver(semesterSchema),
@@ -55,6 +58,10 @@ export function CreateSemesterDialog({ children }: CreateSemesterDialogProps) {
     startTransition(async () => {
       try {
         const { id } = await createSemester(values);
+
+        // Invalidate sidebar to refetch
+        queryClient.invalidateQueries({ queryKey: queryKeys.sidebar.all });
+
         toast.success("Semester created successfully");
         setOpen(false);
         form.reset();

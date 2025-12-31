@@ -3,8 +3,9 @@
 import * as React from "react";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
-import { updateTask, getTask } from "@/actions/tasks";
+import { getTask } from "@/actions/tasks";
 import { toast } from "sonner";
+import { useTaskMutations } from "@/hooks/use-task-mutations";
 import { Check } from "lucide-react";
 import { TipTapEditor } from "@/components/editor/tiptap-editor";
 import { useDebounce } from "@/hooks/use-debounce";
@@ -16,6 +17,7 @@ interface TaskMainContentProps {
 }
 
 export function TaskMainContent({ task }: TaskMainContentProps) {
+  const { updateTaskGeneric } = useTaskMutations();
   const [title, setTitle] = React.useState(task.title);
   const [description, setDescription] = React.useState(task.description || "");
   const [notes, setNotes] = React.useState<unknown>(task.notes || null);
@@ -29,22 +31,12 @@ export function TaskMainContent({ task }: TaskMainContentProps) {
 
   const handleTitleBlur = async () => {
     if (title === task.title) return;
-    try {
-      await updateTask(task.id, { title });
-      toast.success("Title updated");
-    } catch {
-      toast.error("Failed to update title");
-    }
+    await updateTaskGeneric(task.id, { title } as any);
   };
 
   const handleDescriptionBlur = async () => {
     if (description === (task.description || "")) return;
-    try {
-      await updateTask(task.id, { description });
-      toast.success("Description saved");
-    } catch {
-      toast.error("Failed to save description");
-    }
+    await updateTaskGeneric(task.id, { description } as any);
   };
 
   // Auto-save notes when debounced value changes
@@ -60,7 +52,7 @@ export function TaskMainContent({ task }: TaskMainContentProps) {
 
       setIsSaving(true);
       try {
-        await updateTask(task.id, { notes: debouncedNotes });
+        await updateTaskGeneric(task.id, { notes: debouncedNotes } as any);
         lastSavedNotes.current = debouncedNotes;
         setShowSaved(true);
         setTimeout(() => setShowSaved(false), 2000);

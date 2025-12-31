@@ -1,0 +1,329 @@
+"use client";
+
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { updateTask, deleteTask } from "@/actions/tasks";
+import { toast } from "sonner";
+import { TaskStatus, Task } from "@/types";
+import { queryKeys } from "@/lib/query-keys";
+import { TaskWithDetails } from "@/components/tasks/columns";
+
+type TaskUpdate = {
+  status?: TaskStatus;
+  priority?: "Low" | "Medium" | "High";
+  title?: string;
+  dueDate?: Date | null;
+  doDate?: Date | null;
+  scoreReceived?: string | null;
+  scoreMax?: string | null;
+  gradeWeightId?: string | null;
+};
+
+/**
+ * Hook for task mutations with optimistic updates
+ * Handles:
+ * - Status changes (kanban, checkboxes, command palette)
+ * - Priority updates
+ * - Score updates
+ * - Due date changes
+ * - Task deletion
+ */
+export function useTaskMutations() {
+  const queryClient = useQueryClient();
+
+  /**
+   * Generic task update mutation with optimistic updates
+   */
+  const updateTaskMutation = useMutation({
+    mutationFn: ({
+      taskId,
+      updates,
+    }: {
+      taskId: string;
+      updates: TaskUpdate;
+    }) => updateTask(taskId, updates),
+
+    onMutate: async ({ taskId, updates }) => {
+      // Cancel outgoing refetches to avoid overwriting optimistic update
+      await queryClient.cancelQueries({ queryKey: queryKeys.tasks.all });
+      await queryClient.cancelQueries({ queryKey: queryKeys.semesters.all });
+      await queryClient.cancelQueries({ queryKey: queryKeys.courses.all });
+
+      // Snapshot previous values
+      const previousData = {
+        tasks: queryClient.getQueryData(queryKeys.tasks.all),
+        semesters: [] as any[],
+        courses: [] as any[],
+      };
+
+      // Collect all semester and course queries to update
+      const queryCache = queryClient.getQueryCache();
+      queryCache.getAll().forEach((query) => {
+        const key = query.queryKey;
+        if (key[0] === "semesters" && key[1] && key.length === 2) {
+          previousData.semesters.push({
+            key,
+            data: queryClient.getQueryData(key),
+          });
+        } else if (key[0] === "courses" && key[1] && key[2] === "full") {
+          previousData.courses.push({
+            key,
+            data: queryClient.getQueryData(key),
+          });
+        }
+      });
+
+      // Optimistically update tasks in all queries
+      const updateTaskInList = (tasks: TaskWithDetails[] | undefined) => {
+        if (!tasks) return tasks;
+        return tasks.map((task) =>
+          task.id === taskId ? { ...task, ...updates } : task,
+        );
+      };
+
+      // Update semester queries
+      previousData.semesters.forEach(({ key }) => {
+        queryClient.setQueryData(key, (old: any) => {
+          if (!old) return old;
+          return {
+            ...old,
+            tasks: updateTaskInList(old.tasks),
+          };
+        });
+      });
+
+      // Update course queries
+      previousData.courses.forEach(({ key }) => {
+        queryClient.setQueryData(key, (old: any) => {
+          if (!old) return old;
+          return {
+            ...old,
+            tasks: updateTaskInList(old.tasks),
+          };
+        });
+      });
+
+      return { previousData };
+    },
+
+    onError: (err, variables, context) => {
+      // Rollback on error
+      if (context?.previousData) {
+        const { semesters, courses } = context.previousData;
+
+        semesters.forEach(({ key, data }) => {
+          queryClient.setQueryData(key, data);
+        });
+
+        courses.forEach(({ key, data }) => {
+          queryClient.setQueryData(key, data);
+        });
+      }
+
+      toast.error("Failed to update task");
+      console.error("Task update failed:", err);
+    },
+
+    onSettled: () => {
+      // Invalidate queries to refetch and ensure consistency
+      queryClient.invalidateQueries({ queryKey: queryKeys.tasks.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.semesters.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.courses.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.ai.context("user") });
+    },
+  });
+
+  /**
+   * Delete task mutation with optimistic updates
+   */
+  const deleteTaskMutation = useMutation({
+    mutationFn: (taskId: string) => deleteTask(taskId),
+
+    onMutate: async (taskId) => {
+      await queryClient.cancelQueries({ queryKey: queryKeys.tasks.all });
+      await queryClient.cancelQueries({ queryKey: queryKeys.semesters.all });
+      await queryClient.cancelQueries({ queryKey: queryKeys.courses.all });
+
+      const previousData = {
+        semesters: [] as any[],
+        courses: [] as any[],
+      };
+
+      // Collect queries
+      const queryCache = queryClient.getQueryCache();
+      queryCache.getAll().forEach((query) => {
+        const key = query.queryKey;
+        if (key[0] === "semesters" && key[1] && key.length === 2) {
+          previousData.semesters.push({
+            key,
+            data: queryClient.getQueryData(key),
+          });
+        } else if (key[0] === "courses" && key[1] && key[2] === "full") {
+          previousData.courses.push({
+            key,
+            data: queryClient.getQueryData(key),
+          });
+        }
+      });
+
+      // Optimistically remove task
+      const removeTaskFromList = (tasks: TaskWithDetails[] | undefined) => {
+        if (!tasks) return tasks;
+        return tasks.filter((task) => task.id !== taskId);
+      };
+
+      previousData.semesters.forEach(({ key }) => {
+        queryClient.setQueryData(key, (old: any) => {
+          if (!old) return old;
+          return {
+            ...old,
+            tasks: removeTaskFromList(old.tasks),
+          };
+        });
+      });
+
+      previousData.courses.forEach(({ key }) => {
+        queryClient.setQueryData(key, (old: any) => {
+          if (!old) return old;
+          return {
+            ...old,
+            tasks: removeTaskFromList(old.tasks),
+          };
+        });
+      });
+
+      return { previousData };
+    },
+
+    onError: (err, variables, context) => {
+      if (context?.previousData) {
+        const { semesters, courses } = context.previousData;
+
+        semesters.forEach(({ key, data }) => {
+          queryClient.setQueryData(key, data);
+        });
+
+        courses.forEach(({ key, data }) => {
+          queryClient.setQueryData(key, data);
+        });
+      }
+
+      toast.error("Failed to delete task");
+      console.error("Task deletion failed:", err);
+    },
+
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.tasks.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.semesters.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.courses.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.ai.context("user") });
+    },
+  });
+
+  // Convenience methods
+  const setStatus = (task: Task, status: TaskStatus) => {
+    const promise = updateTaskMutation.mutateAsync({
+      taskId: task.id,
+      updates: { status },
+    });
+
+    toast.promise(promise, {
+      loading: "Updating status...",
+      success: `Status set to ${status}`,
+      error: "Failed to update status",
+    });
+
+    return promise;
+  };
+
+  const cycleStatus = (task: Task) => {
+    const statuses: TaskStatus[] = ["Todo", "In Progress", "Done"];
+    const currentIndex = statuses.indexOf(task.status as TaskStatus);
+    const nextStatus = statuses[(currentIndex + 1) % statuses.length];
+
+    return setStatus(task, nextStatus);
+  };
+
+  const setPriority = (task: Task, priority: "Low" | "Medium" | "High") => {
+    const promise = updateTaskMutation.mutateAsync({
+      taskId: task.id,
+      updates: { priority },
+    });
+
+    toast.promise(promise, {
+      loading: "Updating priority...",
+      success: `Priority set to ${priority}`,
+      error: "Failed to update priority",
+    });
+
+    return promise;
+  };
+
+  const setDueDate = (task: Task, dueDate: Date | null) => {
+    const promise = updateTaskMutation.mutateAsync({
+      taskId: task.id,
+      updates: { dueDate },
+    });
+
+    toast.promise(promise, {
+      loading: "Updating due date...",
+      success: dueDate
+        ? `Due date set to ${dueDate.toLocaleDateString()}`
+        : "Due date cleared",
+      error: "Failed to update due date",
+    });
+
+    return promise;
+  };
+
+  const setScore = (
+    task: Task,
+    scoreReceived: string | null,
+    scoreMax?: string | null,
+  ) => {
+    const promise = updateTaskMutation.mutateAsync({
+      taskId: task.id,
+      updates: { scoreReceived, ...(scoreMax !== undefined && { scoreMax }) },
+    });
+
+    toast.promise(promise, {
+      loading: "Updating score...",
+      success: scoreReceived !== null ? `Score updated` : "Score cleared",
+      error: "Failed to update score",
+    });
+
+    return promise;
+  };
+
+  const removeTask = (task: Task) => {
+    const promise = deleteTaskMutation.mutateAsync(task.id);
+
+    toast.promise(promise, {
+      loading: "Deleting task...",
+      success: "Task deleted",
+      error: "Failed to delete task",
+    });
+
+    return promise;
+  };
+
+  const updateTaskGeneric = (taskId: string, updates: TaskUpdate) => {
+    return updateTaskMutation.mutateAsync({ taskId, updates });
+  };
+
+  return {
+    // Mutations
+    updateTaskMutation,
+    deleteTaskMutation,
+
+    // Convenience methods
+    setStatus,
+    cycleStatus,
+    setPriority,
+    setDueDate,
+    setScore,
+    removeTask,
+    updateTaskGeneric,
+  };
+}

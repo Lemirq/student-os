@@ -33,9 +33,13 @@ const openRouterClient = createOpenRouter({
 const glm = openRouterClient.chat("z-ai/glm-4.7");
 
 export async function POST(req: Request) {
-  const { messages, pageContext } = (await req.json()) as {
+  const { messages, pageContext, aiContext } = (await req.json()) as {
     messages: UIMessage[];
     pageContext?: PageContext;
+    aiContext?: {
+      courses: (typeof courses.$inferSelect)[];
+      gradeWeights: (typeof gradeWeights.$inferSelect)[];
+    };
   };
   const supabase = await createClient();
   const {
@@ -46,20 +50,29 @@ export async function POST(req: Request) {
     return new Response("Unauthorized", { status: 401 });
   }
 
-  // Fetch user's courses and grade weights for context
-  const userCourses = await db
-    .select()
-    .from(courses)
-    .where(eq(courses.userId, user.id));
+  // Use cached AI context if available, otherwise fetch from DB
+  let userCourses, userGradeWeights;
 
-  const courseIds = userCourses.map((c) => c.id);
-  const userGradeWeights =
-    courseIds.length > 0
-      ? await db
-          .select()
-          .from(gradeWeights)
-          .where(inArray(gradeWeights.courseId, courseIds))
-      : [];
+  if (aiContext?.courses && aiContext?.gradeWeights) {
+    // Use cached context from client
+    userCourses = aiContext.courses;
+    userGradeWeights = aiContext.gradeWeights;
+  } else {
+    // Fallback: fetch from DB
+    userCourses = await db
+      .select()
+      .from(courses)
+      .where(eq(courses.userId, user.id));
+
+    const courseIds = userCourses.map((c) => c.id);
+    userGradeWeights =
+      courseIds.length > 0
+        ? await db
+            .select()
+            .from(gradeWeights)
+            .where(inArray(gradeWeights.courseId, courseIds))
+        : [];
+  }
 
   const coreMessages = await convertToModelMessages(messages);
   // for debugging: console.log(JSON.stringify(coreMessages, null, 2));

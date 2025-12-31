@@ -3,11 +3,13 @@
 import { useState } from "react";
 import { TaskExplorer } from "@/components/tasks/task-explorer";
 import { SemesterProgress } from "@/components/dashboard/semester-progress";
-import { DashboardMetrics } from "@/actions/dashboard";
-import { SemesterData } from "@/actions/semesters";
 import { GradeGapCard } from "@/components/dashboard/grade-gap-card";
 import { WorkloadHeatmap } from "@/components/dashboard/workload-heatmap";
 import { HighStakesList } from "@/components/dashboard/high-stakes-list";
+import {
+  useSemesterData,
+  useDashboardMetrics,
+} from "@/hooks/use-semester-query";
 import Link from "next/link";
 import {
   Card,
@@ -18,11 +20,19 @@ import {
 } from "@/components/ui/card";
 
 interface SemesterContentProps {
-  semester: SemesterData;
-  metrics: DashboardMetrics;
+  semesterId: string;
 }
 
-export function SemesterContent({ semester, metrics }: SemesterContentProps) {
+export function SemesterContent({ semesterId }: SemesterContentProps) {
+  // Fetch data using React Query - will use prefetched data from server
+  const { data: semester, isLoading: semesterLoading } =
+    useSemesterData(semesterId);
+  const { data: metrics, isLoading: metricsLoading } =
+    useDashboardMetrics(semesterId);
+
+  if (semesterLoading || metricsLoading || !semester || !metrics) {
+    return <div>Loading...</div>;
+  }
   // Date filter state for heatmap <-> table integration
   const [dateFilter, setDateFilter] = useState<{
     from: Date | undefined;

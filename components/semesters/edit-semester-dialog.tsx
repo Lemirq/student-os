@@ -29,6 +29,8 @@ import { toast } from "sonner";
 import { Semester } from "@/types";
 import { Settings, Trash2 } from "lucide-react";
 import { parseISO } from "date-fns";
+import { useQueryClient } from "@tanstack/react-query";
+import { queryKeys } from "@/lib/query-keys";
 
 interface EditSemesterDialogProps {
   semester: Semester;
@@ -61,6 +63,7 @@ export function EditSemesterDialog({ semester }: EditSemesterDialogProps) {
     parseDateOnly(semester.endDate),
   );
   const [isPending, startTransition] = useTransition();
+  const queryClient = useQueryClient();
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -77,6 +80,10 @@ export function EditSemesterDialog({ semester }: EditSemesterDialogProps) {
           start_date: formatDateOnly(startDate),
           end_date: formatDateOnly(endDate),
         });
+
+        // Invalidate sidebar to refetch
+        queryClient.invalidateQueries({ queryKey: queryKeys.sidebar.all });
+
         toast.success("Semester updated successfully");
         setOpen(false);
       } catch (error) {

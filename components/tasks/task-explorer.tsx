@@ -32,18 +32,29 @@ export function TaskExplorer({
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
-  // Get view from URL or fall back to initialView
+  // Get initial view from URL or fall back to initialView
   const viewParam = searchParams.get("view") as ViewType | null;
-  const currentView =
+  const initialViewFromUrl =
     viewParam && ["list", "board", "calendar"].includes(viewParam)
       ? viewParam
       : initialView;
 
+  // Use local state for instant view switching
+  const [currentView, setCurrentView] =
+    React.useState<ViewType>(initialViewFromUrl);
+
+  // Sync URL when view changes (non-blocking, for shareable links)
   const handleViewChange = (newView: ViewType) => {
-    // Update URL query param
+    // Update state immediately (instant UI update)
+    setCurrentView(newView);
+
+    // Update URL in background (non-blocking)
     const params = new URLSearchParams(searchParams.toString());
     params.set("view", newView);
-    router.push(`${pathname}?${params.toString()}`);
+
+    // Use replace instead of push to avoid history pollution
+    // This runs async and doesn't block the view switch
+    window.history.replaceState(null, "", `${pathname}?${params.toString()}`);
   };
 
   const viewToggle = (
@@ -66,8 +77,6 @@ export function TaskExplorer({
       {currentView === "board" && (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
-            {/* We can replicate some filters here if needed later, 
-                 for now just the view toggle aligned right to match table toolbar layout */}
             <div className="flex-1" />
             <div className="flex items-center gap-2">{viewToggle}</div>
           </div>

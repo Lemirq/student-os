@@ -9,9 +9,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
-import { getTask, updateTask } from "@/actions/tasks";
+import { getTask } from "@/actions/tasks";
 import { getAllCourses } from "@/actions/get-course-data";
 import { toast } from "sonner";
+import { useTaskMutations } from "@/hooks/use-task-mutations";
 import { TaskStatus, TaskPriority, Course } from "@/types";
 import { SmartDatetimeInput } from "@/components/ui/smart-datetime-input";
 
@@ -22,6 +23,8 @@ interface TaskPropertiesProps {
 }
 
 export function TaskProperties({ task }: TaskPropertiesProps) {
+  const { setStatus, setPriority, setDueDate, updateTaskGeneric } =
+    useTaskMutations();
   const [courses, setCourses] = React.useState<Course[]>([]);
 
   // State for editable fields
@@ -38,61 +41,29 @@ export function TaskProperties({ task }: TaskPropertiesProps) {
   }, []);
 
   const handleStatusChange = async (value: string) => {
-    try {
-      await updateTask(task.id, { status: value as TaskStatus });
-      toast.success("Status updated");
-    } catch {
-      toast.error("Failed to update status");
-    }
+    await setStatus(task, value as TaskStatus);
   };
 
   const handlePriorityChange = async (value: string) => {
-    try {
-      await updateTask(task.id, { priority: value as TaskPriority });
-      toast.success("Priority updated");
-    } catch {
-      toast.error("Failed to update priority");
-    }
+    await setPriority(task, value as TaskPriority);
   };
 
   const handleCourseChange = async (value: string) => {
-    try {
-      await updateTask(task.id, { courseId: value });
-      toast.success("Course updated");
-      // Note: This might require a refresh to update grade weights if they are course-specific
-      // In a real app, we'd invalidate/refetch the task data here.
-    } catch {
-      toast.error("Failed to update course");
-    }
+    await updateTaskGeneric(task.id, { courseId: value } as any);
   };
 
   const handleDateSelect = async (newDate: Date | null) => {
     setDate(newDate || undefined);
-    try {
-      await updateTask(task.id, { dueDate: newDate || null });
-      toast.success("Due date updated");
-    } catch {
-      toast.error("Failed to update due date");
-    }
+    await setDueDate(task, newDate);
   };
 
   const handleDoDateSelect = async (newDate: Date | null) => {
     setDoDate(newDate || undefined);
-    try {
-      await updateTask(task.id, { doDate: newDate || null });
-      toast.success("Do date updated");
-    } catch {
-      toast.error("Failed to update do date");
-    }
+    await updateTaskGeneric(task.id, { doDate: newDate } as any);
   };
 
   const handleWeightChange = async (value: string) => {
-    try {
-      await updateTask(task.id, { gradeWeightId: value });
-      toast.success("Category updated");
-    } catch {
-      toast.error("Failed to update category");
-    }
+    await updateTaskGeneric(task.id, { gradeWeightId: value } as any);
   };
 
   const handleScoreBlur = async (
@@ -104,19 +75,14 @@ export function TaskProperties({ task }: TaskPropertiesProps) {
     const current = field === "received" ? task.scoreReceived : task.scoreMax;
     if (String(current) === String(num)) return;
 
-    try {
-      if (field === "received") {
-        await updateTask(task.id, {
-          scoreReceived: num !== null ? String(num) : null,
-        });
-      } else {
-        await updateTask(task.id, {
-          scoreMax: num !== null ? String(num) : null,
-        });
-      }
-      toast.success("Score updated");
-    } catch {
-      toast.error("Failed to update score");
+    if (field === "received") {
+      await updateTaskGeneric(task.id, {
+        scoreReceived: num !== null ? String(num) : null,
+      } as any);
+    } else {
+      await updateTaskGeneric(task.id, {
+        scoreMax: num !== null ? String(num) : null,
+      } as any);
     }
   };
 

@@ -33,7 +33,7 @@ import {
   X,
 } from "lucide-react";
 import { Task, GradeWeight } from "@/types";
-import { updateTask, deleteTask } from "@/actions/tasks";
+import { useTaskMutations } from "@/hooks/use-task-mutations";
 import { toast } from "sonner";
 import { getAllCourses } from "@/actions/get-course-data";
 import { getGradeWeightsForCourses } from "@/actions/courses";
@@ -43,6 +43,8 @@ import { format } from "date-fns";
 
 export function TaskCommandMenu() {
   const { isOpen, tasks, close, view, setView } = useCommandStore();
+  const { setStatus, setPriority, setDueDate, removeTask, updateTaskGeneric } =
+    useTaskMutations();
   const [courses, setCourses] = React.useState<Course[]>([]);
   const [gradeWeights, setGradeWeights] = React.useState<GradeWeight[]>([]);
   const [search, setSearch] = React.useState("");
@@ -118,37 +120,28 @@ export function TaskCommandMenu() {
         return;
       }
 
-      try {
-        // Mapping Task fields to updateTask schema (snake_case)
-        const payload: Parameters<typeof updateTask>[1] = {};
+      // Close palette immediately for instant UX
+      close();
 
-        if (update.status)
-          payload.status = update.status as "Todo" | "In Progress" | "Done";
-        if (update.priority)
-          payload.priority = update.priority as "Low" | "Medium" | "High";
-        if (update.courseId) payload.courseId = update.courseId;
-        if (update.gradeWeightId !== undefined)
-          payload.gradeWeightId = update.gradeWeightId;
-        if (update.dueDate) payload.dueDate = update.dueDate;
-
-        // Update all selected tasks
-        await Promise.all(
-          tasks.map((task) => {
-            if (!task.id) return Promise.resolve();
-            return updateTask(task.id, payload);
-          }),
-        );
-
-        toast.success(
-          tasks.length === 1 ? "Task updated" : `${tasks.length} tasks updated`,
-        );
-        close();
-      } catch (error) {
-        console.error("Error updating task:", error);
-        toast.error("Failed to update task(s)");
-      }
+      // Mutations continue in background with optimistic updates
+      Promise.all(
+        tasks.map((task) => {
+          if (!task.id) return Promise.resolve();
+          return updateTaskGeneric(task.id, update as any);
+        }),
+      )
+        .then(() => {
+          // Summary toast for batch operations
+          if (tasks.length > 1) {
+            toast.success(`${tasks.length} tasks updated`);
+          }
+        })
+        .catch((error) => {
+          console.error("Error updating task:", error);
+          // Error toast is handled by useTaskMutations
+        });
     },
-    [tasks, close],
+    [tasks, close, updateTaskGeneric],
   );
 
   const handleScoreUpdate = React.useCallback(
@@ -164,55 +157,63 @@ export function TaskCommandMenu() {
         return;
       }
 
-      try {
-        const payload: Parameters<typeof updateTask>[1] = {
-          scoreReceived: String(received),
-          status: "Done",
-        };
-        if (max !== undefined && !isNaN(max)) {
-          payload.scoreMax = String(max);
-        }
+      // Close palette immediately
+      close();
 
-        await Promise.all(
-          tasks.map((task) => {
-            if (!task.id) return Promise.resolve();
-            return updateTask(task.id, payload);
-          }),
-        );
-
-        toast.success("Score updated");
-        close();
-      } catch (error) {
-        console.error("Error updating score:", error);
-        toast.error("Failed to update score");
+      const payload: Record<string, any> = {
+        scoreReceived: String(received),
+        status: "Done",
+      };
+      if (max !== undefined && !isNaN(max)) {
+        payload.scoreMax = String(max);
       }
+
+      // Mutations continue in background
+      Promise.all(
+        tasks.map((task) => {
+          if (!task.id) return Promise.resolve();
+          return updateTaskGeneric(task.id, payload);
+        }),
+      )
+        .then(() => {
+          if (tasks.length > 1) {
+            toast.success(`${tasks.length} scores updated`);
+          } else {
+            toast.success("Score updated");
+          }
+        })
+        .catch((error) => {
+          console.error("Error updating score:", error);
+        });
     },
-    [tasks, close],
+    [tasks, close, updateTaskGeneric],
   );
 
   const handleScoreRemove = React.useCallback(async () => {
     if (!tasks || tasks.length === 0) return;
 
-    try {
-      const payload: Parameters<typeof updateTask>[1] = {
-        scoreReceived: null,
-        scoreMax: null,
-      };
+    // Close palette immediately
+    close();
 
-      await Promise.all(
-        tasks.map((task) => {
-          if (!task.id) return Promise.resolve();
-          return updateTask(task.id, payload);
-        }),
-      );
+    const payload = {
+      scoreReceived: null,
+      scoreMax: null,
+    };
 
-      toast.success("Score removed");
-      close();
-    } catch (error) {
-      console.error("Error removing score:", error);
-      toast.error("Failed to remove score");
-    }
-  }, [tasks, close]);
+    // Mutations continue in background
+    Promise.all(
+      tasks.map((task) => {
+        if (!task.id) return Promise.resolve();
+        return updateTaskGeneric(task.id, payload);
+      }),
+    )
+      .then(() => {
+        toast.success("Score removed");
+      })
+      .catch((error) => {
+        console.error("Error removing score:", error);
+      });
+  }, [tasks, close, updateTaskGeneric]);
 
   const handleDueDateUpdate = React.useCallback(
     async (value: string) => {
@@ -228,70 +229,73 @@ export function TaskCommandMenu() {
       // Set to noon to avoid timezone issues
       parsedDate.setHours(12, 0, 0, 0);
 
-      try {
-        const payload: Parameters<typeof updateTask>[1] = {
-          dueDate: parsedDate,
-        };
+      // Close palette immediately
+      close();
 
-        await Promise.all(
-          tasks.map((task) => {
-            if (!task.id) return Promise.resolve();
-            return updateTask(task.id, payload);
-          }),
-        );
-
-        toast.success(`Due date set to ${format(parsedDate, "MMM d, yyyy")}`);
-        close();
-      } catch (error) {
-        console.error("Error updating due date:", error);
-        toast.error("Failed to update due date");
-      }
+      // Mutations continue in background
+      Promise.all(
+        tasks.map((task) => {
+          if (!task.id) return Promise.resolve();
+          return setDueDate(task, parsedDate);
+        }),
+      )
+        .then(() => {
+          if (tasks.length > 1) {
+            toast.success(`${tasks.length} due dates updated`);
+          }
+        })
+        .catch((error) => {
+          console.error("Error updating due date:", error);
+        });
     },
-    [tasks, close],
+    [tasks, close, setDueDate],
   );
 
   const handleDueDateRemove = React.useCallback(async () => {
     if (!tasks || tasks.length === 0) return;
 
-    try {
-      const payload: Parameters<typeof updateTask>[1] = {
-        dueDate: undefined,
-      };
+    // Close palette immediately
+    close();
 
-      await Promise.all(
-        tasks.map((task) => {
-          if (!task.id) return Promise.resolve();
-          return updateTask(task.id, payload);
-        }),
-      );
-
-      toast.success("Due date removed");
-      close();
-    } catch (error) {
-      console.error("Error removing due date:", error);
-      toast.error("Failed to remove due date");
-    }
-  }, [tasks, close]);
+    // Mutations continue in background
+    Promise.all(
+      tasks.map((task) => {
+        if (!task.id) return Promise.resolve();
+        return setDueDate(task, null);
+      }),
+    )
+      .then(() => {
+        if (tasks.length > 1) {
+          toast.success(`${tasks.length} due dates removed`);
+        }
+      })
+      .catch((error) => {
+        console.error("Error removing due date:", error);
+      });
+  }, [tasks, close, setDueDate]);
 
   const handleDelete = React.useCallback(async () => {
     if (!tasks || tasks.length === 0) return;
 
-    try {
-      await Promise.all(
-        tasks.map((task) => {
-          if (!task.id) return Promise.resolve();
-          return deleteTask(task.id);
-        }),
-      );
-      toast.success(
-        tasks.length === 1 ? "Task deleted" : `${tasks.length} tasks deleted`,
-      );
-      close();
-    } catch (error) {
-      console.error("Error deleting task:", error);
-      toast.error("Failed to delete task(s)");
-    }
-  }, [tasks, close]);
+    // Close palette immediately
+    close();
+
+    // Mutations continue in background
+    Promise.all(
+      tasks.map((task) => {
+        if (!task.id) return Promise.resolve();
+        return removeTask(task);
+      }),
+    )
+      .then(() => {
+        if (tasks.length > 1) {
+          toast.success(`${tasks.length} tasks deleted`);
+        }
+      })
+      .catch((error) => {
+        console.error("Error deleting task:", error);
+      });
+  }, [tasks, close, removeTask]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Backspace" && !search && view !== "MAIN") {

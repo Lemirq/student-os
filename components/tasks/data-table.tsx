@@ -60,7 +60,7 @@ import {
   horizontalListSortingStrategy,
   useSortable,
 } from "@dnd-kit/sortable";
-import { useTaskActions } from "./hooks/use-task-actions";
+import { useTaskMutations } from "@/hooks/use-task-mutations";
 import { useCommandStore } from "@/hooks/use-command-store";
 import { Task } from "@/types";
 import { useRouter } from "next/navigation";
@@ -164,7 +164,7 @@ export function DataTable<TData, TValue>({
   // Track the last clicked/focused row ID to help with range selection
   const lastClickedRowIdRef = React.useRef<string | null>(null);
 
-  const { removeTask } = useTaskActions();
+  const { removeTask } = useTaskMutations();
   const { open } = useCommandStore();
   const router = useRouter();
 

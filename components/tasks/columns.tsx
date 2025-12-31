@@ -25,7 +25,7 @@ import {
 } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { Button } from "@/components/ui/button";
-import { useTaskActions } from "./hooks/use-task-actions";
+import { useTaskMutations } from "@/hooks/use-task-mutations";
 import { DataTableColumnHeader } from "./data-table-column-header";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 import { CalendarIcon, X } from "lucide-react";
@@ -36,7 +36,7 @@ export type TaskWithDetails = Task & {
 };
 
 const StatusCell = ({ task }: { task: Task }) => {
-  const { setStatus } = useTaskActions();
+  const { setStatus } = useTaskMutations();
   const status = task.status as TaskStatus;
 
   return (
@@ -83,7 +83,7 @@ const StatusCell = ({ task }: { task: Task }) => {
 };
 
 const DueDateCell = ({ task }: { task: Task }) => {
-  const { setDueDate } = useTaskActions();
+  const { setDueDate } = useTaskMutations();
   const [open, setOpen] = React.useState(false);
 
   const date = task.dueDate ? new Date(task.dueDate) : null;

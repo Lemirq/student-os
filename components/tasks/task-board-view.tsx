@@ -30,7 +30,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { format, isToday, isPast } from "date-fns";
 import { TaskStatus } from "@/types";
-import { useTaskActions } from "./hooks/use-task-actions";
+import { useTaskMutations } from "@/hooks/use-task-mutations";
 import { cn } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 
@@ -42,16 +42,11 @@ interface TaskBoardViewProps {
 const COLUMNS: TaskStatus[] = ["Todo", "In Progress", "Done"];
 
 export function TaskBoardView({ tasks, context }: TaskBoardViewProps) {
-  const { setStatus } = useTaskActions();
-  const [optimisticTasks, setOptimisticTasks] = React.useState(tasks);
+  const { setStatus } = useTaskMutations();
   const [activeId, setActiveId] = React.useState<string | null>(null);
   const [originalStatus, setOriginalStatus] = React.useState<TaskStatus | null>(
     null,
   );
-
-  React.useEffect(() => {
-    setOptimisticTasks(tasks);
-  }, [tasks]);
 
   // Group tasks by status
   const tasksByStatus = React.useMemo(() => {
@@ -61,7 +56,7 @@ export function TaskBoardView({ tasks, context }: TaskBoardViewProps) {
       Done: [],
     };
 
-    optimisticTasks.forEach((task) => {
+    tasks.forEach((task) => {
       const status = (task.status as TaskStatus) || "Todo";
       if (acc[status]) {
         acc[status].push(task);
@@ -71,7 +66,7 @@ export function TaskBoardView({ tasks, context }: TaskBoardViewProps) {
       }
     });
     return acc;
-  }, [optimisticTasks]);
+  }, [tasks]);
 
   const sensors = useSensors(
     useSensor(MouseSensor, {
@@ -127,72 +122,15 @@ export function TaskBoardView({ tasks, context }: TaskBoardViewProps) {
     setActiveId(id);
 
     // Save the original status before any optimistic updates
-    const task = optimisticTasks.find((t) => t.id === id);
+    const task = tasks.find((t) => t.id === id);
     if (task) {
       setOriginalStatus(task.status as TaskStatus);
     }
   }
 
   function handleDragOver(event: DragOverEvent) {
-    const { active, over } = event;
-    const overId = over?.id;
-
-    if (!overId || active.id === overId) {
-      return;
-    }
-
-    const activeId = active.id;
-    const isActiveTask = active.data.current?.type === "Task";
-    const isOverTask = over.data.current?.type === "Task";
-
-    if (!isActiveTask) return;
-
-    // Dropping a Task over another Task
-    if (isActiveTask && isOverTask) {
-      const activeIndex = optimisticTasks.findIndex((t) => t.id === activeId);
-      const overIndex = optimisticTasks.findIndex((t) => t.id === overId);
-
-      if (activeIndex === -1 || overIndex === -1) {
-        return;
-      }
-
-      if (
-        optimisticTasks[activeIndex].status !==
-        optimisticTasks[overIndex].status
-      ) {
-        setOptimisticTasks((items) => {
-          const newItems = [...items];
-          newItems[activeIndex] = {
-            ...newItems[activeIndex],
-            status: newItems[overIndex].status,
-          };
-          return newItems;
-        });
-      }
-    }
-
-    // Dropping a Task over a Column
-    const isOverColumn = over.data.current?.type === "Column";
-    if (isActiveTask && isOverColumn) {
-      const activeIndex = optimisticTasks.findIndex((t) => t.id === activeId);
-
-      if (activeIndex === -1) {
-        return;
-      }
-
-      const newStatus = overId as TaskStatus;
-
-      if (optimisticTasks[activeIndex].status !== newStatus) {
-        setOptimisticTasks((items) => {
-          const newItems = [...items];
-          newItems[activeIndex] = {
-            ...newItems[activeIndex],
-            status: newStatus,
-          };
-          return newItems;
-        });
-      }
-    }
+    // We don't need manual optimistic updates here
+    // React Query will handle them when we call the mutation
   }
 
   async function handleDragEnd(event: DragEndEvent) {
@@ -207,8 +145,8 @@ export function TaskBoardView({ tasks, context }: TaskBoardViewProps) {
     const activeId = active.id as string;
     const overId = over.id as string;
 
-    // Find the task in our optimistic state
-    const task = optimisticTasks.find((t) => t.id === activeId);
+    // Find the task
+    const task = tasks.find((t) => t.id === activeId);
     if (!task) {
       setOriginalStatus(null);
       return;
@@ -217,14 +155,14 @@ export function TaskBoardView({ tasks, context }: TaskBoardViewProps) {
     let newStatus: TaskStatus | null = null;
 
     // Determine new status
-    // If dropped on a column container (which we'll give ID same as status)
+    // If dropped on a column container
     if (COLUMNS.includes(overId as TaskStatus)) {
       if (originalStatus !== overId) {
         newStatus = overId as TaskStatus;
       }
     } else {
-      // If dropped on another item, find that item's status
-      const overTask = optimisticTasks.find((t) => t.id === overId);
+      // If dropped on another task, use that task's status
+      const overTask = tasks.find((t) => t.id === overId);
       if (overTask && overTask.status !== originalStatus) {
         newStatus = overTask.status as TaskStatus;
       }
@@ -234,21 +172,17 @@ export function TaskBoardView({ tasks, context }: TaskBoardViewProps) {
     setOriginalStatus(null);
 
     if (newStatus) {
-      // The optimistic update was already done in handleDragOver
-      // Now persist to database
-      const previousTasks = [...optimisticTasks];
-
+      // Call React Query mutation - it handles optimistic updates automatically
       try {
         await setStatus(task, newStatus);
       } catch (error) {
-        // Revert on error
-        setOptimisticTasks(previousTasks);
-        console.error("Failed to update status, reverting:", error);
+        // React Query already handles rollback on error
+        console.error("Failed to update status:", error);
       }
     }
   }
 
-  const activeTask = optimisticTasks.find((t) => t.id === activeId);
+  const activeTask = tasks.find((t) => t.id === activeId);
 
   return (
     <DndContext
