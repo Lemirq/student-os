@@ -49,6 +49,7 @@ export async function getSemesterData(
       color: courses.color,
       goalGrade: courses.goalGrade,
       createdAt: courses.createdAt,
+      notes: courses.notes,
       syllabus: sql<string | null>`NULL`.as("syllabus"), // Exclude syllabus data
       schedule: sql<null>`NULL`.as("schedule"), // Exclude schedule data
     })

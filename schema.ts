@@ -66,6 +66,7 @@ export const courses = pgTable("courses", {
   color: text("color").default("#000000"),
   syllabus: text("syllabus"),
   goalGrade: decimal("goal_grade", { precision: 5, scale: 2 }),
+  notes: jsonb("notes"),
   schedule: jsonb("schedule").$type<{
     events: Array<{
       type: string;

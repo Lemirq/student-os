@@ -13,6 +13,8 @@ import {
   Globe,
   ExternalLink,
   Link2,
+  RefreshCw,
+  ArrowRight,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { useChat } from "@ai-sdk-tools/store";
@@ -431,14 +433,15 @@ export function AICopilotSidebar({ aiEnabled }: { aiEnabled: boolean }) {
                           // -----------------------------------------------------------------------
                           case "reasoning": {
                             const wordCount = p.text.trim().split(/\s+/).length;
-                            const defaultOpen = wordCount < 100;
+                            // Collapse automatically when more than 100 words
+                            const shouldBeOpen = wordCount < 100;
                             return (
                               <Accordion
                                 key={i}
                                 type="single"
                                 collapsible
                                 defaultValue={
-                                  defaultOpen ? "reasoning" : undefined
+                                  shouldBeOpen ? "reasoning" : undefined
                                 }
                                 className="w-full"
                               >
@@ -1523,6 +1526,227 @@ export function AICopilotSidebar({ aiEnabled }: { aiEnabled: boolean }) {
                                     ) : (
                                       <div className="text-xs text-muted-foreground italic">
                                         No pages found
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              }
+                              default:
+                                return null;
+                            }
+                          }
+
+                          // -----------------------------------------------------------------------
+                          // TOOL: bulk_update_tasks
+                          // -----------------------------------------------------------------------
+                          case "tool-bulk_update_tasks": {
+                            const callId = p.toolCallId;
+                            switch (p.state) {
+                              case "input-streaming":
+                              case "input-available":
+                                return (
+                                  <div
+                                    key={callId}
+                                    className="bg-muted p-3 rounded-lg text-sm w-full animate-pulse"
+                                  >
+                                    <div className="flex items-center gap-2">
+                                      <RefreshCw className="size-3.5 animate-spin" />
+                                      <span>Updating tasks...</span>
+                                    </div>
+                                  </div>
+                                );
+                              case "output-available": {
+                                const output = p.output;
+
+                                // Handle error case
+                                if (!output?.success) {
+                                  return (
+                                    <div
+                                      key={callId}
+                                      className="bg-destructive/10 border border-destructive/20 p-3 rounded-lg my-2 text-sm w-full"
+                                    >
+                                      <div className="text-destructive font-medium flex items-center gap-2">
+                                        <span>❌</span>
+                                        <span>
+                                          {output?.error ||
+                                            "Failed to update tasks"}
+                                        </span>
+                                      </div>
+                                      {output?.searched_for && (
+                                        <div className="text-xs text-muted-foreground mt-1">
+                                          Searched for: &quot;
+                                          {output.searched_for}&quot;
+                                          {output.course_filter &&
+                                            ` in ${output.course_filter}`}
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                }
+
+                                const updatedTasks = output.updated_tasks || [];
+                                const errors = output.errors || [];
+                                const course = output.course;
+
+                                return (
+                                  <div
+                                    key={callId}
+                                    className="bg-muted/50 border border-border/50 p-4 rounded-lg my-2 text-sm w-full"
+                                  >
+                                    <div className="flex items-center gap-2 mb-3 text-blue-600 dark:text-blue-400">
+                                      <RefreshCw className="size-4" />
+                                      <span className="font-semibold text-sm">
+                                        Bulk Update
+                                      </span>
+                                      {course && (
+                                        <Badge
+                                          variant="outline"
+                                          className="ml-auto"
+                                        >
+                                          {course.code}
+                                        </Badge>
+                                      )}
+                                    </div>
+
+                                    <div className="text-xs text-muted-foreground mb-3">
+                                      {output.summary}
+                                    </div>
+
+                                    {updatedTasks.length > 0 ? (
+                                      <div className="space-y-2 max-h-[300px] overflow-y-auto scrollbar-sleek">
+                                        {updatedTasks.map(
+                                          (
+                                            task: {
+                                              id: string;
+                                              title: string;
+                                              changes: {
+                                                status?: string;
+                                                priority?: string;
+                                                dueDate?: {
+                                                  from: string;
+                                                  to: string;
+                                                };
+                                                doDate?: {
+                                                  from: string;
+                                                  to: string;
+                                                };
+                                              };
+                                            },
+                                            i: number,
+                                          ) => (
+                                            <div
+                                              key={task.id || i}
+                                              className="p-2.5 bg-background/50 rounded border border-border/30 hover:border-blue-400/50 transition-colors"
+                                            >
+                                              <div className="font-medium text-xs mb-1.5 truncate">
+                                                {task.title}
+                                              </div>
+                                              <div className="space-y-1">
+                                                {task.changes.status && (
+                                                  <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                                                    <span>Status:</span>
+                                                    <Badge
+                                                      variant="outline"
+                                                      className="text-[10px] h-4 px-1"
+                                                    >
+                                                      {task.changes.status}
+                                                    </Badge>
+                                                  </div>
+                                                )}
+                                                {task.changes.priority && (
+                                                  <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                                                    <span>Priority:</span>
+                                                    <Badge
+                                                      variant="outline"
+                                                      className="text-[10px] h-4 px-1"
+                                                    >
+                                                      {task.changes.priority}
+                                                    </Badge>
+                                                  </div>
+                                                )}
+                                                {task.changes.dueDate && (
+                                                  <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                                                    <span>Due:</span>
+                                                    <span className="text-muted-foreground/70">
+                                                      {format(
+                                                        new Date(
+                                                          task.changes.dueDate
+                                                            .from,
+                                                        ),
+                                                        "MMM d, h:mm a",
+                                                      )}
+                                                    </span>
+                                                    <ArrowRight className="size-2.5" />
+                                                    <span className="text-blue-600 dark:text-blue-400 font-medium">
+                                                      {format(
+                                                        new Date(
+                                                          task.changes.dueDate
+                                                            .to,
+                                                        ),
+                                                        "MMM d, h:mm a",
+                                                      )}
+                                                    </span>
+                                                  </div>
+                                                )}
+                                                {task.changes.doDate && (
+                                                  <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                                                    <span>Do:</span>
+                                                    <span className="text-muted-foreground/70">
+                                                      {format(
+                                                        new Date(
+                                                          task.changes.doDate
+                                                            .from,
+                                                        ),
+                                                        "MMM d, h:mm a",
+                                                      )}
+                                                    </span>
+                                                    <ArrowRight className="size-2.5" />
+                                                    <span className="text-blue-600 dark:text-blue-400 font-medium">
+                                                      {format(
+                                                        new Date(
+                                                          task.changes.doDate
+                                                            .to,
+                                                        ),
+                                                        "MMM d, h:mm a",
+                                                      )}
+                                                    </span>
+                                                  </div>
+                                                )}
+                                              </div>
+                                            </div>
+                                          ),
+                                        )}
+                                      </div>
+                                    ) : (
+                                      <div className="text-xs text-muted-foreground italic">
+                                        No tasks were updated
+                                      </div>
+                                    )}
+
+                                    {errors.length > 0 && (
+                                      <div className="mt-3 pt-2 border-t border-border">
+                                        <div className="text-xs text-destructive font-medium mb-1">
+                                          {errors.length} error
+                                          {errors.length !== 1 ? "s" : ""}:
+                                        </div>
+                                        <div className="space-y-1">
+                                          {errors.map(
+                                            (
+                                              err: {
+                                                title: string;
+                                                error: string;
+                                              },
+                                              i: number,
+                                            ) => (
+                                              <div
+                                                key={i}
+                                                className="text-[10px] text-destructive/80"
+                                              >
+                                                {err.title}: {err.error}
+                                              </div>
+                                            ),
+                                          )}
+                                        </div>
                                       </div>
                                     )}
                                   </div>

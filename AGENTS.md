@@ -47,6 +47,7 @@
   - `@/types` - TypeScript types
   - `@/actions` - Server actions
   - `@/utils/supabase` - Supabase utilities
+  - `@/providers` - React context providers
 
 ### Component Architecture
 
@@ -74,6 +75,7 @@
 - Server Components: Use async/await for data fetching
 - Loading states: Use `loading.tsx` files or React Suspense
 - Error handling: Implement `error.tsx` files for error boundaries
+- **TanStack Query**: Use for client-side caching with optimistic updates (see State Management)
 
 ### Styling
 
@@ -83,12 +85,17 @@
 - **UI Library**: shadcn/ui components in `@/components/ui`
 - **Icons**: lucide-react
 - **Dark Mode**: Use `@/components/theme-provider` with next-themes
+- **Animations**: Use Framer Motion (`framer-motion/client`) for animations
 
 ### State Management
 
 - **Local State**: React hooks (useState, useReducer)
-- **Global State**: Zustand via hooks in `hooks/` directory
-- **Server State**: Fetch in Server Components, avoid unnecessary client fetching
+- **Global State**: Zustand via hooks in `hooks/` directory (e.g., `use-command-store.ts`, `use-debt-store.ts`)
+- **Server State**: TanStack Query for client-side caching
+  - Use `lib/query-keys.ts` for centralized query key factory
+  - Use `lib/query-utils.ts` for SSR prefetching utilities
+  - Use `providers/query-provider.tsx` for React Query provider
+- **Optimistic Updates**: Use mutation hooks in `hooks/use-task-mutations.ts`
 - **Form State**: react-hook-form with Zod resolvers
 
 ### Error Handling
@@ -115,6 +122,8 @@
 - Optimize images and assets
 - Use proper database indexing (add via migration scripts)
 - Avoid unnecessary client components - default to Server Components
+- **Caching**: Use `lib/redis-cache.ts` for server-side Redis caching (Upstash)
+- **Query Caching**: TanStack Query with appropriate `staleTime` (e.g., 5min for AI context, 10min for sidebar)
 
 ### Security
 
@@ -136,17 +145,91 @@
 ```
 app/                    # Next.js App Router pages
   (dashboard)/         # Dashboard route group
+    courses/           # Course pages with [courseId] dynamic routes
+    dashboard/         # Main dashboard
+    schedule/          # Schedule calendar and management
+    semesters/         # Semester management
+    tasks/             # Task list with advanced views
   api/                 # API routes
-  auth/                # Authentication pages
+    chat/              # AI chat endpoint (OpenRouter + Tavily)
+    cron/              # Scheduled jobs (deadline checker)
+  auth/                # Authentication callback
+  login/               # Login page
+  settings/            # User settings (appearance, notifications)
 components/            # React components
+  ai/                  # AI chat sidebar, history, syllabus preview
+  courses/             # Course CRUD dialogs and page content
+  dashboard/           # Dashboard widgets (grade gap, high stakes, heatmap, etc.)
+  editor/              # Tiptap rich text editor
+  grade-weights/       # Grade weight management forms
+  insights/            # Analytics components (semester heatmap, study debt)
+  landing/             # Landing page components (hero, features, footer, navbar)
+  notifications/       # Push notification setup, iOS install prompt
+  schedule/            # Schedule calendar, event dialogs, ICS upload
+  semesters/           # Semester CRUD dialogs and content
+  sidebar/             # App sidebar navigation
+  tasks/               # Task views (list, board, calendar), modals, filters
   ui/                  # shadcn/ui components
 actions/               # Server actions
+  ai-context.ts        # AI context gathering
+  chats.ts             # Chat history management
+  courses.ts           # Course CRUD
+  dashboard.ts         # Dashboard data fetching
+  get-course-data.ts   # Course page data
+  import-syllabus.ts   # Syllabus parsing
+  notifications.ts     # Push subscription management
+  page-context.ts      # Page context for AI
+  schedule.ts          # Schedule events CRUD
+  semesters.ts         # Semester CRUD
+  sidebar.ts           # Sidebar data
+  tasks.ts             # Task CRUD with optimistic updates
 lib/                   # Utility functions
+  course-matcher.ts    # Fuzzy matching for ICS course linking
+  date-parser.ts       # Natural language date parsing (chrono-node)
+  deadline-checker.ts  # Deadline notification logic
+  env.ts               # Environment variable validation
+  ics-parser.ts        # ICS file parsing (node-ical)
+  query-keys.ts        # TanStack Query key factory
+  query-utils.ts       # SSR prefetching utilities
+  redis-cache.ts       # Upstash Redis caching helpers
+  schedule-utils.ts    # Recurring event handling (RRULE, EXDATE)
+  schemas.ts           # Zod validation schemas
+  utils.ts             # General utilities (cn, etc.)
 types/                 # TypeScript types
 hooks/                 # Custom React hooks
+  use-ai-context.ts    # AI context caching (5min TTL)
+  use-command-store.ts # Command palette state (Zustand)
+  use-course-query.ts  # Course data fetching
+  use-debounce.ts      # Debounced values
+  use-debt-store.ts    # Study debt state (Zustand)
+  use-mobile.ts        # Mobile detection
+  use-semester-query.ts# Semester data fetching
+  use-sidebar-data.ts  # Sidebar caching (10min TTL)
+  use-task-mutations.ts# Task mutations with optimistic updates
+providers/             # React providers
+  query-provider.tsx   # TanStack Query provider
 schema.ts              # Drizzle database schema
 drizzle/               # Database migrations
+scripts/               # Utility scripts
+  generate-icons.ts    # PWA icon generation
+  test-deadline-checker.ts
+  test-push-subscription.ts
+public/                # Static assets
+  sw.js                # Service worker for push notifications
 ```
+
+### Key Libraries
+
+- **AI**: OpenRouter API (GLM-4.7), Tavily for web search
+- **Database**: Drizzle ORM, Supabase (PostgreSQL + Auth)
+- **Caching**: TanStack Query (client), Upstash Redis (server)
+- **Scheduling**: QStash for cron jobs, node-ical for ICS parsing
+- **Calendar**: react-big-calendar for schedule view
+- **Editor**: Tiptap for rich text editing
+- **Date Parsing**: chrono-node for natural language dates
+- **Notifications**: web-push with VAPID for push notifications
+- **Drag & Drop**: @dnd-kit for task board and calendar
+- **Animations**: Framer Motion
 
 ### Common Patterns
 
@@ -168,12 +251,46 @@ drizzle/               # Database migrations
   ```
 
 - **Component with cva Pattern**:
+
   ```typescript
   const componentVariants = cva("base-classes", {
     variants: { variant: { default: "...", secondary: "..." } }
   });
   const Component = ({ variant = "default", className, ...props }) => {
     return <div className={cn(componentVariants({ variant }), className)} {...props} />
+  };
+  ```
+
+- **TanStack Query with Optimistic Updates**:
+
+  ```typescript
+  const mutation = useMutation({
+    mutationFn: updateTask,
+    onMutate: async (newData) => {
+      await queryClient.cancelQueries({ queryKey: queryKeys.tasks.all });
+      const previous = queryClient.getQueryData(queryKeys.tasks.all);
+      queryClient.setQueryData(queryKeys.tasks.all, (old) => /* optimistic update */);
+      return { previous };
+    },
+    onError: (err, newData, context) => {
+      queryClient.setQueryData(queryKeys.tasks.all, context?.previous);
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.tasks.all });
+    },
+  });
+  ```
+
+- **Query Key Factory Pattern** (in `lib/query-keys.ts`):
+  ```typescript
+  export const queryKeys = {
+    tasks: {
+      all: ["tasks"] as const,
+      detail: (id: string) => ["tasks", id] as const,
+    },
+    courses: {
+      all: ["courses"] as const,
+    },
   };
   ```
 

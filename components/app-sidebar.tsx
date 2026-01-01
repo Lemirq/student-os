@@ -2,7 +2,6 @@
 
 import * as React from "react";
 import {
-  BookOpen,
   GraduationCap,
   Settings,
   Plus,
@@ -43,6 +42,9 @@ import { CreateSemesterDialog } from "@/components/semesters/create-semester-dia
 import { CreateCourseDialog } from "@/components/courses/create-course-dialog";
 import { createClient } from "@/utils/supabase/client";
 
+const SIDEBAR_YEARS_KEY = "sidebar-expanded-years";
+const SIDEBAR_SEMESTERS_KEY = "sidebar-expanded-semesters";
+
 export function AppSidebar({
   semesters,
 }: {
@@ -73,6 +75,112 @@ export function AppSidebar({
     // Sort by year level ascending
     return Array.from(groups.entries()).sort((a, b) => a[0] - b[0]);
   }, [semesters]);
+
+  // Helper to get default years state
+  const getDefaultYears = React.useCallback(() => {
+    const defaultYears: Record<number, boolean> = {};
+    semesters.forEach((s) => {
+      const year = s.yearLevel;
+      if (s.isCurrent) defaultYears[year] = true;
+    });
+    return defaultYears;
+  }, [semesters]);
+
+  // Helper to get default semesters state
+  const getDefaultSemesters = React.useCallback(() => {
+    const defaultSemesters: Record<string, boolean> = {};
+    semesters.forEach((s) => {
+      defaultSemesters[s.id] = s.isCurrent ?? false;
+    });
+    return defaultSemesters;
+  }, [semesters]);
+
+  // Expanded state for years - initialized from localStorage or defaults
+  const [expandedYears, setExpandedYears] = React.useState<
+    Record<number, boolean>
+  >(() => {
+    // SSR safety - only access localStorage on client
+    if (typeof window === "undefined") return {};
+    try {
+      const saved = localStorage.getItem(SIDEBAR_YEARS_KEY);
+      if (saved) {
+        return JSON.parse(saved) as Record<number, boolean>;
+      }
+    } catch {
+      // Ignore errors
+    }
+    return {};
+  });
+
+  // Expanded state for semesters - initialized from localStorage or defaults
+  const [expandedSemesters, setExpandedSemesters] = React.useState<
+    Record<string, boolean>
+  >(() => {
+    if (typeof window === "undefined") return {};
+    try {
+      const saved = localStorage.getItem(SIDEBAR_SEMESTERS_KEY);
+      if (saved) {
+        return JSON.parse(saved) as Record<string, boolean>;
+      }
+    } catch {
+      // Ignore errors
+    }
+    return {};
+  });
+
+  // Track if we've set defaults (only do this once on mount)
+  const hasSetDefaults = React.useRef(false);
+
+  // Set defaults on mount if localStorage was empty
+  React.useEffect(() => {
+    if (hasSetDefaults.current) return;
+    hasSetDefaults.current = true;
+
+    // Only set defaults if state is empty (no localStorage data)
+    if (Object.keys(expandedYears).length === 0) {
+      setExpandedYears(getDefaultYears());
+    }
+    if (Object.keys(expandedSemesters).length === 0) {
+      setExpandedSemesters(getDefaultSemesters());
+    }
+  }, [expandedYears, expandedSemesters, getDefaultYears, getDefaultSemesters]);
+
+  // Save years to localStorage when changed
+  React.useEffect(() => {
+    if (Object.keys(expandedYears).length > 0) {
+      try {
+        localStorage.setItem(SIDEBAR_YEARS_KEY, JSON.stringify(expandedYears));
+      } catch {
+        // Ignore localStorage errors
+      }
+    }
+  }, [expandedYears]);
+
+  // Save semesters to localStorage when changed
+  React.useEffect(() => {
+    if (Object.keys(expandedSemesters).length > 0) {
+      try {
+        localStorage.setItem(
+          SIDEBAR_SEMESTERS_KEY,
+          JSON.stringify(expandedSemesters),
+        );
+      } catch {
+        // Ignore localStorage errors
+      }
+    }
+  }, [expandedSemesters]);
+
+  // Toggle handlers
+  const toggleYear = (year: number) => {
+    setExpandedYears((prev) => ({ ...prev, [year]: !prev[year] }));
+  };
+
+  const toggleSemester = (semesterId: string) => {
+    setExpandedSemesters((prev) => ({
+      ...prev,
+      [semesterId]: !prev[semesterId],
+    }));
+  };
 
   // Hotkeys
   useHotkeys("g+t", () => router.push("/dashboard"));
@@ -204,7 +312,8 @@ export function AppSidebar({
             {groupedSemesters.map(([year, yearSemesters]) => (
               <Collapsible
                 key={year}
-                defaultOpen={yearSemesters.some((s) => s.isCurrent)}
+                open={expandedYears[year] ?? false}
+                onOpenChange={() => toggleYear(year)}
                 className="group/collapsible"
               >
                 <SidebarMenuItem>
@@ -220,7 +329,8 @@ export function AppSidebar({
                         <Collapsible
                           key={semester.id}
                           asChild
-                          defaultOpen={semester.isCurrent ?? false}
+                          open={expandedSemesters[semester.id] ?? false}
+                          onOpenChange={() => toggleSemester(semester.id)}
                           className="group/semester-collapsible"
                         >
                           <SidebarMenuSubItem>

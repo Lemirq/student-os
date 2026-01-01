@@ -145,7 +145,7 @@ export function CoursePageContent({ courseId }: CoursePageContentProps) {
           </Card>
         </div>
 
-        {/* Right Column: Strategy */}
+        {/* Right Column: Strategy + Notes */}
         <div className="lg:col-span-1 overflow-y-auto pr-1">
           <CourseStrategySidebar course={course} />
         </div>

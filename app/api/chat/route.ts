@@ -135,10 +135,11 @@ ${
     7. **Clean Up:** Call 'find_missing_data'. Shows missing data UI directly.
     8. **Grade Weights:** Call 'manage_grade_weights' with action and course. Shows grade weights UI directly.
     9. **Update Score:** Call 'update_task_score' with task name and score. Shows update confirmation UI directly.
-    10. **Web Search:** Call 'web_search' to search the web for current information, news, or research.
-    11. **Extract Content:** Call 'extract_content' to extract clean content from any URL.
-    12. **Crawl Website:** Call 'crawl_website' to crawl and extract content from multiple pages of a website.
-    13. **Map Website:** Call 'map_website' to discover and map the structure of a website.
+    10. **Bulk Update Tasks:** Call 'bulk_update_tasks' to update multiple tasks at once. Use for requests like "change all weekly prep due times to 5pm" or "set priority high for all quizzes in CSC148".
+    11. **Web Search:** Call 'web_search' to search the web for current information, news, or research.
+    12. **Extract Content:** Call 'extract_content' to extract clean content from any URL.
+    13. **Crawl Website:** Call 'crawl_website' to crawl and extract content from multiple pages of a website.
+    14. **Map Website:** Call 'map_website' to discover and map the structure of a website.
 
     IMPORTANT: Do NOT chain tools. Each tool call handles everything including UI. Do not display raw JSON.`;
   console.log(system);
@@ -953,7 +954,223 @@ Extract tasks from: "${request}"
       }),
 
       // -----------------------------------------------------------------------
-      // 5. WEB SEARCH & RESEARCH TOOLS (Tavily)
+      // 5. BULK UPDATE TASKS TOOL
+      // -----------------------------------------------------------------------
+      bulk_update_tasks: tool({
+        description:
+          "Searches for tasks matching criteria and updates them in bulk. Use for requests like 'update all weekly prep tasks in CSC148 to be due at 5pm' or 'change priority of all assignments in MAT102 to high'.",
+        inputSchema: z.object({
+          search_query: z
+            .string()
+            .describe(
+              "Search term to match task titles (e.g., 'weekly prep', 'assignment', 'quiz')",
+            ),
+          course_code: z
+            .string()
+            .optional()
+            .describe("Filter by course code (e.g., 'CSC148')"),
+          updates: z.object({
+            status: z
+              .enum(["Todo", "In Progress", "Done"])
+              .optional()
+              .describe("New status for matched tasks"),
+            priority: z
+              .enum(["Low", "Medium", "High"])
+              .optional()
+              .describe("New priority for matched tasks"),
+            due_time: z
+              .string()
+              .optional()
+              .describe(
+                "Time to set on existing due dates in HH:MM format (e.g., '17:00' for 5pm). Only modifies the time, keeps the date.",
+              ),
+            due_date_offset_days: z
+              .number()
+              .optional()
+              .describe(
+                "Number of days to add/subtract from existing due dates (e.g., -1 to move 1 day earlier, 2 to move 2 days later)",
+              ),
+            do_time: z
+              .string()
+              .optional()
+              .describe(
+                "Time to set on existing do dates in HH:MM format (e.g., '09:00' for 9am)",
+              ),
+            do_date_offset_days: z
+              .number()
+              .optional()
+              .describe(
+                "Number of days to add/subtract from existing do dates",
+              ),
+          }),
+        }),
+        execute: async ({ search_query, course_code, updates }) => {
+          // Build the where clause
+          const conditions = [
+            eq(tasks.userId, user.id),
+            ilike(tasks.title, `%${search_query}%`),
+          ];
+
+          // If course_code provided, find the course first
+          let courseInfo = null;
+          if (course_code) {
+            const foundCourse = await db
+              .select({
+                id: courses.id,
+                code: courses.code,
+                name: courses.name,
+              })
+              .from(courses)
+              .where(
+                and(
+                  eq(courses.userId, user.id),
+                  ilike(courses.code, `%${course_code}%`),
+                ),
+              )
+              .limit(1);
+
+            if (foundCourse.length === 0) {
+              return {
+                success: false,
+                error: `No course found matching "${course_code}"`,
+              };
+            }
+            courseInfo = foundCourse[0];
+            conditions.push(eq(tasks.courseId, courseInfo.id));
+          }
+
+          // Find matching tasks
+          const matchingTasks = await db
+            .select()
+            .from(tasks)
+            .where(and(...conditions));
+
+          if (matchingTasks.length === 0) {
+            return {
+              success: false,
+              error: `No tasks found matching "${search_query}"${course_code ? ` in ${course_code}` : ""}`,
+              searched_for: search_query,
+              course_filter: course_code || null,
+            };
+          }
+
+          // Prepare updates for each task
+          const updatedTasks = [];
+          const errors = [];
+
+          for (const task of matchingTasks) {
+            try {
+              const taskUpdates: {
+                status?: string;
+                priority?: string;
+                dueDate?: Date;
+                doDate?: Date;
+              } = {};
+
+              // Apply status update
+              if (updates.status) {
+                taskUpdates.status = updates.status;
+              }
+
+              // Apply priority update
+              if (updates.priority) {
+                taskUpdates.priority = updates.priority;
+              }
+
+              // Apply due date time modification
+              if (updates.due_time && task.dueDate) {
+                const [hours, minutes] = updates.due_time
+                  .split(":")
+                  .map(Number);
+                const newDueDate = new Date(task.dueDate);
+                newDueDate.setHours(hours, minutes, 0, 0);
+                taskUpdates.dueDate = newDueDate;
+              }
+
+              // Apply due date offset
+              if (updates.due_date_offset_days && task.dueDate) {
+                const newDueDate = taskUpdates.dueDate
+                  ? new Date(taskUpdates.dueDate)
+                  : new Date(task.dueDate);
+                newDueDate.setDate(
+                  newDueDate.getDate() + updates.due_date_offset_days,
+                );
+                taskUpdates.dueDate = newDueDate;
+              }
+
+              // Apply do date time modification
+              if (updates.do_time && task.doDate) {
+                const [hours, minutes] = updates.do_time.split(":").map(Number);
+                const newDoDate = new Date(task.doDate);
+                newDoDate.setHours(hours, minutes, 0, 0);
+                taskUpdates.doDate = newDoDate;
+              }
+
+              // Apply do date offset
+              if (updates.do_date_offset_days && task.doDate) {
+                const newDoDate = taskUpdates.doDate
+                  ? new Date(taskUpdates.doDate)
+                  : new Date(task.doDate);
+                newDoDate.setDate(
+                  newDoDate.getDate() + updates.do_date_offset_days,
+                );
+                taskUpdates.doDate = newDoDate;
+              }
+
+              // Only update if there are changes
+              if (Object.keys(taskUpdates).length > 0) {
+                await db
+                  .update(tasks)
+                  .set(taskUpdates)
+                  .where(eq(tasks.id, task.id));
+
+                updatedTasks.push({
+                  id: task.id,
+                  title: task.title,
+                  changes: {
+                    ...(taskUpdates.status && { status: taskUpdates.status }),
+                    ...(taskUpdates.priority && {
+                      priority: taskUpdates.priority,
+                    }),
+                    ...(taskUpdates.dueDate && {
+                      dueDate: {
+                        from: task.dueDate?.toISOString(),
+                        to: taskUpdates.dueDate.toISOString(),
+                      },
+                    }),
+                    ...(taskUpdates.doDate && {
+                      doDate: {
+                        from: task.doDate?.toISOString(),
+                        to: taskUpdates.doDate.toISOString(),
+                      },
+                    }),
+                  },
+                });
+              }
+            } catch (err) {
+              errors.push({
+                id: task.id,
+                title: task.title,
+                error: err instanceof Error ? err.message : "Unknown error",
+              });
+            }
+          }
+
+          return {
+            success: true,
+            summary: `Updated ${updatedTasks.length} of ${matchingTasks.length} tasks`,
+            course: courseInfo
+              ? { code: courseInfo.code, name: courseInfo.name }
+              : null,
+            search_query,
+            updated_tasks: updatedTasks,
+            errors: errors.length > 0 ? errors : undefined,
+          };
+        },
+      }),
+
+      // -----------------------------------------------------------------------
+      // 6. WEB SEARCH & RESEARCH TOOLS (Tavily)
       // -----------------------------------------------------------------------
       web_search: tavilySearch({
         apiKey: tavilyApiKey,

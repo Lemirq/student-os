@@ -11,7 +11,9 @@ import {
   startOfDay,
   endOfDay,
   isWithinInterval,
+  isPast,
 } from "date-fns";
+import { hasTime } from "@/lib/date-parser";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -29,6 +31,8 @@ import { useTaskMutations } from "@/hooks/use-task-mutations";
 import { DataTableColumnHeader } from "./data-table-column-header";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 import { CalendarIcon, X } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import * as chrono from "chrono-node";
 
 export type TaskWithDetails = Task & {
   course: Course | null;
@@ -87,20 +91,111 @@ const DueDateCell = ({ task }: { task: Task }) => {
   const [open, setOpen] = React.useState(false);
 
   const date = task.dueDate ? new Date(task.dueDate) : null;
-  // not submitted and is overdue
-  const isOverdue =
-    date && date < new Date() && !isToday(date) && task.status !== "Done";
-  const isDueToday = date && isToday(date);
+  const dateHasTime = date ? hasTime(date) : false;
 
-  const handleSelect = (selectedDate: Date | undefined) => {
-    setDueDate(task, selectedDate || null);
+  // Natural language input state
+  const [inputValue, setInputValue] = React.useState("");
+
+  // Sync input value when popover opens or date changes
+  React.useEffect(() => {
+    if (open && date) {
+      const includeTime = hasTime(date);
+      if (includeTime) {
+        setInputValue(format(date, "MMM d, yyyy 'at' h:mm a"));
+      } else {
+        setInputValue(format(date, "MMM d, yyyy"));
+      }
+    } else if (open && !date) {
+      setInputValue("");
+    }
+  }, [open, task.dueDate]);
+
+  // Overdue: compare full datetime, not just date
+  // If no specific time is set (midnight), treat deadline as end of day (23:59:59)
+  // A task is overdue if its due datetime is in the past AND task is not done
+  const getEffectiveDeadline = (d: Date): Date => {
+    if (!hasTime(d)) {
+      // No specific time set, treat as end of day
+      const endOfDayDate = new Date(d);
+      endOfDayDate.setHours(23, 59, 59, 999);
+      return endOfDayDate;
+    }
+    return d;
+  };
+
+  const effectiveDeadline = date ? getEffectiveDeadline(date) : null;
+  const isOverdue =
+    effectiveDeadline && isPast(effectiveDeadline) && task.status !== "Done";
+  const isDueToday = date && isToday(date) && !isOverdue;
+
+  const handleDateSelect = (selectedDate: Date | undefined) => {
+    if (!selectedDate) {
+      setDueDate(task, null);
+      setOpen(false);
+      return;
+    }
+
+    // Preserve existing time if the task already has one
+    if (date && dateHasTime) {
+      selectedDate.setHours(date.getHours(), date.getMinutes(), 0, 0);
+    }
+
+    setDueDate(task, selectedDate);
     setOpen(false);
+  };
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setInputValue(e.target.value);
+  };
+
+  const handleInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    // Stop propagation for all keys to prevent table shortcuts from firing
+    e.stopPropagation();
+    if (e.key === "Enter") {
+      e.preventDefault();
+      applyNaturalDateInput();
+    }
+  };
+
+  const handleInputBlur = () => {
+    // Only apply if there's input - don't auto-clear on blur
+    if (inputValue.trim()) {
+      applyNaturalDateInput();
+    }
+  };
+
+  const applyNaturalDateInput = () => {
+    if (!inputValue.trim()) {
+      return;
+    }
+
+    const parsed = chrono.parseDate(inputValue);
+    if (parsed) {
+      setDueDate(task, parsed);
+      // Update input to show formatted result
+      const includeTime = hasTime(parsed);
+      if (includeTime) {
+        setInputValue(format(parsed, "MMM d, yyyy 'at' h:mm a"));
+      } else {
+        setInputValue(format(parsed, "MMM d, yyyy"));
+      }
+    }
   };
 
   const handleClear = (e: React.MouseEvent) => {
     e.stopPropagation();
     setDueDate(task, null);
+    setInputValue("");
     setOpen(false);
+  };
+
+  // Format display: show time if task has a specific time set
+  const formatDisplay = () => {
+    if (!date) return "No date";
+    if (dateHasTime) {
+      return format(date, "MMM d, h:mm a");
+    }
+    return format(date, "MMM d");
   };
 
   return (
@@ -116,17 +211,17 @@ const DueDateCell = ({ task }: { task: Task }) => {
               isOverdue
                 ? "bg-red-100 text-red-800 hover:bg-red-100/80 border-transparent shadow-none"
                 : isDueToday
-                  ? "bg-orange-100 text-orange-800 hover:bg-orange-100/80 border-transparent shadow-none"
+                  ? " text-orange-500 border-orange-500 shadow-none"
                   : "text-muted-foreground"
             }
           >
             <CalendarIcon className="h-3 w-3 mr-1" />
-            {date ? format(date, "MMM d") : "No date"}
+            {formatDisplay()}
           </Badge>
         </button>
       </PopoverTrigger>
       <PopoverContent className="w-auto p-0" align="start">
-        <div className="p-2 border-b flex items-center justify-between">
+        <div className="p-2 border-b flex items-center justify-between gap-2">
           <span className="text-sm font-medium">Due Date</span>
           {date && (
             <Button
@@ -140,12 +235,22 @@ const DueDateCell = ({ task }: { task: Task }) => {
             </Button>
           )}
         </div>
+        <div className="p-2 border-b">
+          <Input
+            type="text"
+            placeholder="e.g. tomorrow at 5pm"
+            value={inputValue}
+            onChange={handleInputChange}
+            onKeyDown={handleInputKeyDown}
+            onBlur={handleInputBlur}
+            className="w-full text-sm"
+          />
+        </div>
         <Calendar
           mode="single"
           selected={date || undefined}
           defaultMonth={date || undefined}
-          onSelect={handleSelect}
-          initialFocus
+          onSelect={handleDateSelect}
         />
       </PopoverContent>
     </Popover>

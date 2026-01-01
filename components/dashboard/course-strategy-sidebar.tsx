@@ -21,13 +21,21 @@ import {
   updateGradeWeight,
   createGradeWeight,
   deleteGradeWeight,
+  updateCourse,
 } from "@/actions/courses";
+import { TipTapEditor } from "@/components/editor/tiptap-editor";
+import { useDebounce } from "@/hooks/use-debounce";
+import { toast } from "sonner";
+import { useQueryClient } from "@tanstack/react-query";
+import { queryKeys } from "@/lib/query-keys";
 
 interface CourseStrategySidebarProps {
   course: CourseData;
 }
 
 export function CourseStrategySidebar({ course }: CourseStrategySidebarProps) {
+  const queryClient = useQueryClient();
+
   // State for editing grade weights
   const [editingId, setEditingId] = React.useState<string | null>(null);
   const [editedName, setEditedName] = React.useState("");
@@ -38,6 +46,42 @@ export function CourseStrategySidebar({ course }: CourseStrategySidebarProps) {
   const [isAdding, setIsAdding] = React.useState(false);
   const [newName, setNewName] = React.useState("");
   const [newWeight, setNewWeight] = React.useState("");
+
+  // State for course notes
+  const [notes, setNotes] = React.useState<unknown>(course.notes || null);
+  const [isNotesSaving, setIsNotesSaving] = React.useState(false);
+  const [showNotesSaved, setShowNotesSaved] = React.useState(false);
+  const debouncedNotes = useDebounce(notes, 2000);
+  const lastSavedNotes = React.useRef<unknown>(course.notes);
+
+  // Auto-save notes when debounced value changes
+  React.useEffect(() => {
+    const saveNotes = async () => {
+      if (
+        JSON.stringify(debouncedNotes) ===
+        JSON.stringify(lastSavedNotes.current)
+      ) {
+        return;
+      }
+
+      setIsNotesSaving(true);
+      try {
+        await updateCourse(course.id, { notes: debouncedNotes });
+        lastSavedNotes.current = debouncedNotes;
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.courses.fullData(course.id),
+        });
+        setShowNotesSaved(true);
+        setTimeout(() => setShowNotesSaved(false), 2000);
+      } catch {
+        toast.error("Failed to save notes");
+      } finally {
+        setIsNotesSaving(false);
+      }
+    };
+
+    saveNotes();
+  }, [debouncedNotes, course.id, queryClient]);
 
   // 1. Calculate Weights and Scores
   const { completedWeight, currentWeightedScore, remainingWeight } =
@@ -192,7 +236,31 @@ export function CourseStrategySidebar({ course }: CourseStrategySidebarProps) {
   };
 
   return (
-    <div className="space-y-6 lg:sticky lg:top-6">
+    <div className="space-y-6 lg:sticky lg:top-6 mt-6">
+      {/* Widget AA: Course Notes */}
+      <Card className="p-0 gap-0">
+        <CardHeader className="h-5 gap-0 bg-background fr items-end">
+          {(isNotesSaving || showNotesSaved) && (
+            <div className="flex w-full text-muted-foreground text-[10px]">
+              {isNotesSaving ? (
+                <div className="fr gap-1 w-full">
+                  <div className="h-1.5 w-1.5 rounded-full bg-muted-foreground animate-pulse" />
+                  <span>Saving...</span>
+                </div>
+              ) : (
+                <div className="fr gap-1">
+                  <Check className="h-3 w-3 text-green-500" />
+                  <span className="text-green-500">Saved</span>
+                </div>
+              )}
+            </div>
+          )}
+        </CardHeader>
+        <CardContent className="p-0">
+          <TipTapEditor initialContent={notes} onChange={setNotes} />
+        </CardContent>
+      </Card>
+
       {/* Widget A: Grade Weights */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">

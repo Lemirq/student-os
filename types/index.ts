@@ -208,6 +208,53 @@ export type StudentOSTools = {
       }>;
     };
   };
+  bulk_update_tasks: {
+    input: {
+      search_query: string;
+      course_code?: string;
+      updates: {
+        status?: "Todo" | "In Progress" | "Done";
+        priority?: "Low" | "Medium" | "High";
+        due_time?: string;
+        due_date_offset_days?: number;
+        do_time?: string;
+        do_date_offset_days?: number;
+      };
+    };
+    output: {
+      success: boolean;
+      error?: string;
+      searched_for?: string;
+      course_filter?: string | null;
+      summary?: string;
+      course?: {
+        code: string;
+        name: string;
+      } | null;
+      search_query?: string;
+      updated_tasks?: Array<{
+        id: string;
+        title: string;
+        changes: {
+          status?: string;
+          priority?: string;
+          dueDate?: {
+            from: string;
+            to: string;
+          };
+          doDate?: {
+            from: string;
+            to: string;
+          };
+        };
+      }>;
+      errors?: Array<{
+        id: string;
+        title: string;
+        error: string;
+      }>;
+    };
+  };
 };
 
 export type StudentOSDataTypes = Record<string, never>;

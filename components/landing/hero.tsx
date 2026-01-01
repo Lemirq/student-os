@@ -24,8 +24,9 @@ export function Hero() {
             Your Academic Life, Organized
           </h1>
           <p className="max-w-2xl leading-normal text-muted-foreground sm:text-xl sm:leading-8">
-            The all-in-one workspace for students. Track assignments, manage
-            study debt, and visualize your semester progress with ease.
+            The AI-powered workspace for students. Import your syllabus, track
+            grades, get deadline reminders, and manage your schedule — all in
+            one place.
           </p>
         </motion.div>
         <div className="space-x-4">

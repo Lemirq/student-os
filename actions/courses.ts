@@ -296,6 +296,7 @@ export async function updateCourse(
     color?: string;
     goal_grade?: number;
     syllabus?: string;
+    notes?: unknown;
   },
 ) {
   const supabase = await createClient();
@@ -308,6 +309,7 @@ export async function updateCourse(
     color?: string;
     goalGrade?: string;
     syllabus?: string;
+    notes?: unknown;
   } = {};
 
   if (data.code !== undefined) updates.code = data.code;
@@ -316,6 +318,7 @@ export async function updateCourse(
   if (data.goal_grade !== undefined)
     updates.goalGrade = String(data.goal_grade);
   if (data.syllabus !== undefined) updates.syllabus = data.syllabus;
+  if (data.notes !== undefined) updates.notes = data.notes;
 
   const result = await db
     .update(courses)

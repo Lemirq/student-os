@@ -12,9 +12,11 @@ import {
   GraduationCap,
   LayoutDashboard,
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Semester, Course } from "@/types";
 import { useHotkeys } from "react-hotkeys-hook";
+
+const SIDEBAR_EXPANDED_KEY = "sidebar-expanded-semesters";
 
 type SidebarProps = {
   semesters: (Semester & { courses: Course[] })[];
@@ -23,14 +25,57 @@ type SidebarProps = {
 export function Sidebar({ semesters }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
+
+  // Initialize from localStorage or default to current semester expanded
   const [expandedSemesters, setExpandedSemesters] = useState<
     Record<string, boolean>
-  >(
-    semesters.reduce(
+  >(() => {
+    // Default: expand current semester
+    return semesters.reduce(
       (acc, semester) => ({ ...acc, [semester.id]: semester.isCurrent }),
       {},
-    ),
-  );
+    );
+  });
+
+  const [isInitialized, setIsInitialized] = useState(false);
+
+  // Load saved state from localStorage on mount
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(SIDEBAR_EXPANDED_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved) as Record<string, boolean>;
+        // Merge with current semesters (in case new semesters were added)
+        setExpandedSemesters((prev) => {
+          const merged = { ...prev };
+          // Apply saved state for semesters that exist
+          semesters.forEach((semester) => {
+            if (semester.id in parsed) {
+              merged[semester.id] = parsed[semester.id];
+            }
+          });
+          return merged;
+        });
+      }
+    } catch (e) {
+      // Ignore localStorage errors
+    }
+    setIsInitialized(true);
+  }, []);
+
+  // Save to localStorage whenever expanded state changes (after initialization)
+  useEffect(() => {
+    if (isInitialized) {
+      try {
+        localStorage.setItem(
+          SIDEBAR_EXPANDED_KEY,
+          JSON.stringify(expandedSemesters),
+        );
+      } catch (e) {
+        // Ignore localStorage errors
+      }
+    }
+  }, [expandedSemesters, isInitialized]);
 
   // Global Navigation Shortcuts
   useHotkeys("g+t", () => router.push("/dashboard"));

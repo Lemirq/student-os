@@ -22,7 +22,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { courseSchema } from "@/lib/schemas";
+import { courseFormSchema } from "@/lib/schemas";
 import { createCourse } from "@/actions/courses";
 import { toast } from "sonner";
 import { Plus, Check } from "lucide-react";
@@ -68,8 +68,8 @@ export function CreateCourseDialog({
   const router = useRouter();
   const queryClient = useQueryClient();
 
-  const form = useForm<z.infer<typeof courseSchema>>({
-    resolver: zodResolver(courseSchema),
+  const form = useForm<z.infer<typeof courseFormSchema>>({
+    resolver: zodResolver(courseFormSchema),
     defaultValues: {
       semesterId: semesterId,
       code: "",
@@ -79,7 +79,7 @@ export function CreateCourseDialog({
     },
   });
 
-  function onSubmit(values: z.infer<typeof courseSchema>) {
+  function onSubmit(values: z.infer<typeof courseFormSchema>) {
     startTransition(async () => {
       try {
         const { id } = await createCourse(values);

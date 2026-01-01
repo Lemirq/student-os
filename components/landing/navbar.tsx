@@ -4,7 +4,7 @@ import { GraduationCap } from "lucide-react";
 
 export function Navbar() {
   return (
-    <nav className="fixed top-0 w-full z-50 border-b bg-background/95 backdrop-blur supports-backdrop-filter:bg-background/60">
+    <nav className="fixed top-0 py-4 w-full z-50 bg-transparent">
       <div className="container mx-auto flex h-14 items-center px-4">
         <div className="mr-4 flex">
           <Link href="/" className="mr-6 flex items-center space-x-2">
@@ -14,7 +14,7 @@ export function Navbar() {
           <nav className="hidden md:flex items-center space-x-6 text-sm font-medium">
             <Link
               href="#features"
-              className="transition-colors hover:text-foreground/80 text-foreground/60"
+              className="transition-colors hover:text-foreground/80 text-foreground"
             >
               Features
             </Link>

@@ -29,6 +29,7 @@ import { TaskWithDetails } from "./columns";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { format, isToday, isPast } from "date-fns";
+import { hasTime } from "@/lib/date-parser";
 import { TaskStatus } from "@/types";
 import { useTaskMutations } from "@/hooks/use-task-mutations";
 import { cn } from "@/lib/utils";
@@ -306,8 +307,23 @@ function TaskCard({ task, context, isOverlay }: TaskCardProps) {
   const router = useRouter();
 
   const dueDate = task.dueDate ? new Date(task.dueDate) : null;
-  const isOverdue = dueDate ? isPast(dueDate) && !isToday(dueDate) : false;
-  const isDueToday = dueDate ? isToday(dueDate) : false;
+
+  // Overdue: compare full datetime, task is overdue only if it's past AND not done
+  // If no specific time is set (midnight), treat deadline as end of day (23:59:59)
+  const getEffectiveDeadline = (d: Date): Date => {
+    if (!hasTime(d)) {
+      const endOfDayDate = new Date(d);
+      endOfDayDate.setHours(23, 59, 59, 999);
+      return endOfDayDate;
+    }
+    return d;
+  };
+
+  const effectiveDeadline = dueDate ? getEffectiveDeadline(dueDate) : null;
+  const isOverdue = effectiveDeadline
+    ? isPast(effectiveDeadline) && task.status !== "Done"
+    : false;
+  const isDueToday = dueDate ? isToday(dueDate) && !isOverdue : false;
 
   const handleDoubleClick = (e: React.MouseEvent) => {
     e.stopPropagation();

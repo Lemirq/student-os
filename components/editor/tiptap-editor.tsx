@@ -47,7 +47,7 @@ function ToolbarButton({
       onClick={onClick}
       disabled={disabled}
       className={cn(
-        "p-2 rounded-md hover:bg-accent transition-colors disabled:opacity-50 disabled:cursor-not-allowed",
+        "p-1 rounded-md hover:bg-accent transition-colors disabled:opacity-50 disabled:cursor-not-allowed",
         isActive && "bg-accent text-foreground",
       )}
     >
@@ -101,7 +101,7 @@ export function TipTapEditor({ initialContent, onChange }: TipTapEditorProps) {
   return (
     <div className="w-full border border-border rounded-lg overflow-hidden bg-background">
       {/* Toolbar */}
-      <div className="flex items-center gap-1 p-2 border-b border-border bg-muted/30">
+      <div className="flex items-center gap-1 p-1 border-b border-border w-full overflow-x-scroll bg-muted/30">
         <ToolbarButton
           onClick={() => editor.chain().focus().toggleBold().run()}
           isActive={editor.isActive("bold")}

@@ -12,6 +12,15 @@ export const courseSchema = createInsertSchema(courses).omit({
   userId: true,
   createdAt: true,
 });
+
+// Form-specific schema for create/edit course dialogs (excludes complex jsonb fields)
+export const courseFormSchema = z.object({
+  code: z.string().min(1, "Course code is required"),
+  name: z.string().nullish(),
+  semesterId: z.string().nullish(),
+  color: z.string().nullish(),
+  goalGrade: z.string().nullish(),
+});
 export const gradeWeightSchema = createInsertSchema(gradeWeights).omit({
   id: true,
   createdAt: true,
