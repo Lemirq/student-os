@@ -1,8 +1,9 @@
 import { db } from "@/drizzle";
 import { tasks, courses } from "@/schema";
 import { sendPushToUser } from "@/actions/notifications";
-import { and, eq, gte, lt, ne } from "drizzle-orm";
-import { format, startOfTomorrow, addDays } from "date-fns";
+import { and, eq, gte, lt, ne, lte } from "drizzle-orm";
+import { format, addHours } from "date-fns";
+import { hasTime } from "./date-parser";
 
 /**
  * Stats returned by checkAndNotifyDeadlines
@@ -14,7 +15,9 @@ export type DeadlineCheckStats = {
 };
 
 /**
- * Checks for tasks due tomorrow and sends push notifications to users
+ * Checks for tasks with upcoming deadlines and sends push notifications to users
+ * For tasks with specific times: notifies 24 hours before
+ * For tasks without times (end of day defaults): notifies on the day at 9 AM UTC
  * @returns Statistics about the notification process
  */
 export async function checkAndNotifyDeadlines(): Promise<DeadlineCheckStats> {
@@ -25,19 +28,18 @@ export async function checkAndNotifyDeadlines(): Promise<DeadlineCheckStats> {
   };
 
   try {
-    // Calculate tomorrow's date range (00:00:00 to 23:59:59)
-    const tomorrowStart = startOfTomorrow();
-    const dayAfterStart = addDays(tomorrowStart, 1);
+    const now = new Date();
+    const in24Hours = addHours(now, 24);
 
     console.log(
-      `Checking for deadlines between ${tomorrowStart.toISOString()} and ${dayAfterStart.toISOString()}`,
+      `Checking for deadlines between now (${now.toISOString()}) and 24 hours from now (${in24Hours.toISOString()})`,
     );
 
-    // Query tasks due tomorrow that are incomplete
+    // Query tasks due within the next 24 hours that are incomplete
     const dueTasks = await db.query.tasks.findMany({
       where: and(
-        gte(tasks.dueDate, tomorrowStart),
-        lt(tasks.dueDate, dayAfterStart),
+        gte(tasks.dueDate, now),
+        lte(tasks.dueDate, in24Hours),
         ne(tasks.status, "Done"),
       ),
       with: {
@@ -46,7 +48,7 @@ export async function checkAndNotifyDeadlines(): Promise<DeadlineCheckStats> {
     });
 
     stats.totalTasks = dueTasks.length;
-    console.log(`Found ${stats.totalTasks} tasks due tomorrow`);
+    console.log(`Found ${stats.totalTasks} tasks with upcoming deadlines`);
 
     // Group tasks by user to batch notifications
     const tasksByUser = new Map<string, typeof dueTasks>();
@@ -65,10 +67,15 @@ export async function checkAndNotifyDeadlines(): Promise<DeadlineCheckStats> {
 
       for (const task of userTasks) {
         try {
-          // Format the due date
-          const dueDate = task.dueDate
-            ? format(new Date(task.dueDate), "MMM d, yyyy 'at' h:mm a")
-            : "No date";
+          if (!task.dueDate) continue;
+
+          const dueDate = new Date(task.dueDate);
+          const includeTime = hasTime(dueDate);
+
+          // Format the due date with time if available
+          const dueDateStr = includeTime
+            ? format(dueDate, "MMM d, yyyy 'at' h:mm a")
+            : format(dueDate, "MMM d, yyyy");
 
           // Get course info
           const courseCode = task.course?.code || "No course";
@@ -79,25 +86,40 @@ export async function checkAndNotifyDeadlines(): Promise<DeadlineCheckStats> {
           if (courseName) {
             body += ` - ${courseName}`;
           }
-          body += `\n${dueDate}`;
+          body += `\nDue: ${dueDateStr}`;
+
+          // Determine notification title based on timing
+          const hoursUntilDue =
+            (dueDate.getTime() - now.getTime()) / (1000 * 60 * 60);
+          let title: string;
+          if (hoursUntilDue <= 24 && hoursUntilDue > 12) {
+            title = `📚 Due Tomorrow: ${task.title}`;
+          } else if (hoursUntilDue <= 12 && hoursUntilDue > 6) {
+            title = `⏰ Due Soon: ${task.title}`;
+          } else if (hoursUntilDue <= 6) {
+            title = `🔴 Due Very Soon: ${task.title}`;
+          } else {
+            title = `📚 Upcoming: ${task.title}`;
+          }
 
           // Send push notification
           const result = await sendPushToUser(userId, {
-            title: `📚 Due Tomorrow: ${task.title}`,
+            title,
             body,
             icon: "/icon-192.png",
-            badge: "/badge-72.png",
+            badge: "/icon-192.png",
             data: {
               taskId: task.id,
               url: `/tasks?task=${task.id}`,
               type: "deadline_reminder",
+              urgent: hoursUntilDue <= 6,
             },
           });
 
           if (result.success && result.sentCount > 0) {
             stats.sent++;
             console.log(
-              `✓ Sent notification for task "${task.title}" to ${result.sentCount} device(s)`,
+              `✓ Sent notification for task "${task.title}" to ${result.sentCount} device(s) (due in ${hoursUntilDue.toFixed(1)}h)`,
             );
           } else {
             stats.failed++;

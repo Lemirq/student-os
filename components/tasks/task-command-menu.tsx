@@ -40,6 +40,7 @@ import { getGradeWeightsForCourses } from "@/actions/courses";
 import { Course } from "@/types";
 import { useCommandStore } from "@/hooks/use-command-store";
 import { format } from "date-fns";
+import { formatDate, hasTime } from "@/lib/date-parser";
 
 export function TaskCommandMenu() {
   const { isOpen, tasks, close, view, setView } = useCommandStore();
@@ -56,7 +57,20 @@ export function TaskCommandMenu() {
     if (view === "MAIN" && search.trim()) {
       const date = chrono.parseDate(search);
       if (date) {
-        date.setHours(12, 0, 0, 0);
+        // Only set to noon if no time was specified
+        if (
+          date.getHours() === 0 &&
+          date.getMinutes() === 0 &&
+          date.getSeconds() === 0
+        ) {
+          // Check if the original input included time keywords
+          const hasTimeKeywords = /\b(at|@|:|\d{1,2}\s*(am|pm|AM|PM))\b/.test(
+            search,
+          );
+          if (!hasTimeKeywords) {
+            date.setHours(23, 59, 0, 0); // Set to end of day if no time specified
+          }
+        }
         setParsedDate(date);
       } else {
         setParsedDate(null);
@@ -226,8 +240,19 @@ export function TaskCommandMenu() {
         return;
       }
 
-      // Set to noon to avoid timezone issues
-      parsedDate.setHours(12, 0, 0, 0);
+      // Only set to end of day if no time was specified
+      if (
+        parsedDate.getHours() === 0 &&
+        parsedDate.getMinutes() === 0 &&
+        parsedDate.getSeconds() === 0
+      ) {
+        const hasTimeKeywords = /\b(at|@|:|\d{1,2}\s*(am|pm|AM|PM))\b/.test(
+          value,
+        );
+        if (!hasTimeKeywords) {
+          parsedDate.setHours(23, 59, 0, 0);
+        }
+      }
 
       // Close palette immediately
       close();
@@ -372,7 +397,8 @@ export function TaskCommandMenu() {
                           onSelect={() => handleUpdate({ dueDate: parsedDate })}
                         >
                           <CalendarIcon className="mr-2 h-4 w-4" />
-                          Set due date to {format(parsedDate, "MMM d, yyyy")}
+                          Set due date to{" "}
+                          {formatDate(parsedDate, hasTime(parsedDate))}
                         </CommandItem>
                       )}
                     </CommandGroup>
@@ -559,7 +585,8 @@ export function TaskCommandMenu() {
                     return parsedDate ? (
                       <CommandItem onSelect={() => handleDueDateUpdate(search)}>
                         <Check className="mr-2 h-4 w-4" />
-                        Set due date to {format(parsedDate, "MMM d, yyyy")}
+                        Set due date to{" "}
+                        {formatDate(parsedDate, hasTime(parsedDate))}
                       </CommandItem>
                     ) : null;
                   })()}

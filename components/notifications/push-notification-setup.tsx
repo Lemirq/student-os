@@ -79,19 +79,93 @@ export const PushNotificationSetup = (): null => {
 
           console.log("VAPID public key found, subscribing to push...");
 
-          // Subscribe to push notifications
-          const applicationServerKey = urlBase64ToUint8Array(vapidPublicKey);
-          const subscription = await swRegistration.pushManager.subscribe({
-            userVisibleOnly: true,
-            applicationServerKey: applicationServerKey as BufferSource,
-          });
+          try {
+            // Check for existing subscription first
+            const existingSubscription =
+              await swRegistration.pushManager.getSubscription();
 
-          console.log("Push subscription created:", subscription.endpoint);
+            if (existingSubscription) {
+              console.log(
+                "Found existing subscription:",
+                existingSubscription.endpoint,
+              );
 
-          // Send subscription to server
-          await subscribeToPush(JSON.parse(JSON.stringify(subscription)));
+              // Send existing subscription to server
+              const result = await subscribeToPush(
+                JSON.parse(JSON.stringify(existingSubscription)),
+              );
 
-          console.log("✅ Push notifications registered successfully");
+              if (!result.success) {
+                console.error(
+                  "❌ Failed to save existing subscription:",
+                  result.error,
+                );
+                return;
+              }
+
+              console.log(
+                "✅ Push notifications registered successfully (existing)",
+              );
+              return;
+            }
+
+            // Check permission state
+            const applicationServerKey = urlBase64ToUint8Array(vapidPublicKey);
+            const permissionState =
+              await swRegistration.pushManager.permissionState({
+                userVisibleOnly: true,
+                applicationServerKey: applicationServerKey as BufferSource,
+              });
+            console.log("Push permission state:", permissionState);
+
+            if (permissionState !== "granted") {
+              console.error(
+                "❌ Push permission not granted, state:",
+                permissionState,
+              );
+              return;
+            }
+
+            // Subscribe to push notifications
+            console.log(
+              "Application server key length:",
+              applicationServerKey.length,
+            );
+            console.log("Attempting to subscribe to push manager...");
+
+            const subscription = (await Promise.race([
+              swRegistration.pushManager.subscribe({
+                userVisibleOnly: true,
+                applicationServerKey: applicationServerKey as BufferSource,
+              }),
+              new Promise((_, reject) =>
+                setTimeout(
+                  () => reject(new Error("Subscription timeout after 10s")),
+                  10000,
+                ),
+              ),
+            ])) as PushSubscription;
+
+            console.log("Push subscription created:", subscription.endpoint);
+
+            // Send subscription to server
+            const result = await subscribeToPush(
+              JSON.parse(JSON.stringify(subscription)),
+            );
+
+            if (!result.success) {
+              console.error(
+                "❌ Failed to save subscription to server:",
+                result.error,
+              );
+              return;
+            }
+
+            console.log("✅ Push notifications registered successfully");
+          } catch (subError) {
+            console.error("❌ Error creating push subscription:", subError);
+            throw subError;
+          }
         }
       } catch (error) {
         console.error("❌ Error setting up push notifications:", error);

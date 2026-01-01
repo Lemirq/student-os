@@ -116,7 +116,12 @@ export async function sendPushToUser(
       where: eq(pushSubscriptions.userId, userId),
     });
 
+    console.log(
+      `Found ${subscriptions.length} subscription(s) for user ${userId.substring(0, 8)}...`,
+    );
+
     if (subscriptions.length === 0) {
+      console.log("No push subscriptions found for user");
       return { success: true, sentCount: 0, failedCount: 0 };
     }
 
@@ -140,6 +145,9 @@ export async function sendPushToUser(
           JSON.stringify(payload),
         );
         sentCount++;
+        console.log(
+          `✓ Sent push notification to ${subscription.endpoint.substring(0, 50)}...`,
+        );
       } catch (error) {
         failedCount++;
         // Check if error is 410 (Gone) - subscription expired
