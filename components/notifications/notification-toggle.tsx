@@ -162,7 +162,7 @@ export const NotificationToggle = (): React.ReactElement => {
           throw error;
         });
 
-      const timeoutPromise = new Promise<never>((_, reject) => {
+      const timeoutPromise = new Promise<PushSubscription>((_, reject) => {
         setTimeout(() => {
           console.error("NotificationToggle: ⏰ 30-second timeout reached!");
           console.error(
@@ -193,6 +193,21 @@ export const NotificationToggle = (): React.ReactElement => {
 
       // Clear progress updates
       clearInterval(progressInterval);
+
+      console.log("NotificationToggle: Race winner returned:", typeof sub, sub);
+
+      // Validate subscription object
+      if (!sub) {
+        throw new Error("Subscription returned null or undefined");
+      }
+
+      if (!sub.endpoint) {
+        console.error(
+          "NotificationToggle: Subscription missing endpoint:",
+          sub,
+        );
+        throw new Error("Subscription object is missing endpoint property");
+      }
 
       console.log(
         "NotificationToggle: ✅ Race completed, subscription created:",
