@@ -6,23 +6,34 @@ import { format, addHours } from "date-fns";
 import { hasTime } from "./date-parser";
 
 /**
- * Notification windows for deadline reminders
+ * Notification windows for deadline reminders.
+ * Windows are sized to be >= 2 hours wide since cron runs every 2 hours.
+ * This ensures we never miss a notification window.
+ *
+ * Priority order matters: we check from most urgent to least urgent,
+ * so a task won't get a "24h" notification if it's already in the "6h" window.
  */
 const NOTIFICATION_WINDOWS = [
   {
-    type: "24h",
-    minHours: 23,
-    maxHours: 25,
-    emoji: "📚",
-    label: "Due Tomorrow",
-  },
-  { type: "6h", minHours: 5, maxHours: 7, emoji: "⏰", label: "Due Soon" },
-  {
     type: "1h",
-    minHours: 0.5,
-    maxHours: 1.5,
+    minHours: 0.5, // At least 30 min before due (no point notifying at the last minute)
+    maxHours: 2.5,
     emoji: "🔴",
     label: "Due Very Soon",
+  },
+  {
+    type: "6h",
+    minHours: 4,
+    maxHours: 8,
+    emoji: "⏰",
+    label: "Due Soon",
+  },
+  {
+    type: "24h",
+    minHours: 22,
+    maxHours: 26,
+    emoji: "📚",
+    label: "Due Tomorrow",
   },
 ] as const;
 
@@ -59,8 +70,8 @@ export async function checkAndNotifyDeadlines(): Promise<DeadlineCheckStats> {
 
     console.log(`Checking for deadlines at ${now.toISOString()}`);
 
-    // Query all incomplete tasks with due dates in the future (up to 25 hours out)
-    const maxWindow = addHours(now, 25);
+    // Query all incomplete tasks with due dates in the future (up to 26 hours out)
+    const maxWindow = addHours(now, 26);
     const dueTasks = await db.query.tasks.findMany({
       where: and(
         gte(tasks.dueDate, now),
