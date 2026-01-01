@@ -40,6 +40,8 @@ type SidebarContextProps = {
   setOpen: (open: boolean) => void;
   openMobile: boolean;
   setOpenMobile: (open: boolean) => void;
+  openMobileRight: boolean;
+  setOpenMobileRight: (open: boolean) => void;
   isMobile: boolean;
   toggleSidebar: () => void;
   rightState: "expanded" | "collapsed";
@@ -74,6 +76,7 @@ function SidebarProvider({
 }) {
   const isMobile = useIsMobile();
   const [openMobile, setOpenMobile] = React.useState(false);
+  const [openMobileRight, setOpenMobileRight] = React.useState(false);
 
   // Initialize left sidebar state from localStorage
   const [_open, _setOpen] = React.useState(() => {
@@ -128,8 +131,10 @@ function SidebarProvider({
   }, [isMobile, setOpen, setOpenMobile]);
 
   const toggleRightSidebar = React.useCallback(() => {
-    return setOpenRight((open) => !open);
-  }, [setOpenRight]);
+    return isMobile
+      ? setOpenMobileRight((open) => !open)
+      : setOpenRight((open) => !open);
+  }, [isMobile, setOpenRight]);
 
   // Adds a keyboard shortcut to toggle the sidebar.
   React.useEffect(() => {
@@ -163,6 +168,8 @@ function SidebarProvider({
       isMobile,
       openMobile,
       setOpenMobile,
+      openMobileRight,
+      setOpenMobileRight,
       toggleSidebar,
       rightState,
       openRight,
@@ -176,6 +183,7 @@ function SidebarProvider({
       isMobile,
       openMobile,
       setOpenMobile,
+      openMobileRight,
       toggleSidebar,
       rightState,
       openRight,
@@ -222,8 +230,20 @@ function Sidebar({
   variant?: "sidebar" | "floating" | "inset";
   collapsible?: "offcanvas" | "icon" | "none";
 }) {
-  const { isMobile, state, openMobile, setOpenMobile, rightState, openRight } =
-    useSidebar();
+  const {
+    isMobile,
+    state,
+    openMobile,
+    setOpenMobile,
+    openMobileRight,
+    setOpenMobileRight,
+    rightState,
+    openRight,
+  } = useSidebar();
+
+  // Use separate mobile state for left vs right sidebars
+  const mobileOpen = side === "right" ? openMobileRight : openMobile;
+  const setMobileOpen = side === "right" ? setOpenMobileRight : setOpenMobile;
 
   if (collapsible === "none") {
     // If it is a right sidebar, we can use the state to show/hide it.
@@ -249,7 +269,7 @@ function Sidebar({
 
   if (isMobile) {
     return (
-      <Sheet open={openMobile} onOpenChange={setOpenMobile} {...props}>
+      <Sheet open={mobileOpen} onOpenChange={setMobileOpen} {...props}>
         <SheetContent
           data-sidebar="sidebar"
           data-slot="sidebar"

@@ -6,8 +6,6 @@ import { SidebarProvider, SidebarInset, SidebarTrigger } from "./ui/sidebar";
 import { AICopilotSidebar } from "./ai/ai-sidebar";
 import { GlobalCreateTaskModal } from "./tasks/global-create-task-modal";
 import { TaskCommandMenu } from "./tasks/task-command-menu";
-import { Button } from "./ui/button";
-import { Sparkles } from "lucide-react";
 import { Provider as ChatStoreProvider } from "@ai-sdk-tools/store";
 
 export function DashboardLayoutClient({
@@ -42,14 +40,6 @@ export function DashboardLayoutClient({
               <SidebarTrigger className="-ml-1" />
             </div>
             <div className="flex items-center gap-2">
-              <Button
-                variant="ghost"
-                size="icon"
-                className="lg:hidden"
-                title="Toggle AI"
-              >
-                <Sparkles className="size-4" />
-              </Button>
               <SidebarTrigger side="right" />
             </div>
           </header>
