@@ -1,9 +1,33 @@
 import { db } from "@/drizzle";
 import { tasks, sentNotifications } from "@/schema";
 import { sendPushToUser } from "@/actions/notifications";
-import { and, eq, gte, lt, ne, lte, inArray } from "drizzle-orm";
-import { format, addHours } from "date-fns";
-import { hasTime } from "./date-parser";
+import { and, gte, lt, ne, lte, inArray } from "drizzle-orm";
+import { addHours } from "date-fns";
+
+/**
+ * Formats hours remaining into a human-readable string.
+ * E.g., 1.5 hours -> "in 1 hour 30 minutes"
+ *       24 hours -> "in 1 day"
+ */
+function formatTimeRemaining(hours: number): string {
+  if (hours < 1) {
+    const minutes = Math.round(hours * 60);
+    return `in ${minutes} minute${minutes !== 1 ? "s" : ""}`;
+  } else if (hours < 2) {
+    const wholeHours = Math.floor(hours);
+    const minutes = Math.round((hours - wholeHours) * 60);
+    if (minutes === 0) {
+      return `in ${wholeHours} hour`;
+    }
+    return `in ${wholeHours} hour ${minutes} min`;
+  } else if (hours < 24) {
+    const wholeHours = Math.round(hours);
+    return `in ${wholeHours} hours`;
+  } else {
+    const days = Math.round(hours / 24);
+    return `in ${days} day${days !== 1 ? "s" : ""}`;
+  }
+}
 
 /**
  * Notification windows for deadline reminders.
@@ -138,10 +162,8 @@ export async function checkAndNotifyDeadlines(): Promise<DeadlineCheckStats> {
       }
 
       try {
-        const includeTime = hasTime(dueDate);
-        const dueDateStr = includeTime
-          ? format(dueDate, "MMM d, yyyy 'at' h:mm a")
-          : format(dueDate, "MMM d, yyyy");
+        // Format time remaining in a human-readable way
+        const timeRemaining = formatTimeRemaining(hoursUntilDue);
 
         const courseCode = task.course?.code || "No course";
         const courseName = task.course?.name || "";
@@ -150,7 +172,7 @@ export async function checkAndNotifyDeadlines(): Promise<DeadlineCheckStats> {
         if (courseName) {
           body += ` - ${courseName}`;
         }
-        body += `\nDue: ${dueDateStr}`;
+        body += `\nDue ${timeRemaining}`;
 
         const title = `${window.emoji} ${window.label}: ${task.title}`;
 
