@@ -27,6 +27,7 @@ export const usersRelations = relations(users, ({ many }) => ({
   courses: many(courses),
   tasks: many(tasks),
   chats: many(chats),
+  pushSubscriptions: many(pushSubscriptions),
 }));
 
 /* SEMESTERS */
@@ -193,3 +194,52 @@ export const chatsRelations = relations(chats, ({ one }) => ({
     references: [users.id],
   }),
 }));
+
+/* PUSH SUBSCRIPTIONS */
+export const pushSubscriptions = pgTable("push_subscriptions", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: uuid("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  endpoint: text("endpoint").notNull(),
+  p256dh: text("p256dh").notNull(),
+  auth: text("auth").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+});
+
+export const pushSubscriptionsRelations = relations(
+  pushSubscriptions,
+  ({ one }) => ({
+    user: one(users, {
+      fields: [pushSubscriptions.userId],
+      references: [users.id],
+    }),
+  }),
+);
+
+/* SENT NOTIFICATIONS - tracks which deadline notifications have been sent to prevent duplicates */
+export const sentNotifications = pgTable("sent_notifications", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: uuid("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  taskId: uuid("task_id")
+    .notNull()
+    .references(() => tasks.id, { onDelete: "cascade" }),
+  notificationType: text("notification_type").notNull(), // '24h', '6h', '1h'
+  sentAt: timestamp("sent_at", { withTimezone: true }).defaultNow(),
+});
+
+export const sentNotificationsRelations = relations(
+  sentNotifications,
+  ({ one }) => ({
+    user: one(users, {
+      fields: [sentNotifications.userId],
+      references: [users.id],
+    }),
+    task: one(tasks, {
+      fields: [sentNotifications.taskId],
+      references: [tasks.id],
+    }),
+  }),
+);

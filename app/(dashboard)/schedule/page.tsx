@@ -3,6 +3,8 @@ import { getUserCourses } from "@/actions/courses";
 import { ScheduleManager } from "@/components/schedule/schedule-manager";
 import type { Metadata } from "next";
 
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "Schedule | Student OS",
   description: "View and manage your course schedule and timetable",

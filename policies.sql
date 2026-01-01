@@ -160,3 +160,31 @@ CREATE POLICY "Users can update their own chats" ON public.chats
 
 CREATE POLICY "Users can delete their own chats" ON public.chats
   FOR DELETE USING (auth.uid() = user_id);
+
+-- Push Subscriptions Policies
+ALTER TABLE public.push_subscriptions ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can view their own push subscriptions" ON public.push_subscriptions
+  FOR SELECT USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can insert their own push subscriptions" ON public.push_subscriptions
+  FOR INSERT WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can update their own push subscriptions" ON public.push_subscriptions
+  FOR UPDATE USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can delete their own push subscriptions" ON public.push_subscriptions
+  FOR DELETE USING (auth.uid() = user_id);
+
+-- Sent Notifications Policies
+-- Note: Users can view/delete their own, but inserts are done server-side via service role
+ALTER TABLE public.sent_notifications ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can view their own sent notifications" ON public.sent_notifications
+  FOR SELECT USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can delete their own sent notifications" ON public.sent_notifications
+  FOR DELETE USING (auth.uid() = user_id);
+
+-- Service role can insert/update sent notifications (cron job uses service role)
+-- No INSERT/UPDATE policies for regular users since these are managed by the server

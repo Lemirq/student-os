@@ -32,7 +32,17 @@ export const SUPABASE_DB_URL =
 
 export const NODE_ENV = process.env.NODE_ENV ?? "development";
 
-// Validation helper - call this in server components/API routes
+// Cron job secret for secure API access
+export const CRON_SECRET = process.env.CRON_SECRET ?? "";
+
+/**
+ * Ensures required environment variables are present and throws if any are missing.
+ *
+ * Checks that NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY are set,
+ * and that SUPABASE_DB_URL is set when running on the server (no window object).
+ *
+ * @throws Error - If one or more required environment variables are missing; the error message lists the missing names.
+ */
 export function validateEnv() {
   const missing: string[] = [];
 

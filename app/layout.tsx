@@ -23,6 +23,11 @@ export const metadata: Metadata = {
   },
   description:
     "The all-in-one workspace for students. Track assignments, manage study debt, and visualize your semester progress.",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "Student OS",
+  },
   openGraph: {
     title: "Student OS - Your Academic Life, Organized",
     description:
