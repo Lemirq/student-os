@@ -37,8 +37,10 @@ const pushSubscriptionSchema = z.object({
 export type PushSubscriptionJSON = z.infer<typeof pushSubscriptionSchema>;
 
 /**
- * Subscribe a user to push notifications
- * Creates or updates a push subscription for the authenticated user
+ * Create or update the authenticated user's push subscription.
+ *
+ * @param subscription - Push subscription data containing `endpoint` and `keys` (`p256dh`, `auth`)
+ * @returns `success: true` if the subscription was created or updated, `false` otherwise. When `false`, `error` contains a short failure message.
  */
 export async function subscribeToPush(
   subscription: PushSubscriptionJSON,
@@ -97,8 +99,16 @@ export async function subscribeToPush(
 }
 
 /**
- * Send a push notification to all of a user's subscribed devices
- * Automatically handles cleanup of expired subscriptions
+ * Send a push notification to all subscriptions for a user and remove subscriptions that have expired.
+ *
+ * @param userId - ID of the user whose subscriptions will receive the notification
+ * @param payload - Notification payload
+ * @param payload.title - Notification title
+ * @param payload.body - Notification body
+ * @param payload.icon - Optional URL to an icon image
+ * @param payload.badge - Optional URL to a badge image
+ * @param payload.data - Optional arbitrary metadata delivered with the notification
+ * @returns An object with `success` indicating overall operation success, `sentCount` for notifications delivered, and `failedCount` for notifications that failed
  */
 export async function sendPushToUser(
   userId: string,
@@ -196,8 +206,10 @@ export async function sendPushToUser(
 }
 
 /**
- * Unsubscribe from push notifications
- * Removes a specific subscription endpoint for the authenticated user
+ * Remove a push subscription for the authenticated user.
+ *
+ * @param endpoint - The push subscription endpoint URL to delete
+ * @returns `{ success: true }` on success; `{ success: false, error }` on failure where `error` is the failure message
  */
 export async function unsubscribeFromPush(
   endpoint: string,
@@ -236,7 +248,10 @@ export async function unsubscribeFromPush(
 }
 
 /**
- * Get all push subscriptions for the authenticated user
+ * Retrieve all push subscriptions belonging to the authenticated user.
+ *
+ * @returns An object containing a `success` flag, a `subscriptions` array with entries `{ id, endpoint, createdAt }`, and an optional `error` message when `success` is `false`.
+ * @throws Throws an `Error` with message `"Unauthorized"` when no authenticated user is available.
  */
 export async function getUserPushSubscriptions(): Promise<{
   success: boolean;

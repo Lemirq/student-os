@@ -12,6 +12,14 @@ import { createClient } from "@/utils/supabase/server";
 import { PushNotificationSetup } from "@/components/notifications/push-notification-setup";
 import { IOSInstallPrompt } from "@/components/notifications/ios-install-prompt";
 
+/**
+ * Renders the dashboard layout with server-side hydrated query state and auxiliary setup components.
+ *
+ * Prefetches sidebar data on the server, reads the "sidebar_state" cookie to determine the layout's default open state, and checks the current authenticated user's email to enable AI features for a specific account. Wraps the client layout in a hydration boundary and renders push-notification and iOS install prompt components.
+ *
+ * @param children - The content to render inside the dashboard layout
+ * @returns A React element that wraps the dashboard layout client with hydrated server state, push-notification setup, and an iOS install prompt
+ */
 export default async function DashboardLayout({
   children,
 }: {

@@ -4,7 +4,10 @@ import { useEffect } from "react";
 import { subscribeToPush } from "@/actions/notifications";
 
 /**
- * Converts a base64 encoded VAPID public key to a Uint8Array for push subscription
+ * Convert a URL-safe base64-encoded VAPID public key into a Uint8Array suitable for Web Push subscription.
+ *
+ * @param base64String - The URL-safe base64-encoded VAPID public key (may use '-' and '_' padding).
+ * @returns The decoded key as a Uint8Array
  */
 function urlBase64ToUint8Array(base64String: string): Uint8Array {
   const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
