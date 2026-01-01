@@ -40,6 +40,15 @@ export const NotificationToggle = (): React.ReactElement => {
       setIsSupported(true);
       console.log("NotificationToggle: Push notifications supported");
       console.log("NotificationToggle: User agent:", navigator.userAgent);
+
+      // Detect problematic browsers
+      const isHelium = /Helium/i.test(navigator.userAgent);
+      if (isHelium) {
+        console.warn(
+          "NotificationToggle: ⚠️ Helium browser detected - push notifications may not work",
+        );
+      }
+
       checkSubscription();
     } else {
       console.log("NotificationToggle: Push notifications NOT supported");
@@ -181,19 +190,33 @@ export const NotificationToggle = (): React.ReactElement => {
 
       const timeoutPromise = new Promise<PushSubscription>((_, reject) => {
         setTimeout(() => {
-          console.error("NotificationToggle: ⏰ 30-second timeout reached!");
+          console.error("NotificationToggle: ⏰ 15-second timeout reached!");
           console.error(
             "NotificationToggle: pushManager.subscribe() never resolved or rejected",
           );
           console.error(
             "NotificationToggle: This indicates the browser's push service is not responding",
           );
-          reject(
-            new Error(
-              "Subscription timed out after 30 seconds. This usually indicates a network issue or invalid VAPID key.",
-            ),
-          );
-        }, 30000);
+
+          // Check if it's a known problematic browser
+          const isHelium = /Helium/i.test(navigator.userAgent);
+          if (isHelium) {
+            console.error(
+              "NotificationToggle: Helium browser does not support web push notifications",
+            );
+            reject(
+              new Error(
+                "Push notifications are not supported in Helium browser. Please use Chrome, Safari, or Firefox.",
+              ),
+            );
+          } else {
+            reject(
+              new Error(
+                "Subscription timed out after 15 seconds. This usually indicates a network issue or browser incompatibility.",
+              ),
+            );
+          }
+        }, 15000);
       });
 
       // Add periodic progress updates
@@ -312,42 +335,55 @@ export const NotificationToggle = (): React.ReactElement => {
     );
   }
 
+  // Check for known problematic browsers
+  const isHelium =
+    typeof navigator !== "undefined" && /Helium/i.test(navigator.userAgent);
+
   return (
-    <div className="flex items-center justify-between">
-      <div className="space-y-0.5">
-        <div className="text-sm font-medium">Push Notifications</div>
-        <div className="text-xs text-muted-foreground">
-          Get notified about upcoming deadlines
+    <div className="space-y-4">
+      {isHelium && (
+        <div className="text-xs text-amber-600 dark:text-amber-500">
+          ⚠️ Helium browser has limited push notification support. For best
+          experience, use Chrome, Safari, or Firefox.
         </div>
-      </div>
-      {subscription ? (
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={unsubscribeFromPushNotifications}
-          disabled={isLoading}
-        >
-          {isLoading ? (
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-          ) : (
-            <BellOff className="mr-2 h-4 w-4" />
-          )}
-          Disable
-        </Button>
-      ) : (
-        <Button
-          onClick={subscribeToPushNotifications}
-          disabled={isLoading}
-          size="sm"
-        >
-          {isLoading ? (
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-          ) : (
-            <Bell className="mr-2 h-4 w-4" />
-          )}
-          Enable
-        </Button>
       )}
+
+      <div className="flex items-center justify-between">
+        <div className="space-y-0.5">
+          <div className="text-sm font-medium">Push Notifications</div>
+          <div className="text-xs text-muted-foreground">
+            Get notified about upcoming deadlines
+          </div>
+        </div>
+        {subscription ? (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={unsubscribeFromPushNotifications}
+            disabled={isLoading}
+          >
+            {isLoading ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <BellOff className="mr-2 h-4 w-4" />
+            )}
+            Disable
+          </Button>
+        ) : (
+          <Button
+            onClick={subscribeToPushNotifications}
+            disabled={isLoading}
+            size="sm"
+          >
+            {isLoading ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <Bell className="mr-2 h-4 w-4" />
+            )}
+            Enable
+          </Button>
+        )}
+      </div>
     </div>
   );
 };
