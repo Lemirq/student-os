@@ -1,0 +1,105 @@
+"use client";
+
+import { useEffect } from "react";
+import { subscribeToPush } from "@/actions/notifications";
+
+/**
+ * Converts a base64 encoded VAPID public key to a Uint8Array for push subscription
+ */
+function urlBase64ToUint8Array(base64String: string): Uint8Array {
+  const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding)
+    .replace(/\-/g, "+")
+    .replace(/_/g, "/");
+
+  const rawData = window.atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+
+  for (let i = 0; i < rawData.length; ++i) {
+    outputArray[i] = rawData.charCodeAt(i);
+  }
+  return outputArray;
+}
+
+/**
+ * Invisible component that automatically requests notification permission,
+ * registers service worker, and subscribes to push notifications
+ */
+export const PushNotificationSetup = (): null => {
+  useEffect(() => {
+    const setupPushNotifications = async () => {
+      // Check if notifications are supported
+      if (typeof window === "undefined" || !("Notification" in window)) {
+        console.log("Notifications not supported in this browser");
+        return;
+      }
+
+      console.log("Current notification permission:", Notification.permission);
+
+      // Request permission if not already determined
+      if (Notification.permission === "default") {
+        console.log("Requesting notification permission...");
+        const permission = await Notification.requestPermission();
+        console.log("Permission result:", permission);
+
+        if (permission !== "granted") {
+          console.log("Notification permission denied");
+          return;
+        }
+      } else if (Notification.permission !== "granted") {
+        console.log("Notification permission was previously denied");
+        return;
+      }
+
+      try {
+        // Register service worker
+        if ("serviceWorker" in navigator) {
+          console.log("Registering service worker...");
+          const registration = await navigator.serviceWorker.register(
+            "/sw.js",
+            {
+              scope: "/",
+              updateViaCache: "none",
+            },
+          );
+
+          console.log("✅ Service Worker registered successfully");
+
+          // Wait for service worker to be ready
+          const swRegistration = await navigator.serviceWorker.ready;
+          console.log("Service Worker is ready");
+
+          // Get VAPID public key from environment
+          const vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+
+          if (!vapidPublicKey) {
+            console.error("❌ VAPID public key not configured");
+            return;
+          }
+
+          console.log("VAPID public key found, subscribing to push...");
+
+          // Subscribe to push notifications
+          const applicationServerKey = urlBase64ToUint8Array(vapidPublicKey);
+          const subscription = await swRegistration.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: applicationServerKey as BufferSource,
+          });
+
+          console.log("Push subscription created:", subscription.endpoint);
+
+          // Send subscription to server
+          await subscribeToPush(JSON.parse(JSON.stringify(subscription)));
+
+          console.log("✅ Push notifications registered successfully");
+        }
+      } catch (error) {
+        console.error("❌ Error setting up push notifications:", error);
+      }
+    };
+
+    setupPushNotifications();
+  }, []);
+
+  return null;
+};
