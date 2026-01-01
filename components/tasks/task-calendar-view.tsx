@@ -7,6 +7,7 @@ import {
   Views,
   ToolbarProps,
 } from "react-big-calendar";
+import withDragAndDrop from "react-big-calendar/lib/addons/dragAndDrop";
 import { format } from "date-fns/format";
 import { parse } from "date-fns/parse";
 import { startOfWeek } from "date-fns/startOfWeek";
@@ -14,8 +15,9 @@ import { getDay } from "date-fns/getDay";
 import { enUS } from "date-fns/locale/en-US";
 import { TaskWithDetails } from "./columns";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import "react-big-calendar/lib/css/react-big-calendar.css";
+import "react-big-calendar/lib/addons/dragAndDrop/styles.css";
 import { useTheme } from "next-themes";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight } from "lucide-react";
@@ -26,6 +28,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { updateTask } from "@/actions/tasks";
+import { toast } from "sonner";
 
 // Setup the localizer for react-big-calendar
 const locales = {
@@ -39,6 +43,9 @@ const localizer = dateFnsLocalizer({
   getDay,
   locales,
 });
+
+// Create the drag-and-drop calendar component
+const DnDCalendar = withDragAndDrop<CalendarEvent>(Calendar);
 
 interface TaskCalendarViewProps {
   tasks: TaskWithDetails[];
@@ -61,26 +68,79 @@ export function TaskCalendarView({ tasks, context }: TaskCalendarViewProps) {
   const { theme } = useTheme();
   const [view, setView] = useState<View>(Views.MONTH);
   const [date, setDate] = useState(new Date());
+  const [optimisticUpdates, setOptimisticUpdates] = useState<
+    Record<string, Date>
+  >({});
 
-  // Map tasks to calendar events
-  const events = tasks
-    .filter((task) => task.dueDate) // Only tasks with due dates
-    .map((task) => {
-      const dueDate = new Date(task.dueDate!);
-      return {
-        id: task.id,
-        title: task.title,
-        code: task.course?.code,
-        start: dueDate,
-        end: dueDate,
-        allDay: true,
-        resource: task,
-        color: task.course?.color,
-      };
-    });
+  // Map tasks to calendar events with optimistic updates applied
+  const events = useMemo(
+    () =>
+      tasks
+        .filter((task) => task.dueDate) // Only tasks with due dates
+        .map((task) => {
+          // Use optimistic update if available, otherwise use original date
+          const dueDate = optimisticUpdates[task.id]
+            ? optimisticUpdates[task.id]
+            : new Date(task.dueDate!);
+          return {
+            id: task.id,
+            title: task.title,
+            code: task.course?.code,
+            start: dueDate,
+            end: dueDate,
+            allDay: true,
+            resource: task,
+            color: task.course?.color,
+          };
+        }),
+    [tasks, optimisticUpdates],
+  );
 
   const handleSelectEvent = (event: CalendarEvent) => {
     router.push(`/tasks/${event.id}`);
+  };
+
+  const handleEventDrop = async ({
+    event,
+    start,
+    end,
+  }: {
+    event: CalendarEvent;
+    start: string | Date;
+    end: string | Date;
+  }) => {
+    // Convert start to Date if it's a string
+    const newDueDate = typeof start === "string" ? new Date(start) : start;
+    const oldDueDate = event.start;
+
+    // Optimistically update the UI
+    setOptimisticUpdates((prev) => ({
+      ...prev,
+      [event.id]: newDueDate,
+    }));
+
+    try {
+      // Update the task with the new due date
+      await updateTask(event.id, { dueDate: newDueDate });
+      toast.success("Task due date updated successfully");
+
+      // Clear optimistic update after successful server update
+      setOptimisticUpdates((prev) => {
+        const newUpdates = { ...prev };
+        delete newUpdates[event.id];
+        return newUpdates;
+      });
+    } catch (error) {
+      console.error("Failed to update task:", error);
+      toast.error("Failed to update task due date");
+
+      // Rollback optimistic update on error
+      setOptimisticUpdates((prev) => {
+        const newUpdates = { ...prev };
+        delete newUpdates[event.id];
+        return newUpdates;
+      });
+    }
   };
 
   const eventPropGetter = (event: CalendarEvent) => {
@@ -163,7 +223,7 @@ export function TaskCalendarView({ tasks, context }: TaskCalendarViewProps) {
 
   return (
     <div className="h-[calc(100vh-250px)] min-h-[500px] bg-background rounded-lg border p-4 shadow-sm">
-      <Calendar
+      <DnDCalendar
         localizer={localizer}
         events={events}
         startAccessor="start"
@@ -174,6 +234,7 @@ export function TaskCalendarView({ tasks, context }: TaskCalendarViewProps) {
         date={date}
         onNavigate={setDate}
         onSelectEvent={handleSelectEvent}
+        onEventDrop={handleEventDrop}
         eventPropGetter={eventPropGetter}
         components={{
           toolbar: CustomToolbar,

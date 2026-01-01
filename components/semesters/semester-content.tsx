@@ -18,6 +18,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 
 interface SemesterContentProps {
   semesterId: string;
@@ -33,6 +34,7 @@ export function SemesterContent({ semesterId }: SemesterContentProps) {
   if (semesterLoading || metricsLoading || !semester || !metrics) {
     return <div>Loading...</div>;
   }
+  const numCols = Math.min(Math.max(semester.courses.length, 3), 5);
   // Date filter state for heatmap <-> table integration
   const [dateFilter, setDateFilter] = useState<{
     from: Date | undefined;
@@ -72,7 +74,12 @@ export function SemesterContent({ semesterId }: SemesterContentProps) {
       {/* Course Grid */}
       <div className="space-y-2">
         <h2 className="text-xl font-semibold tracking-tight">Courses</h2>
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <div
+          className={cn(`grid gap-2 grid-cols-1`, {
+            "md:grid-cols-4": numCols === 4,
+            "xl:grid-cols-5": numCols === 5,
+          })}
+        >
           {semester.courses.map((course) => (
             <Link key={course.id} href={`/courses/${course.id}`}>
               <Card className="hover:bg-muted/50 transition-colors cursor-pointer h-full">
