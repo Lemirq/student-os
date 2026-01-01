@@ -136,49 +136,51 @@ export const PushNotificationSetup = (): null => {
             );
             console.log("Attempting to subscribe to push manager...");
 
-            // Remove timeout - let browser take as long as it needs
-            let subscription: PushSubscription;
-            try {
-              subscription = await swRegistration.pushManager.subscribe({
+            // Don't await - let it complete in background
+            swRegistration.pushManager
+              .subscribe({
                 userVisibleOnly: true,
                 applicationServerKey: applicationServerKey as BufferSource,
+              })
+              .then(async (subscription) => {
+                console.log(
+                  "Push subscription created:",
+                  subscription.endpoint,
+                );
+
+                // Send subscription to server
+                const result = await subscribeToPush(
+                  JSON.parse(JSON.stringify(subscription)),
+                );
+
+                if (!result.success) {
+                  console.error(
+                    "❌ Failed to save subscription to server:",
+                    result.error,
+                  );
+                  return;
+                }
+
+                console.log("✅ Push notifications registered successfully");
+              })
+              .catch((subscribeError) => {
+                console.error(
+                  "❌ Failed to subscribe to push manager:",
+                  subscribeError,
+                );
+
+                // Log more details about the error
+                if (subscribeError instanceof Error) {
+                  console.error("Error name:", subscribeError.name);
+                  console.error("Error message:", subscribeError.message);
+                }
               });
-              console.log("Push subscription created:", subscription.endpoint);
-            } catch (subscribeError) {
-              console.error(
-                "❌ Failed to subscribe to push manager:",
-                subscribeError,
-              );
 
-              // Log more details about the error
-              if (subscribeError instanceof Error) {
-                console.error("Error name:", subscribeError.name);
-                console.error("Error message:", subscribeError.message);
-                console.error("Error stack:", subscribeError.stack);
-              }
-
-              throw subscribeError;
-            }
-
-            console.log("Push subscription created:", subscription.endpoint);
-
-            // Send subscription to server
-            const result = await subscribeToPush(
-              JSON.parse(JSON.stringify(subscription)),
-            );
-
-            if (!result.success) {
-              console.error(
-                "❌ Failed to save subscription to server:",
-                result.error,
-              );
-              return;
-            }
-
-            console.log("✅ Push notifications registered successfully");
+            // Return immediately - subscription continues in background
+            console.log("Push subscription initiated in background...");
+            return;
           } catch (subError) {
-            console.error("❌ Error creating push subscription:", subError);
-            throw subError;
+            console.error("❌ Error in push subscription setup:", subError);
           }
         }
       } catch (error) {
