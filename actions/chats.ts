@@ -85,6 +85,9 @@ export async function saveChat({
       messages: messages as any,
     });
   }
+
+  // Invalidate cache for chats table
+  await db.$cache.invalidate({ tables: [chats] });
 }
 
 export async function getChats() {
@@ -116,6 +119,9 @@ export async function deleteChat(id: string) {
   await db
     .delete(chats)
     .where(and(eq(chats.id, id), eq(chats.userId, user.id)));
+
+  // Invalidate cache for chats table
+  await db.$cache.invalidate({ tables: [chats] });
 }
 
 export async function getChat(id: string) {

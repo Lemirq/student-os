@@ -56,6 +56,9 @@ export async function createTask(data: z.infer<typeof taskSchema>) {
         : null,
   });
 
+  // Invalidate cache for tasks table
+  await db.$cache.invalidate({ tables: [tasks] });
+
   revalidatePath(`/courses/${validated.courseId}`);
 }
 
@@ -114,6 +117,9 @@ export async function updateTask(id: string, data: Partial<Task>) {
 
     await db.update(tasks).set(updateData).where(eq(tasks.id, id));
 
+    // Invalidate cache for tasks table
+    await db.$cache.invalidate({ tables: [tasks] });
+
     revalidatePath("/dashboard");
     if (existingTask.courseId) {
       revalidatePath(`/courses/${existingTask.courseId}`);
@@ -146,6 +152,9 @@ export async function deleteTask(id: string) {
     if (!existingTask) throw new Error("Task not found or unauthorized");
 
     await db.delete(tasks).where(eq(tasks.id, id));
+
+    // Invalidate cache for tasks table
+    await db.$cache.invalidate({ tables: [tasks] });
 
     revalidatePath("/dashboard");
     if (existingTask.courseId) {

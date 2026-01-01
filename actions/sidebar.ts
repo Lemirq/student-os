@@ -2,7 +2,7 @@
 
 import { db } from "@/drizzle";
 import { semesters, courses } from "@/schema";
-import { desc, eq } from "drizzle-orm";
+import { desc, eq, sql } from "drizzle-orm";
 import { Semester, Course } from "@/types";
 import { createClient } from "@/utils/supabase/server";
 
@@ -27,7 +27,17 @@ export async function getSidebarData(): Promise<SidebarData> {
     .orderBy(desc(semesters.startDate));
 
   const allCourses = await db
-    .select()
+    .select({
+      id: courses.id,
+      userId: courses.userId,
+      semesterId: courses.semesterId,
+      code: courses.code,
+      name: courses.name,
+      color: courses.color,
+      goalGrade: courses.goalGrade,
+      createdAt: courses.createdAt,
+      syllabus: sql<string | null>`NULL`.as("syllabus"), // Exclude syllabus data
+    })
     .from(courses)
     .where(eq(courses.userId, user.id));
 

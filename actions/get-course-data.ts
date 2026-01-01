@@ -2,7 +2,7 @@
 
 import { db } from "@/drizzle";
 import { courses, tasks, gradeWeights } from "@/schema";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { Course, Task, GradeWeight } from "@/types";
 import { createClient } from "@/utils/supabase/server";
 
@@ -18,7 +18,17 @@ export async function getCourseData(
   courseId: string,
 ): Promise<CourseData | null> {
   const courseResult = await db
-    .select()
+    .select({
+      id: courses.id,
+      userId: courses.userId,
+      semesterId: courses.semesterId,
+      code: courses.code,
+      name: courses.name,
+      color: courses.color,
+      goalGrade: courses.goalGrade,
+      createdAt: courses.createdAt,
+      syllabus: sql<string | null>`NULL`.as("syllabus"), // Exclude syllabus data
+    })
     .from(courses)
     .where(eq(courses.id, courseId));
 
@@ -67,5 +77,18 @@ export async function getAllCourses(): Promise<Course[]> {
 
   if (!user) return [];
 
-  return db.select().from(courses).where(eq(courses.userId, user.id));
+  return db
+    .select({
+      id: courses.id,
+      userId: courses.userId,
+      semesterId: courses.semesterId,
+      code: courses.code,
+      name: courses.name,
+      color: courses.color,
+      goalGrade: courses.goalGrade,
+      createdAt: courses.createdAt,
+      syllabus: sql<string | null>`NULL`.as("syllabus"), // Exclude syllabus data
+    })
+    .from(courses)
+    .where(eq(courses.userId, user.id));
 }

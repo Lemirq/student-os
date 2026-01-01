@@ -87,7 +87,9 @@ const DueDateCell = ({ task }: { task: Task }) => {
   const [open, setOpen] = React.useState(false);
 
   const date = task.dueDate ? new Date(task.dueDate) : null;
-  const isOverdue = date && date < new Date() && !isToday(date);
+  // not submitted and is overdue
+  const isOverdue =
+    date && date < new Date() && !isToday(date) && task.status !== "Done";
   const isDueToday = date && isToday(date);
 
   const handleSelect = (selectedDate: Date | undefined) => {

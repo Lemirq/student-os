@@ -41,3 +41,4 @@ yarn-error.log*
 next-env.d.ts
 private.md
 correct-sidebar-implementation/
+opencode.json

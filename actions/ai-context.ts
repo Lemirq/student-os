@@ -2,7 +2,7 @@
 
 import { db } from "@/drizzle";
 import { courses, gradeWeights } from "@/schema";
-import { eq, inArray } from "drizzle-orm";
+import { eq, inArray, sql } from "drizzle-orm";
 import { createClient } from "@/utils/supabase/server";
 
 export async function getAIContext() {
@@ -14,7 +14,17 @@ export async function getAIContext() {
   if (!user) throw new Error("Unauthorized");
 
   const userCourses = await db
-    .select()
+    .select({
+      id: courses.id,
+      userId: courses.userId,
+      semesterId: courses.semesterId,
+      code: courses.code,
+      name: courses.name,
+      color: courses.color,
+      goalGrade: courses.goalGrade,
+      createdAt: courses.createdAt,
+      syllabus: sql<string | null>`NULL`.as("syllabus"), // Exclude syllabus data
+    })
     .from(courses)
     .where(eq(courses.userId, user.id));
 

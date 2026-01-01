@@ -67,9 +67,20 @@ export async function getDashboardMetrics(
     throw new Error("Semester not found");
   }
 
-  // 2. Fetch Courses with Grade Weights and Tasks
+  // 2. Fetch Courses with Grade Weights and Tasks (exclude syllabus)
   const coursesData = await db.query.courses.findMany({
     where: and(eq(courses.semesterId, semesterId), eq(courses.userId, user.id)),
+    columns: {
+      id: true,
+      userId: true,
+      semesterId: true,
+      code: true,
+      name: true,
+      color: true,
+      goalGrade: true,
+      createdAt: true,
+      syllabus: false, // Explicitly exclude syllabus
+    },
     with: {
       gradeWeights: true,
       tasks: true,

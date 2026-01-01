@@ -7,7 +7,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { createClient } from "@/utils/supabase/server";
-import { eq, and } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
 import { Course, Semester } from "@/types";
 
 async function ensureUserExists(userId: string, email: string) {
@@ -57,6 +57,9 @@ export async function createSemester(data: z.infer<typeof semesterSchema>) {
     })
     .returning();
 
+  // Invalidate cache for semesters table
+  await db.$cache.invalidate({ tables: [semesters] });
+
   revalidatePath("/");
   return transformId(insertedSemester.id);
 }
@@ -103,6 +106,9 @@ export async function createCourse(data: z.infer<typeof courseSchema>) {
       throw new Error("Failed to insert course - no return value");
     }
 
+    // Invalidate cache for courses table
+    await db.$cache.invalidate({ tables: [courses] });
+
     revalidatePath("/");
     return transformId(insertedCourse.id);
   } catch (error) {
@@ -139,6 +145,9 @@ export async function createGradeWeight(
     name: validated.name,
     weightPercent: String(validated.weightPercent),
   });
+
+  // Invalidate cache for gradeWeights table
+  await db.$cache.invalidate({ tables: [gradeWeights] });
 
   revalidatePath(`/courses/${validated.courseId}`);
 }
@@ -208,6 +217,9 @@ export async function updateGradeWeight(
     .returning();
 
   if (result.length > 0) {
+    // Invalidate cache for gradeWeights table
+    await db.$cache.invalidate({ tables: [gradeWeights] });
+
     revalidatePath(`/courses/${result[0].courseId}`);
   }
 
@@ -238,6 +250,9 @@ export async function deleteGradeWeight(gradeWeightId: string) {
 
   await db.delete(gradeWeights).where(eq(gradeWeights.id, gradeWeightId));
 
+  // Invalidate cache for gradeWeights table
+  await db.$cache.invalidate({ tables: [gradeWeights] });
+
   revalidatePath(`/courses/${gradeWeight.courseId}`);
 }
 
@@ -247,7 +262,17 @@ export async function getUserCourses() {
   if (!user.user) return [];
 
   return await db
-    .select()
+    .select({
+      id: courses.id,
+      userId: courses.userId,
+      semesterId: courses.semesterId,
+      code: courses.code,
+      name: courses.name,
+      color: courses.color,
+      goalGrade: courses.goalGrade,
+      createdAt: courses.createdAt,
+      syllabus: sql<string | null>`NULL`.as("syllabus"), // Exclude syllabus data
+    })
     .from(courses)
     .where(eq(courses.userId, user.user.id));
 }
@@ -298,6 +323,9 @@ export async function updateCourse(
     .where(and(eq(courses.id, courseId), eq(courses.userId, user.user.id)))
     .returning();
 
+  // Invalidate cache for courses table
+  await db.$cache.invalidate({ tables: [courses] });
+
   revalidatePath(`/courses/${courseId}`);
   return result[0];
 }
@@ -319,6 +347,10 @@ export async function deleteCourse(courseId: string) {
   }
 
   await db.delete(courses).where(eq(courses.id, courseId));
+
+  // Invalidate cache for courses table
+  await db.$cache.invalidate({ tables: [courses] });
+
   if (course.semester) {
     redirect(`/semesters/${course.semester.id}`);
   } else {

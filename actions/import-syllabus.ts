@@ -199,6 +199,9 @@ export async function importSyllabusTasks(
     insertedCount = tasksToInsert.length;
   }
 
+  // Invalidate cache for all modified tables
+  await db.$cache.invalidate({ tables: [courses, gradeWeights, tasks] });
+
   // Return detailed results for toast notification
   return {
     success: insertedCount > 0,

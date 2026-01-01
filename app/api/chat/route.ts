@@ -19,7 +19,7 @@ import {
 
 export type StudentOSToolCallsMessage = UIMessage;
 import { tasks, courses, gradeWeights } from "@/schema";
-import { eq, and, ilike, isNull, gte, lte, inArray } from "drizzle-orm";
+import { eq, and, ilike, isNull, gte, lte, inArray, sql } from "drizzle-orm";
 import { createClient } from "@/utils/supabase/server";
 import { openRouterApiKey, tavilyApiKey } from "@/lib/env";
 import { PageContext } from "@/actions/page-context";
@@ -60,7 +60,17 @@ export async function POST(req: Request) {
   } else {
     // Fallback: fetch from DB
     userCourses = await db
-      .select()
+      .select({
+        id: courses.id,
+        userId: courses.userId,
+        semesterId: courses.semesterId,
+        code: courses.code,
+        name: courses.name,
+        color: courses.color,
+        goalGrade: courses.goalGrade,
+        createdAt: courses.createdAt,
+        syllabus: sql<string | null>`NULL`.as("syllabus"), // Exclude syllabus data
+      })
       .from(courses)
       .where(eq(courses.userId, user.id));
 
@@ -449,7 +459,17 @@ Extract tasks from: "${request}"
             let courseId = null;
             if (t.course_code) {
               const course = await db
-                .select()
+                .select({
+                  id: courses.id,
+                  userId: courses.userId,
+                  semesterId: courses.semesterId,
+                  code: courses.code,
+                  name: courses.name,
+                  color: courses.color,
+                  goalGrade: courses.goalGrade,
+                  createdAt: courses.createdAt,
+                  syllabus: sql<string | null>`NULL`.as("syllabus"), // Exclude syllabus data
+                })
                 .from(courses)
                 .where(
                   and(
@@ -628,7 +648,17 @@ Extract tasks from: "${request}"
         }) => {
           // 1. Find the course using fuzzy search
           const foundCourses = await db
-            .select()
+            .select({
+              id: courses.id,
+              userId: courses.userId,
+              semesterId: courses.semesterId,
+              code: courses.code,
+              name: courses.name,
+              color: courses.color,
+              goalGrade: courses.goalGrade,
+              createdAt: courses.createdAt,
+              syllabus: sql<string | null>`NULL`.as("syllabus"), // Exclude syllabus data
+            })
             .from(courses)
             .where(
               and(

@@ -15,7 +15,7 @@ import {
   Link2,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
-import { useChat } from "@ai-sdk/react";
+import { useChat } from "@ai-sdk-tools/store";
 import { lastAssistantMessageIsCompleteWithToolCalls, UIMessagePart } from "ai";
 import { StudentOSTools, StudentOSDataTypes } from "@/types";
 import { getPageContext, PageContext } from "@/actions/page-context";
@@ -102,15 +102,6 @@ export function AICopilotSidebar({ aiEnabled }: { aiEnabled: boolean }) {
   } = useChat({
     id: chatId,
     sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithToolCalls,
-    onError: (error) => {
-      console.error("Chat error:", error);
-    },
-    onFinish: (message) => {
-      console.log("Chat finished:", message);
-    },
-    onToolCall: (toolCall) => {
-      console.log("Tool call:", toolCall);
-    },
   });
 
   // Apply pending messages after chatId changes

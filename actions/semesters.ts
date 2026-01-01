@@ -2,7 +2,7 @@
 
 import { db } from "@/drizzle";
 import { semesters, courses, tasks, gradeWeights } from "@/schema";
-import { eq, inArray, and } from "drizzle-orm";
+import { eq, inArray, and, sql } from "drizzle-orm";
 import { Semester, Course, Task, GradeWeight } from "@/types";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/utils/supabase/server";
@@ -40,7 +40,17 @@ export async function getSemesterData(
   const semester = semesterResult[0];
 
   const coursesResult = await db
-    .select()
+    .select({
+      id: courses.id,
+      userId: courses.userId,
+      semesterId: courses.semesterId,
+      code: courses.code,
+      name: courses.name,
+      color: courses.color,
+      goalGrade: courses.goalGrade,
+      createdAt: courses.createdAt,
+      syllabus: sql<string | null>`NULL`.as("syllabus"), // Exclude syllabus data
+    })
     .from(courses)
     .where(eq(courses.semesterId, semesterId));
 
@@ -117,6 +127,9 @@ export async function updateSemester(
     .set(updateData)
     .where(and(eq(semesters.id, semesterId), eq(semesters.userId, user.id)));
 
+  // Invalidate cache for semesters table
+  await db.$cache.invalidate({ tables: [semesters] });
+
   revalidatePath(`/semesters/${semesterId}`);
 }
 
@@ -133,5 +146,9 @@ export async function deleteSemester(semesterId: string): Promise<void> {
   await db
     .delete(semesters)
     .where(and(eq(semesters.id, semesterId), eq(semesters.userId, user.id)));
+
+  // Invalidate cache for semesters table
+  await db.$cache.invalidate({ tables: [semesters] });
+
   redirect("/dashboard");
 }
