@@ -216,3 +216,30 @@ export const pushSubscriptionsRelations = relations(
     }),
   }),
 );
+
+/* SENT NOTIFICATIONS - tracks which deadline notifications have been sent to prevent duplicates */
+export const sentNotifications = pgTable("sent_notifications", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: uuid("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  taskId: uuid("task_id")
+    .notNull()
+    .references(() => tasks.id, { onDelete: "cascade" }),
+  notificationType: text("notification_type").notNull(), // '24h', '6h', '1h'
+  sentAt: timestamp("sent_at", { withTimezone: true }).defaultNow(),
+});
+
+export const sentNotificationsRelations = relations(
+  sentNotifications,
+  ({ one }) => ({
+    user: one(users, {
+      fields: [sentNotifications.userId],
+      references: [users.id],
+    }),
+    task: one(tasks, {
+      fields: [sentNotifications.taskId],
+      references: [tasks.id],
+    }),
+  }),
+);
