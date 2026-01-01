@@ -27,6 +27,8 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
 /**
  * Invisible component that automatically requests notification permission,
  * registers service worker, and subscribes to push notifications
+ *
+ * Note: On iOS, notifications only work when the app is installed as a PWA
  */
 export const PushNotificationSetup = (): null => {
   useEffect(() => {
@@ -34,6 +36,22 @@ export const PushNotificationSetup = (): null => {
       // Check if notifications are supported
       if (typeof window === "undefined" || !("Notification" in window)) {
         console.log("Notifications not supported in this browser");
+        return;
+      }
+
+      // Check if running as installed PWA (required for iOS)
+      const isStandalone =
+        window.matchMedia("(display-mode: standalone)").matches ||
+        (window.navigator as any).standalone === true;
+
+      const isIOS = /iphone|ipad|ipod/.test(
+        window.navigator.userAgent.toLowerCase(),
+      );
+
+      if (isIOS && !isStandalone) {
+        console.log(
+          "iOS device detected - notifications require PWA installation. Please add to home screen first.",
+        );
         return;
       }
 

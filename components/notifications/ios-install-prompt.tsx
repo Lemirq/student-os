@@ -76,12 +76,12 @@ export const IOSInstallPrompt = (): React.ReactElement | null => {
         <CardHeader className="pb-3">
           <CardTitle className="text-lg">Install Student OS</CardTitle>
           <CardDescription>
-            Add to your home screen for the best experience
+            Get notifications and the best experience by installing the app
           </CardDescription>
         </CardHeader>
 
         <CardContent className="space-y-2 text-sm">
-          <p>To install this app:</p>
+          <p className="font-medium">To enable notifications and install:</p>
           <ol className="list-decimal list-inside space-y-1 ml-2">
             <li>
               Tap the Share button{" "}
@@ -95,6 +95,7 @@ export const IOSInstallPrompt = (): React.ReactElement | null => {
                 ➕
               </span>
             </li>
+            <li>Open from your home screen icon</li>
           </ol>
         </CardContent>
       </Card>
