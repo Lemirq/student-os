@@ -6,6 +6,7 @@ import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
+import { NotificationToggle } from "@/components/notifications/notification-toggle";
 
 export default async function SettingsPage() {
   const supabase = await createClient();
@@ -76,6 +77,19 @@ export default async function SettingsPage() {
           </p>
           <Separator className="mb-4" />
           <AppearanceCard />
+        </div>
+
+        <div>
+          <h3 className="text-lg font-medium">Notifications</h3>
+          <p className="text-sm text-muted-foreground mb-4">
+            Manage push notification preferences for deadline reminders.
+          </p>
+          <Separator className="mb-4" />
+          <Card>
+            <CardContent className="pt-6">
+              <NotificationToggle />
+            </CardContent>
+          </Card>
         </div>
       </div>
     </div>
