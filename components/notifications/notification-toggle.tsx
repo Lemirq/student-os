@@ -39,9 +39,15 @@ export const NotificationToggle = (): React.ReactElement => {
     ) {
       setIsSupported(true);
       console.log("NotificationToggle: Push notifications supported");
+      console.log("NotificationToggle: User agent:", navigator.userAgent);
       checkSubscription();
     } else {
       console.log("NotificationToggle: Push notifications NOT supported");
+      console.log(
+        "NotificationToggle: serviceWorker:",
+        "serviceWorker" in navigator,
+      );
+      console.log("NotificationToggle: PushManager:", "PushManager" in window);
     }
   }, []);
 
@@ -146,10 +152,21 @@ export const NotificationToggle = (): React.ReactElement => {
           console.log(
             "NotificationToggle: 🎉 pushManager.subscribe() resolved!",
           );
-          console.log(
-            "NotificationToggle: Subscription endpoint:",
-            sub.endpoint,
-          );
+          console.log("NotificationToggle: Subscription object:", sub);
+          console.log("NotificationToggle: Subscription type:", typeof sub);
+          console.log("NotificationToggle: Has endpoint:", !!sub?.endpoint);
+
+          if (sub?.endpoint) {
+            console.log(
+              "NotificationToggle: Subscription endpoint:",
+              sub.endpoint,
+            );
+          } else {
+            console.error(
+              "NotificationToggle: ⚠️ Subscription resolved but has no endpoint!",
+            );
+          }
+
           return sub;
         })
         .catch((error) => {
