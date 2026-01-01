@@ -14,8 +14,9 @@ export type DeadlineCheckStats = {
 };
 
 /**
- * Checks for tasks due tomorrow and sends push notifications to users
- * @returns Statistics about the notification process
+ * Finds incomplete tasks due tomorrow and sends push notifications to their owners.
+ *
+ * @returns An object with the total number of tasks checked (`totalTasks`), the number of notifications successfully sent (`sent`), and the number of failed notifications (`failed`).
  */
 export async function checkAndNotifyDeadlines(): Promise<DeadlineCheckStats> {
   const stats: DeadlineCheckStats = {

@@ -5,9 +5,16 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 /**
- * Cron job endpoint for checking and notifying about upcoming deadlines
- * Called daily at 9 AM UTC by Vercel Cron
- * Requires CRON_SECRET environment variable for authorization
+ * HTTP GET handler that runs the daily cron to check and notify upcoming deadlines.
+ *
+ * This endpoint is protected by a Bearer token derived from the `CRON_SECRET` environment variable.
+ *
+ * @param request - Incoming request; must include an `Authorization` header with value `Bearer <CRON_SECRET>`.
+ * @returns A JSON response object:
+ * - On success: `{ success: true, timestamp: string, stats: unknown }`
+ * - If `CRON_SECRET` is not configured: `{ success: false, error: "Cron secret not configured" }` with status 500
+ * - If authorization fails: `{ success: false, error: "Unauthorized" }` with status 401
+ * - On other errors: `{ success: false, timestamp: string, error: string }` with status 500
  */
 export async function GET(request: NextRequest): Promise<NextResponse> {
   try {

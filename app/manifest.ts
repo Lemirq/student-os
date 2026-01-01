@@ -1,5 +1,10 @@
 import type { MetadataRoute } from "next";
 
+/**
+ * Provides the web app manifest for the Student OS progressive web app.
+ *
+ * @returns A MetadataRoute.Manifest object containing the app's name, short_name, description, start_url, display mode, background_color, theme_color, orientation, and icon definitions (including maskable variants).
+ */
 export default function manifest(): MetadataRoute.Manifest {
   return {
     name: "Student OS",
