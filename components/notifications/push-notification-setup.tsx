@@ -136,18 +136,29 @@ export const PushNotificationSetup = (): null => {
             );
             console.log("Attempting to subscribe to push manager...");
 
-            const subscription = (await Promise.race([
-              swRegistration.pushManager.subscribe({
+            // Remove timeout - let browser take as long as it needs
+            let subscription: PushSubscription;
+            try {
+              subscription = await swRegistration.pushManager.subscribe({
                 userVisibleOnly: true,
                 applicationServerKey: applicationServerKey as BufferSource,
-              }),
-              new Promise((_, reject) =>
-                setTimeout(
-                  () => reject(new Error("Subscription timeout after 10s")),
-                  10000,
-                ),
-              ),
-            ])) as PushSubscription;
+              });
+              console.log("Push subscription created:", subscription.endpoint);
+            } catch (subscribeError) {
+              console.error(
+                "❌ Failed to subscribe to push manager:",
+                subscribeError,
+              );
+
+              // Log more details about the error
+              if (subscribeError instanceof Error) {
+                console.error("Error name:", subscribeError.name);
+                console.error("Error message:", subscribeError.message);
+                console.error("Error stack:", subscribeError.stack);
+              }
+
+              throw subscribeError;
+            }
 
             console.log("Push subscription created:", subscription.endpoint);
 
