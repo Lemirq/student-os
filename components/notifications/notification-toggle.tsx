@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { subscribeToPush, unsubscribeFromPush } from "@/actions/notifications";
 import { Button } from "@/components/ui/button";
-import { Bell, BellOff } from "lucide-react";
+import { Bell, BellOff, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 /**
@@ -38,84 +38,148 @@ export const NotificationToggle = (): React.ReactElement => {
       "PushManager" in window
     ) {
       setIsSupported(true);
+      console.log("NotificationToggle: Push notifications supported");
       checkSubscription();
+    } else {
+      console.log("NotificationToggle: Push notifications NOT supported");
     }
   }, []);
 
   async function checkSubscription() {
     try {
+      console.log("NotificationToggle: Checking for existing subscription...");
       const registration = await navigator.serviceWorker.ready;
       const sub = await registration.pushManager.getSubscription();
+
+      if (sub) {
+        console.log(
+          "NotificationToggle: Found existing subscription:",
+          sub.endpoint,
+        );
+      } else {
+        console.log("NotificationToggle: No existing subscription found");
+      }
+
       setSubscription(sub);
     } catch (error) {
-      console.error("Error checking subscription:", error);
+      console.error("NotificationToggle: Error checking subscription:", error);
     }
   }
 
   async function subscribeToPushNotifications() {
+    console.log("NotificationToggle: Subscribe button clicked");
     setIsLoading(true);
+
     try {
+      console.log("NotificationToggle: Requesting notification permission...");
+
       // Request permission
       const permission = await Notification.requestPermission();
+      console.log("NotificationToggle: Permission result:", permission);
 
       if (permission !== "granted") {
+        console.error("NotificationToggle: Permission denied");
         toast.error("Notification permission denied");
-        setIsLoading(false);
         return;
       }
+
+      console.log("NotificationToggle: Getting service worker registration...");
 
       // Get service worker registration
       const registration = await navigator.serviceWorker.ready;
+      console.log("NotificationToggle: Service worker ready");
 
       // Get VAPID public key
       const vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+      console.log("NotificationToggle: VAPID key present:", !!vapidPublicKey);
+
       if (!vapidPublicKey) {
+        console.error("NotificationToggle: VAPID key not configured");
         toast.error("VAPID key not configured");
-        setIsLoading(false);
         return;
       }
+
+      console.log("NotificationToggle: Converting VAPID key...");
+      const applicationServerKey = urlBase64ToUint8Array(vapidPublicKey);
+      console.log(
+        "NotificationToggle: Key length:",
+        applicationServerKey.length,
+      );
+
+      console.log("NotificationToggle: Subscribing to push manager...");
 
       // Subscribe to push notifications (with user interaction - no hanging!)
       const sub = await registration.pushManager.subscribe({
         userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(
-          vapidPublicKey,
-        ) as BufferSource,
+        applicationServerKey: applicationServerKey as BufferSource,
       });
 
+      console.log("NotificationToggle: ✅ Subscription created:", sub.endpoint);
+
       // Save to database
+      console.log("NotificationToggle: Saving subscription to database...");
       const serializedSub = JSON.parse(JSON.stringify(sub));
       const result = await subscribeToPush(serializedSub);
 
       if (!result.success) {
-        toast.error("Failed to save subscription");
-        setIsLoading(false);
+        console.error(
+          "NotificationToggle: Failed to save subscription:",
+          result.error,
+        );
+        toast.error(`Failed to save subscription: ${result.error}`);
         return;
       }
 
+      console.log("NotificationToggle: ✅ Subscription saved to database");
       setSubscription(sub);
       toast.success("Push notifications enabled!");
     } catch (error) {
-      console.error("Error subscribing to push:", error);
-      toast.error("Failed to enable notifications");
+      console.error("NotificationToggle: Error subscribing to push:", error);
+
+      // Show detailed error message
+      const errorMessage =
+        error instanceof Error ? error.message : "Unknown error";
+      toast.error(`Failed to enable notifications: ${errorMessage}`);
     } finally {
+      console.log("NotificationToggle: Setting loading to false");
       setIsLoading(false);
     }
   }
 
   async function unsubscribeFromPushNotifications() {
+    console.log("NotificationToggle: Unsubscribe button clicked");
     setIsLoading(true);
+
     try {
       if (subscription) {
+        console.log("NotificationToggle: Unsubscribing from push manager...");
         await subscription.unsubscribe();
-        await unsubscribeFromPush(subscription.endpoint);
+
+        console.log(
+          "NotificationToggle: Removing subscription from database...",
+        );
+        const result = await unsubscribeFromPush(subscription.endpoint);
+
+        if (!result.success) {
+          console.error(
+            "NotificationToggle: Failed to remove from database:",
+            result.error,
+          );
+          toast.error(`Failed to remove subscription: ${result.error}`);
+          return;
+        }
+
+        console.log("NotificationToggle: ✅ Successfully unsubscribed");
         setSubscription(null);
         toast.success("Push notifications disabled");
       }
     } catch (error) {
-      console.error("Error unsubscribing:", error);
-      toast.error("Failed to disable notifications");
+      console.error("NotificationToggle: Error unsubscribing:", error);
+      const errorMessage =
+        error instanceof Error ? error.message : "Unknown error";
+      toast.error(`Failed to disable notifications: ${errorMessage}`);
     } finally {
+      console.log("NotificationToggle: Setting loading to false");
       setIsLoading(false);
     }
   }
@@ -143,7 +207,11 @@ export const NotificationToggle = (): React.ReactElement => {
           onClick={unsubscribeFromPushNotifications}
           disabled={isLoading}
         >
-          <BellOff className="mr-2 h-4 w-4" />
+          {isLoading ? (
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+          ) : (
+            <BellOff className="mr-2 h-4 w-4" />
+          )}
           Disable
         </Button>
       ) : (
@@ -152,7 +220,11 @@ export const NotificationToggle = (): React.ReactElement => {
           disabled={isLoading}
           size="sm"
         >
-          <Bell className="mr-2 h-4 w-4" />
+          {isLoading ? (
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+          ) : (
+            <Bell className="mr-2 h-4 w-4" />
+          )}
           Enable
         </Button>
       )}
