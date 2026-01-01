@@ -88,14 +88,39 @@ export const NotificationToggle = (): React.ReactElement => {
       // Get service worker registration
       const registration = await navigator.serviceWorker.ready;
       console.log("NotificationToggle: Service worker ready");
+      console.log(
+        "NotificationToggle: Service worker scope:",
+        registration.scope,
+      );
+      console.log(
+        "NotificationToggle: Service worker active:",
+        !!registration.active,
+      );
 
       // Get VAPID public key
       const vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
       console.log("NotificationToggle: VAPID key present:", !!vapidPublicKey);
+      console.log(
+        "NotificationToggle: VAPID key (first 20 chars):",
+        vapidPublicKey?.substring(0, 20),
+      );
+      console.log(
+        "NotificationToggle: VAPID key length:",
+        vapidPublicKey?.length,
+      );
 
       if (!vapidPublicKey) {
         console.error("NotificationToggle: VAPID key not configured");
         toast.error("VAPID key not configured");
+        return;
+      }
+
+      if (vapidPublicKey.length !== 87 && vapidPublicKey.length !== 88) {
+        console.error(
+          "NotificationToggle: VAPID key has invalid length. Expected 87-88, got:",
+          vapidPublicKey.length,
+        );
+        toast.error("Invalid VAPID key format");
         return;
       }
 
@@ -108,11 +133,24 @@ export const NotificationToggle = (): React.ReactElement => {
 
       console.log("NotificationToggle: Subscribing to push manager...");
 
-      // Subscribe to push notifications (with user interaction - no hanging!)
-      const sub = await registration.pushManager.subscribe({
+      // Add timeout to detect hanging subscription
+      const subscriptionPromise = registration.pushManager.subscribe({
         userVisibleOnly: true,
         applicationServerKey: applicationServerKey as BufferSource,
       });
+
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(() => {
+          reject(
+            new Error(
+              "Subscription timed out after 30 seconds. This usually indicates a network issue or invalid VAPID key.",
+            ),
+          );
+        }, 30000);
+      });
+
+      // Race between subscription and timeout
+      const sub = await Promise.race([subscriptionPromise, timeoutPromise]);
 
       console.log("NotificationToggle: ✅ Subscription created:", sub.endpoint);
 
