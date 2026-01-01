@@ -9,6 +9,8 @@ import { queryKeys } from "@/lib/query-keys";
 import { getSidebarData } from "@/actions/sidebar";
 import { DashboardLayoutClient } from "@/components/dashboard-layout-client";
 import { createClient } from "@/utils/supabase/server";
+import { PushNotificationSetup } from "@/components/notifications/push-notification-setup";
+import { IOSInstallPrompt } from "@/components/notifications/ios-install-prompt";
 
 export default async function DashboardLayout({
   children,
@@ -28,6 +30,8 @@ export default async function DashboardLayout({
 
   return (
     <HydrationBoundary state={dehydrateQueryClient(queryClient)}>
+      <PushNotificationSetup />
+      <IOSInstallPrompt />
       <DashboardLayoutClient defaultOpen={defaultOpen} aiEnabled={aiEnabled}>
         {children}
       </DashboardLayoutClient>

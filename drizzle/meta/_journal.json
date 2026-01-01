@@ -57,6 +57,13 @@
       "when": 1767228796244,
       "tag": "0007_outstanding_skin",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1767232540753,
+      "tag": "0008_flippant_magus",
+      "breakpoints": true
     }
   ]
 }

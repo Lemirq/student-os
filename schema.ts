@@ -27,6 +27,7 @@ export const usersRelations = relations(users, ({ many }) => ({
   courses: many(courses),
   tasks: many(tasks),
   chats: many(chats),
+  pushSubscriptions: many(pushSubscriptions),
 }));
 
 /* SEMESTERS */
@@ -193,3 +194,25 @@ export const chatsRelations = relations(chats, ({ one }) => ({
     references: [users.id],
   }),
 }));
+
+/* PUSH SUBSCRIPTIONS */
+export const pushSubscriptions = pgTable("push_subscriptions", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: uuid("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  endpoint: text("endpoint").notNull(),
+  p256dh: text("p256dh").notNull(),
+  auth: text("auth").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+});
+
+export const pushSubscriptionsRelations = relations(
+  pushSubscriptions,
+  ({ one }) => ({
+    user: one(users, {
+      fields: [pushSubscriptions.userId],
+      references: [users.id],
+    }),
+  }),
+);

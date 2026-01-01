@@ -32,6 +32,9 @@ export const SUPABASE_DB_URL =
 
 export const NODE_ENV = process.env.NODE_ENV ?? "development";
 
+// Cron job secret for secure API access
+export const CRON_SECRET = process.env.CRON_SECRET ?? "";
+
 // Validation helper - call this in server components/API routes
 export function validateEnv() {
   const missing: string[] = [];
