@@ -155,14 +155,33 @@ export const PushNotificationSetup = (): null => {
             console.log("Attempting to subscribe to push manager...");
 
             // Don't await - let it complete in background
+            console.log("🔄 Starting push subscription (non-blocking)...");
+
+            // Add a timeout to detect if subscription hangs
+            const subscriptionTimeout = setTimeout(() => {
+              console.warn(
+                "⚠️ Push subscription taking longer than 60 seconds...",
+              );
+              console.warn("This usually indicates:");
+              console.warn(
+                "  1. Browser extension interference (check for injected.js errors)",
+              );
+              console.warn("  2. Network/firewall blocking push service");
+              console.warn("  3. Browser push service issues");
+              console.warn(
+                "Try: incognito mode, different browser, or disable extensions",
+              );
+            }, 60000);
+
             swRegistration.pushManager
               .subscribe({
                 userVisibleOnly: true,
                 applicationServerKey: applicationServerKey as BufferSource,
               })
               .then(async (subscription) => {
+                clearTimeout(subscriptionTimeout);
                 console.log(
-                  "Push subscription created:",
+                  "✅ Push subscription created:",
                   subscription.endpoint,
                 );
 
@@ -179,23 +198,45 @@ export const PushNotificationSetup = (): null => {
                   return;
                 }
 
-                console.log("✅ Push notifications registered successfully");
+                console.log(
+                  "✅ Push notifications registered successfully (saved to DB)",
+                );
               })
               .catch((subscribeError) => {
-                console.error(
-                  "❌ Failed to subscribe to push manager:",
-                  subscribeError,
-                );
+                clearTimeout(subscriptionTimeout);
+                console.error("❌ Push subscription FAILED:", subscribeError);
 
-                // Log more details about the error
+                // Log detailed error information
                 if (subscribeError instanceof Error) {
-                  console.error("Error name:", subscribeError.name);
+                  console.error("Error type:", subscribeError.name);
                   console.error("Error message:", subscribeError.message);
+                  console.error("Error stack:", subscribeError.stack);
                 }
+
+                // Check for specific error types
+                if (subscribeError instanceof DOMException) {
+                  console.error("DOMException code:", subscribeError.code);
+                  console.error("DOMException name:", subscribeError.name);
+                }
+
+                console.log("💡 If you see this error repeatedly:");
+                console.log("1. Try in incognito/private browsing mode");
+                console.log("2. Disable all browser extensions");
+                console.log(
+                  "3. Check browser console for extension errors (injected.js)",
+                );
               });
 
             // Return immediately - subscription continues in background
-            console.log("Push subscription initiated in background...");
+            console.log(
+              "⏳ Push subscription request sent - waiting for browser response...",
+            );
+            console.log(
+              "   This may take 10-30 seconds depending on browser/network",
+            );
+            console.log(
+              "   If stuck here, check for browser extension errors above (injected.js)",
+            );
             return;
           } catch (subError) {
             console.error("❌ Error in push subscription setup:", subError);
