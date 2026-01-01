@@ -211,3 +211,57 @@ export type StudentOSTools = {
 };
 
 export type StudentOSDataTypes = Record<string, never>;
+
+// Schedule Import Types
+export type ScheduleEvent = {
+  type: string; // "LEC", "TUT", "PRA", "LAB"
+  section: string; // "0106"
+  dayOfWeek: number; // 0-6 (0=Sunday)
+  startTime: string; // "13:00"
+  endTime: string; // "15:00"
+  location?: string; // "MN 1270"
+  building?: string; // "MAANJIWE NENDAMOWINAN"
+  startDate: string; // "2025-09-08" (ISO date)
+  endDate: string; // "2025-12-02"
+  exceptionDates?: string[]; // ["2025-10-13"]
+  isExamSlot?: boolean; // true if location is "ZZ TBA" (exam/test slot, not weekly)
+};
+
+export type ScheduleData = {
+  events: ScheduleEvent[];
+};
+
+export type CourseMatch = {
+  icsCode: string;
+  icsCourseName: string;
+  events: ScheduleEvent[];
+  suggestedCourseId: string | null;
+  suggestedCourseName: string;
+  availableCourses: Array<{
+    id: string;
+    code: string;
+    name: string | null;
+    semesterName: string | null;
+  }>;
+  semesterId: string | null;
+  semesterName: string | null;
+};
+
+export type ParsedICSCourse = {
+  courseCode: string;
+  courseName: string;
+  events: ScheduleEvent[];
+};
+
+// Course with schedule data for schedule page
+export type CourseWithSchedule = {
+  id: string;
+  code: string;
+  name: string | null;
+  color: string | null;
+  schedule: ScheduleData | null;
+  semester?: {
+    id: string;
+    name: string;
+  } | null;
+};

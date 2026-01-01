@@ -65,6 +65,21 @@ export const courses = pgTable("courses", {
   color: text("color").default("#000000"),
   syllabus: text("syllabus"),
   goalGrade: decimal("goal_grade", { precision: 5, scale: 2 }),
+  schedule: jsonb("schedule").$type<{
+    events: Array<{
+      type: string;
+      section: string;
+      dayOfWeek: number;
+      startTime: string;
+      endTime: string;
+      location?: string;
+      building?: string;
+      startDate: string;
+      endDate: string;
+      exceptionDates?: string[];
+      isExamSlot?: boolean;
+    }>;
+  }>(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
 });
 

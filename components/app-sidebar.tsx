@@ -8,6 +8,8 @@ import {
   Plus,
   ChevronRight,
   LogOut,
+  LayoutDashboard,
+  Calendar,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -75,6 +77,7 @@ export function AppSidebar({
   // Hotkeys
   useHotkeys("g+t", () => router.push("/dashboard"));
   useHotkeys("g+s", () => router.push("/settings"));
+  useHotkeys("g+h", () => router.push("/schedule"));
   useHotkeys("g+c", () => {
     if (semesters.length > 0) {
       router.push(`/semesters/${semesters[0].id}`);
@@ -154,7 +157,7 @@ export function AppSidebar({
         </SidebarMenu>
       </SidebarHeader>
       <SidebarContent>
-        {/* <SidebarGroup>
+        <SidebarGroup>
           <SidebarGroupLabel>Platform</SidebarGroupLabel>
           <SidebarMenu>
             <SidebarMenuItem>
@@ -166,11 +169,29 @@ export function AppSidebar({
                 <Link href="/dashboard">
                   <LayoutDashboard />
                   <span>Dashboard</span>
+                  <Kbd className="ml-auto">
+                    <span className="text-xs">G</span>T
+                  </Kbd>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                asChild
+                isActive={pathname === "/schedule"}
+                tooltip="Schedule"
+              >
+                <Link href="/schedule">
+                  <Calendar />
+                  <span>Schedule</span>
+                  <Kbd className="ml-auto">
+                    <span className="text-xs">G</span>H
+                  </Kbd>
                 </Link>
               </SidebarMenuButton>
             </SidebarMenuItem>
           </SidebarMenu>
-        </SidebarGroup> */}
+        </SidebarGroup>
 
         <SidebarGroup>
           <SidebarGroupLabel>Semesters</SidebarGroupLabel>

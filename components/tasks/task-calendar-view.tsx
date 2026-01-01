@@ -26,7 +26,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { cn } from "@/lib/utils";
 
 // Setup the localizer for react-big-calendar
 const locales = {
@@ -157,7 +156,7 @@ export function TaskCalendarView({ tasks, context }: TaskCalendarViewProps) {
             {event.code}
           </span>
         )}
-        <span className="w-full break-words text-wrap">{event.title}</span>
+        <span className="w-full wrap-break-word text-wrap">{event.title}</span>
       </div>
     );
   };

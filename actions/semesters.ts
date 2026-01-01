@@ -50,6 +50,7 @@ export async function getSemesterData(
       goalGrade: courses.goalGrade,
       createdAt: courses.createdAt,
       syllabus: sql<string | null>`NULL`.as("syllabus"), // Exclude syllabus data
+      schedule: sql<null>`NULL`.as("schedule"), // Exclude schedule data
     })
     .from(courses)
     .where(eq(courses.semesterId, semesterId));
