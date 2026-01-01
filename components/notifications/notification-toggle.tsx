@@ -70,6 +70,8 @@ export const NotificationToggle = (): React.ReactElement => {
     console.log("NotificationToggle: Subscribe button clicked");
     setIsLoading(true);
 
+    let progressInterval: NodeJS.Timeout | undefined;
+
     try {
       console.log("NotificationToggle: Requesting notification permission...");
 
@@ -132,15 +134,43 @@ export const NotificationToggle = (): React.ReactElement => {
       );
 
       console.log("NotificationToggle: Subscribing to push manager...");
+      console.log("NotificationToggle: Creating subscription promise...");
 
       // Add timeout to detect hanging subscription
-      const subscriptionPromise = registration.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: applicationServerKey as BufferSource,
-      });
+      const subscriptionPromise = registration.pushManager
+        .subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: applicationServerKey as BufferSource,
+        })
+        .then((sub) => {
+          console.log(
+            "NotificationToggle: 🎉 pushManager.subscribe() resolved!",
+          );
+          console.log(
+            "NotificationToggle: Subscription endpoint:",
+            sub.endpoint,
+          );
+          return sub;
+        })
+        .catch((error) => {
+          console.error(
+            "NotificationToggle: ❌ pushManager.subscribe() rejected!",
+          );
+          console.error("NotificationToggle: Error type:", error.name);
+          console.error("NotificationToggle: Error message:", error.message);
+          console.error("NotificationToggle: Full error:", error);
+          throw error;
+        });
 
       const timeoutPromise = new Promise<never>((_, reject) => {
         setTimeout(() => {
+          console.error("NotificationToggle: ⏰ 30-second timeout reached!");
+          console.error(
+            "NotificationToggle: pushManager.subscribe() never resolved or rejected",
+          );
+          console.error(
+            "NotificationToggle: This indicates the browser's push service is not responding",
+          );
           reject(
             new Error(
               "Subscription timed out after 30 seconds. This usually indicates a network issue or invalid VAPID key.",
@@ -149,10 +179,25 @@ export const NotificationToggle = (): React.ReactElement => {
         }, 30000);
       });
 
+      // Add periodic progress updates
+      progressInterval = setInterval(() => {
+        console.log(
+          "NotificationToggle: ⏳ Still waiting for pushManager.subscribe()...",
+        );
+      }, 5000);
+
+      console.log("NotificationToggle: Racing subscription vs timeout...");
+
       // Race between subscription and timeout
       const sub = await Promise.race([subscriptionPromise, timeoutPromise]);
 
-      console.log("NotificationToggle: ✅ Subscription created:", sub.endpoint);
+      // Clear progress updates
+      clearInterval(progressInterval);
+
+      console.log(
+        "NotificationToggle: ✅ Race completed, subscription created:",
+        sub.endpoint,
+      );
 
       // Save to database
       console.log("NotificationToggle: Saving subscription to database...");
@@ -172,6 +217,11 @@ export const NotificationToggle = (): React.ReactElement => {
       setSubscription(sub);
       toast.success("Push notifications enabled!");
     } catch (error) {
+      // Clear progress interval if it was started
+      if (progressInterval) {
+        clearInterval(progressInterval);
+      }
+
       console.error("NotificationToggle: Error subscribing to push:", error);
 
       // Show detailed error message
