@@ -12,11 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Edit, Trash2, MapPin, Calendar, Clock } from "lucide-react";
 import type { ScheduleEvent } from "@/types";
-import {
-  formatTimeRange,
-  getDayName,
-  getShortDayName,
-} from "@/lib/schedule-utils";
+import { formatTimeRange, getDayName } from "@/lib/schedule-utils";
 import { format, parse } from "date-fns";
 
 interface ScheduleEventCardProps {
@@ -38,7 +34,6 @@ export function ScheduleEventCard({
   onOpenChange,
   event,
   course,
-  courseId,
   onEdit,
   onDelete,
 }: ScheduleEventCardProps) {

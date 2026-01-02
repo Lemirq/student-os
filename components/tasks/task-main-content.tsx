@@ -31,12 +31,12 @@ export function TaskMainContent({ task }: TaskMainContentProps) {
 
   const handleTitleBlur = async () => {
     if (title === task.title) return;
-    await updateTaskGeneric(task.id, { title } as any);
+    await updateTaskGeneric(task.id, { title });
   };
 
   const handleDescriptionBlur = async () => {
     if (description === (task.description || "")) return;
-    await updateTaskGeneric(task.id, { description } as any);
+    await updateTaskGeneric(task.id, { description });
   };
 
   // Auto-save notes when debounced value changes
@@ -52,7 +52,7 @@ export function TaskMainContent({ task }: TaskMainContentProps) {
 
       setIsSaving(true);
       try {
-        await updateTaskGeneric(task.id, { notes: debouncedNotes } as any);
+        await updateTaskGeneric(task.id, { notes: debouncedNotes });
         lastSavedNotes.current = debouncedNotes;
         setShowSaved(true);
         setTimeout(() => setShowSaved(false), 2000);
@@ -64,7 +64,7 @@ export function TaskMainContent({ task }: TaskMainContentProps) {
     };
 
     saveNotes();
-  }, [debouncedNotes, task.id]);
+  }, [debouncedNotes, task.id, updateTaskGeneric]);
 
   return (
     <div className="flex flex-col h-full space-y-8 max-w-3xl">

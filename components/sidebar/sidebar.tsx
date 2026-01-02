@@ -45,23 +45,20 @@ export function Sidebar({ semesters }: SidebarProps) {
       const saved = localStorage.getItem(SIDEBAR_EXPANDED_KEY);
       if (saved) {
         const parsed = JSON.parse(saved) as Record<string, boolean>;
-        // Merge with current semesters (in case new semesters were added)
-        setExpandedSemesters((prev) => {
-          const merged = { ...prev };
-          // Apply saved state for semesters that exist
-          semesters.forEach((semester) => {
-            if (semester.id in parsed) {
-              merged[semester.id] = parsed[semester.id];
-            }
-          });
-          return merged;
+        const merged = { ...expandedSemesters };
+        semesters.forEach((semester) => {
+          if (semester.id in parsed) {
+            merged[semester.id] = parsed[semester.id];
+          }
         });
+        setExpandedSemesters(merged);
       }
-    } catch (e) {
+    } catch {
       // Ignore localStorage errors
     }
     setIsInitialized(true);
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [semesters]);
 
   // Save to localStorage whenever expanded state changes (after initialization)
   useEffect(() => {
@@ -71,7 +68,7 @@ export function Sidebar({ semesters }: SidebarProps) {
           SIDEBAR_EXPANDED_KEY,
           JSON.stringify(expandedSemesters),
         );
-      } catch (e) {
+      } catch {
         // Ignore localStorage errors
       }
     }

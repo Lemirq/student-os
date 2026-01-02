@@ -3,7 +3,7 @@
 import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowUp, Mic, Plus, Square, X, FileText } from "lucide-react";
+import { ArrowUp, Plus, Square, X, FileText } from "lucide-react";
 
 interface ChatInputProps {
   status: string;

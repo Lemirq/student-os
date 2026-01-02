@@ -1,7 +1,6 @@
 import { getSemesterData } from "@/actions/semesters";
 import { getDashboardMetrics } from "@/actions/dashboard";
 import { notFound } from "next/navigation";
-import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
 import { format } from "date-fns";

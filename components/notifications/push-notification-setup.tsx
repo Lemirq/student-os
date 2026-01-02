@@ -1,28 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { subscribeToPush } from "@/actions/notifications";
-
-/**
- * Convert a URL-safe base64-encoded VAPID public key into a Uint8Array suitable for Web Push subscription.
- *
- * @param base64String - The URL-safe base64-encoded VAPID public key (may use '-' and '_' padding).
- * @returns The decoded key as a Uint8Array
- */
-function urlBase64ToUint8Array(base64String: string): Uint8Array {
-  const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
-  const base64 = (base64String + padding)
-    .replace(/\-/g, "+")
-    .replace(/_/g, "/");
-
-  const rawData = window.atob(base64);
-  const outputArray = new Uint8Array(rawData.length);
-
-  for (let i = 0; i < rawData.length; ++i) {
-    outputArray[i] = rawData.charCodeAt(i);
-  }
-  return outputArray;
-}
 
 /**
  * Invisible component that automatically checks for existing push subscription
@@ -32,8 +11,6 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
  * Note: On iOS, notifications only work when the app is installed as a PWA
  */
 export const PushNotificationSetup = (): null => {
-  const [isRegistered, setIsRegistered] = useState(false);
-
   useEffect(() => {
     const setupServiceWorker = async () => {
       // Check if notifications are supported
@@ -45,7 +22,8 @@ export const PushNotificationSetup = (): null => {
       // Check if running as installed PWA (required for iOS)
       const isStandalone =
         window.matchMedia("(display-mode: standalone)").matches ||
-        (window.navigator as any).standalone === true;
+        ("standalone" in window.navigator &&
+          (window.navigator as { standalone?: boolean }).standalone === true);
 
       const isIOS = /iphone|ipad|ipod/.test(
         window.navigator.userAgent.toLowerCase(),
@@ -75,8 +53,6 @@ export const PushNotificationSetup = (): null => {
           // Wait for service worker to be ready
           await navigator.serviceWorker.ready;
           console.log("✅ Service Worker is ready");
-
-          setIsRegistered(true);
 
           // Check for existing subscription
           const existingSubscription =

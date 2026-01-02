@@ -16,6 +16,7 @@ import {
   tavilyCrawl,
   tavilyMap,
 } from "@tavily/ai-sdk";
+import { searchDocuments } from "@/actions/documents/search-documents";
 
 export type StudentOSToolCallsMessage = UIMessage;
 import { tasks, courses, gradeWeights, semesters } from "@/schema";
@@ -155,10 +156,11 @@ ${
     8. **Grade Weights:** Call 'manage_grade_weights' with action and course. Shows grade weights UI directly.
     9. **Update Score:** Call 'update_task_score' with task name and score. Shows update confirmation UI directly.
     10. **Bulk Update Tasks:** Call 'bulk_update_tasks' to update multiple tasks at once. Use for requests like "change all weekly prep due times to 5pm" or "set priority high for all quizzes in CSC148".
-    11. **Web Search:** Call 'web_search' to search the web for current information, news, or research.
-    12. **Extract Content:** Call 'extract_content' to extract clean content from any URL.
-    13. **Crawl Website:** Call 'crawl_website' to crawl and extract content from multiple pages of a website.
-    14. **Map Website:** Call 'map_website' to discover and map the structure of a website.
+    11. **Course Context Retrieval:** Call 'retrieve_course_context' to search course documents (syllabus, notes, slides, etc.). Use this when answering questions about course materials, policies, deadlines, or specific course information.
+    12. **Web Search:** Call 'web_search' to search the web for current information, news, or research.
+    13. **Extract Content:** Call 'extract_content' to extract clean content from any URL.
+    14. **Crawl Website:** Call 'crawl_website' to crawl and extract content from multiple pages of a website.
+    15. **Map Website:** Call 'map_website' to discover and map the structure of a website.
 
     IMPORTANT: Do NOT chain tools. Each tool call handles everything including UI. Do not display raw JSON.`;
   console.log(system);
@@ -1491,7 +1493,113 @@ Extract tasks from: "${request}"
       }),
 
       // -----------------------------------------------------------------------
-      // 6. WEB SEARCH & RESEARCH TOOLS (Tavily)
+      // 6. COURSE CONTEXT RETRIEVAL TOOL (RAG)
+      // -----------------------------------------------------------------------
+      retrieve_course_context: tool({
+        description:
+          "Searches course documents (syllabus, notes, slides, etc.) using semantic retrieval. Use this when answering questions about course materials, policies, deadlines, or specific course information. Returns relevant text chunks with source information.",
+        inputSchema: z.object({
+          query: z.string().describe("The search query for course documents"),
+          course_code: z
+            .string()
+            .optional()
+            .describe(
+              "Optional course code to filter results. If not provided, uses the course from the current page context or searches all courses.",
+            ),
+          top_k: z
+            .number()
+            .optional()
+            .describe(
+              "Number of results to return (default: 5). Increase for comprehensive searches.",
+            ),
+        }),
+        execute: async ({ query, course_code, top_k }) => {
+          console.log(
+            "[retrieve_course_context] Searching documents for:",
+            query,
+          );
+
+          let courseId = null;
+
+          if (course_code) {
+            console.log(
+              "[retrieve_course_context] Looking up course:",
+              course_code,
+            );
+            const course = await db
+              .select({ id: courses.id })
+              .from(courses)
+              .where(
+                and(
+                  eq(courses.userId, user.id),
+                  ilike(courses.code, course_code),
+                ),
+              )
+              .limit(1);
+
+            if (course.length > 0) {
+              courseId = course[0].id;
+              console.log(
+                "[retrieve_course_context] Found course:",
+                course_code,
+              );
+            }
+          } else if (pageContext?.type === "course") {
+            courseId = pageContext.id;
+          }
+
+          console.log("[retrieve_course_context] Searching in database...");
+
+          const searchResults = await searchDocuments({
+            query,
+            courseId: courseId || undefined,
+            topK: top_k || 5,
+          });
+
+          console.log(
+            "[retrieve_course_context] Search complete, found:",
+            searchResults.results.length,
+            "documents",
+          );
+
+          if (searchResults.results.length === 0) {
+            return {
+              found: 0,
+              message:
+                "No relevant documents found. Try uploading course documents (syllabus, notes, etc.) or rephrasing your question.",
+              ui: {
+                type: "info",
+                title: "No Documents Found",
+                icon: "file-search",
+              },
+            };
+          }
+
+          const formattedResults = searchResults.results.map((result) => ({
+            chunk_number: result.chunkIndex + 1,
+            file_name: result.fileName,
+            document_type: result.documentType,
+            content: result.content,
+            similarity: (result.similarity * 100).toFixed(1),
+          }));
+
+          const summary = `Found ${searchResults.results.length} relevant section${searchResults.results.length > 1 ? "s" : ""} from ${new Set(formattedResults.map((r) => r.file_name)).size} document${new Set(formattedResults.map((r) => r.file_name)).size > 1 ? "s" : ""}.`;
+
+          return {
+            found: searchResults.results.length,
+            summary,
+            results: formattedResults,
+            ui: {
+              type: "success",
+              title: `Found ${searchResults.results.length} Document${searchResults.results.length > 1 ? "s" : ""}`,
+              icon: "search",
+            },
+          };
+        },
+      }),
+
+      // -----------------------------------------------------------------------
+      // 7. WEB SEARCH & RESEARCH TOOLS (Tavily)
       // -----------------------------------------------------------------------
       web_search: tavilySearch({
         apiKey: tavilyApiKey,

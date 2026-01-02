@@ -1,5 +1,3 @@
-import type { Course, Semester } from "@/types";
-
 /**
  * Calculates the Levenshtein distance between two strings.
  * Used for fuzzy string matching of course codes.

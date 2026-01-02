@@ -1,0 +1,2 @@
+ALTER TABLE "documents" DROP CONSTRAINT "documents_document_type_check";--> statement-breakpoint
+ALTER TABLE "documents" ADD CONSTRAINT "documents_document_type_check" CHECK ("documents"."document_type" = any (array['syllabus','notes','other']));

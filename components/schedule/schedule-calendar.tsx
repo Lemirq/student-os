@@ -25,7 +25,6 @@ import {
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { scheduleToCalendarEvents } from "@/lib/schedule-utils";
 import type { ScheduleData } from "@/types";
-import { cn } from "@/lib/utils";
 
 // Setup the localizer for react-big-calendar
 const locales = {
@@ -223,33 +222,37 @@ export function ScheduleCalendar({
 
   return (
     <div className="h-[calc(100vh-250px)] min-h-[500px] bg-background rounded-lg border p-4 shadow-sm">
-      <Calendar
-        localizer={localizer}
-        events={filteredEvents}
-        startAccessor="start"
-        endAccessor="end"
-        style={{ height: "100%" }}
-        view={view}
-        onView={setView}
-        date={date}
-        onNavigate={setDate}
-        onSelectEvent={handleSelectEvent}
-        eventPropGetter={eventPropGetter}
-        components={{
-          toolbar: CustomToolbar,
-          event: CustomEvent,
-        }}
-        formats={{
-          eventTimeRangeFormat: () => "", // Remove time from event display
-        }}
-        views={[Views.WEEK, Views.MONTH, Views.AGENDA]}
-        popup
-        selectable
-        className="font-sans"
-        defaultView={Views.WEEK}
-        step={30}
-        timeslots={2}
-      />
+      <div className="h-full overflow-x-auto">
+        <div className="min-w-[600px] h-full">
+          <Calendar
+            localizer={localizer}
+            events={filteredEvents}
+            startAccessor="start"
+            endAccessor="end"
+            style={{ height: "100%" }}
+            view={view}
+            onView={setView}
+            date={date}
+            onNavigate={setDate}
+            onSelectEvent={handleSelectEvent}
+            eventPropGetter={eventPropGetter}
+            components={{
+              toolbar: CustomToolbar,
+              event: CustomEvent,
+            }}
+            formats={{
+              eventTimeRangeFormat: () => "", // Remove time from event display
+            }}
+            views={[Views.WEEK, Views.MONTH, Views.AGENDA]}
+            popup
+            selectable
+            className="font-sans"
+            defaultView={Views.WEEK}
+            step={30}
+            timeslots={2}
+          />
+        </div>
+      </div>
     </div>
   );
 }

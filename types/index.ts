@@ -8,13 +8,21 @@
 
 // We should really infer types from Drizzle schema, but to match the previous Typescript interfaces:
 import { InferSelectModel } from "drizzle-orm";
-import { semesters, courses, gradeWeights, tasks, users } from "@/schema";
+import {
+  semesters,
+  courses,
+  gradeWeights,
+  tasks,
+  users,
+  documents,
+} from "@/schema";
 
 export type Semester = InferSelectModel<typeof semesters>;
 export type Course = InferSelectModel<typeof courses>;
 export type GradeWeight = InferSelectModel<typeof gradeWeights>;
 export type Task = InferSelectModel<typeof tasks>;
 export type User = InferSelectModel<typeof users>;
+export type Document = InferSelectModel<typeof documents>;
 
 export type TaskStatus = "Todo" | "In Progress" | "Done";
 export type TaskPriority = "Low" | "Medium" | "High";
@@ -253,6 +261,30 @@ export type StudentOSTools = {
         title: string;
         error: string;
       }>;
+    };
+  };
+  retrieve_course_context: {
+    input: {
+      query: string;
+      course_code?: string;
+      top_k?: number;
+    };
+    output: {
+      found: number;
+      summary?: string;
+      message?: string;
+      results: Array<{
+        chunk_number: number;
+        file_name: string;
+        document_type: string;
+        content: string;
+        similarity: string;
+      }>;
+      ui: {
+        type: string;
+        title: string;
+        icon: string;
+      };
     };
   };
 };

@@ -32,7 +32,6 @@ import {
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { SmartDatetimeInput } from "@/components/ui/smart-datetime-input";
-import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
 
 interface GlobalCreateTaskModalProps {
@@ -69,6 +68,7 @@ export function GlobalCreateTaskModal({
     },
   });
 
+  // eslint-disable-next-line react-hooks/incompatible-library
   const selectedCourseId = form.watch("courseId");
 
   useEffect(() => {

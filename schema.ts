@@ -10,6 +10,7 @@ import {
   decimal,
   check,
   jsonb,
+  vector,
 } from "drizzle-orm/pg-core";
 
 /* USERS */
@@ -28,6 +29,7 @@ export const usersRelations = relations(users, ({ many }) => ({
   tasks: many(tasks),
   chats: many(chats),
   pushSubscriptions: many(pushSubscriptions),
+  documents: many(documents),
 }));
 
 /* SEMESTERS */
@@ -92,6 +94,7 @@ export const coursesRelations = relations(courses, ({ one, many }) => ({
   }),
   gradeWeights: many(gradeWeights),
   tasks: many(tasks),
+  documents: many(documents),
 }));
 
 /* GRADE WEIGHTS */
@@ -244,3 +247,47 @@ export const sentNotificationsRelations = relations(
     }),
   }),
 );
+
+/* DOCUMENTS - for RAG system */
+export const documents = pgTable(
+  "documents",
+  () => ({
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    courseId: uuid("course_id").references(() => courses.id, {
+      onDelete: "cascade",
+    }),
+    documentType: text("document_type").notNull(), // 'syllabus', 'notes', or 'other'
+    fileName: text("file_name").notNull(), // original filename
+    chunkIndex: integer("chunk_index").notNull(), // chunk number in document
+    content: text("content").notNull(), // chunked text content
+    embedding: vector("embedding", { dimensions: 1536 }), // pgvector embedding
+    metadata: jsonb("metadata").$type<{
+      pageNumber?: number;
+      section?: string;
+      heading?: string;
+      [key: string]: unknown;
+    }>(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+  }),
+  (table) => ({
+    documentTypeCheck: check(
+      "documents_document_type_check",
+      sql`${table.documentType} = any (array['syllabus','notes','other'])`,
+    ),
+  }),
+);
+
+export const documentsRelations = relations(documents, ({ one }) => ({
+  user: one(users, {
+    fields: [documents.userId],
+    references: [users.id],
+  }),
+  course: one(courses, {
+    fields: [documents.courseId],
+    references: [courses.id],
+  }),
+}));

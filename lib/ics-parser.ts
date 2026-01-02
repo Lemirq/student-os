@@ -60,8 +60,9 @@ export function extractBuilding(
  * Converts an ICS event with RRULE to a ScheduleEvent object.
  * Handles recurring weekly events, EXDATE exceptions, and timezone conversion.
  * @param event - The parsed ICS event object
- * @returns A ScheduleEvent object representing the recurring event
+ * @returns A ScheduleEvent object representing recurring event
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function rruleToSchedule(event: any): ScheduleEvent | null {
   try {
     if (!event.start || !event.end || !event.summary) {
@@ -96,8 +97,9 @@ export function rruleToSchedule(event: any): ScheduleEvent | null {
       const exdates = Array.isArray(event.exdate)
         ? event.exdate
         : Object.values(event.exdate);
-      exceptionDates = exdates.map((exdate: any) => {
-        const date = typeof exdate === "string" ? new Date(exdate) : exdate;
+      exceptionDates = exdates.map((exdate: unknown) => {
+        const date =
+          typeof exdate === "string" ? new Date(exdate) : (exdate as Date);
         return format(date, "yyyy-MM-dd");
       });
     }

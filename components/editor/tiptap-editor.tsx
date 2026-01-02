@@ -6,7 +6,6 @@ import TaskList from "@tiptap/extension-task-list";
 import TaskItem from "@tiptap/extension-task-item";
 import Placeholder from "@tiptap/extension-placeholder";
 import CodeBlockLowlight from "@tiptap/extension-code-block-lowlight";
-import { useRef } from "react";
 import { common, createLowlight } from "lowlight";
 import {
   Bold,
@@ -59,9 +58,6 @@ function ToolbarButton({
 const lowlight = createLowlight(common);
 
 export function TipTapEditor({ initialContent, onChange }: TipTapEditorProps) {
-  // Store initial content in a ref to avoid re-setting on every render
-  const initialContentRef = useRef(initialContent);
-
   const editor = useEditor({
     immediatelyRender: false,
     extensions: [
@@ -69,7 +65,7 @@ export function TipTapEditor({ initialContent, onChange }: TipTapEditorProps) {
         heading: {
           levels: [1, 2, 3],
         },
-        codeBlock: false, // Disable default code block to use lowlight version
+        codeBlock: false,
       }),
       CodeBlockLowlight.configure({
         lowlight,
@@ -82,7 +78,7 @@ export function TipTapEditor({ initialContent, onChange }: TipTapEditorProps) {
         placeholder: "Jot down notes, subtasks, or ideas...",
       }),
     ],
-    content: initialContentRef.current || "",
+    content: initialContent || "",
     editorProps: {
       attributes: {
         class:

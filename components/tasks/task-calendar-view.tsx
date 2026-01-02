@@ -18,7 +18,6 @@ import { useRouter } from "next/navigation";
 import { useState, useMemo } from "react";
 import "react-big-calendar/lib/css/react-big-calendar.css";
 import "react-big-calendar/lib/addons/dragAndDrop/styles.css";
-import { useTheme } from "next-themes";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import {
@@ -63,9 +62,8 @@ interface CalendarEvent {
   color?: string | null;
 }
 
-export function TaskCalendarView({ tasks, context }: TaskCalendarViewProps) {
+export function TaskCalendarView({ tasks }: TaskCalendarViewProps) {
   const router = useRouter();
-  const { theme } = useTheme();
   const [view, setView] = useState<View>(Views.MONTH);
   const [date, setDate] = useState(new Date());
   const [optimisticUpdates, setOptimisticUpdates] = useState<
@@ -103,7 +101,6 @@ export function TaskCalendarView({ tasks, context }: TaskCalendarViewProps) {
   const handleEventDrop = async ({
     event,
     start,
-    end,
   }: {
     event: CalendarEvent;
     start: string | Date;
@@ -111,7 +108,6 @@ export function TaskCalendarView({ tasks, context }: TaskCalendarViewProps) {
   }) => {
     // Convert start to Date if it's a string
     const newDueDate = typeof start === "string" ? new Date(start) : start;
-    const oldDueDate = event.start;
 
     // Optimistically update the UI
     setOptimisticUpdates((prev) => ({

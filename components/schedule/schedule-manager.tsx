@@ -54,15 +54,19 @@ export function ScheduleManager({
 
   const hasSchedules = coursesWithSchedule.length > 0;
 
-  const handleEventClick = (calendarEvent: any) => {
-    // Find the course and event
+  const handleEventClick = (calendarEvent: {
+    resource: {
+      courseId: string;
+      type: string;
+      section: string;
+    };
+  }) => {
     const course = initialCourses.find(
       (c) => c.id === calendarEvent.resource.courseId,
     );
 
     if (!course || !course.schedule) return;
 
-    // Find the event by matching properties
     const eventIndex = course.schedule.events.findIndex(
       (e) =>
         e.type === calendarEvent.resource.type &&

@@ -61,8 +61,6 @@ const NOTIFICATION_WINDOWS = [
   },
 ] as const;
 
-type NotificationType = (typeof NOTIFICATION_WINDOWS)[number]["type"];
-
 /**
  * Stats returned by checkAndNotifyDeadlines
  */
@@ -252,7 +250,7 @@ export async function cleanupOldNotifications(): Promise<number> {
     const taskIds = tasksToCleanup.map((t) => t.id);
 
     // Delete sent notifications for these tasks
-    const result = await db
+    await db
       .delete(sentNotifications)
       .where(inArray(sentNotifications.taskId, taskIds));
 

@@ -1,0 +1,33 @@
+Computer Science Notes - Week 1
+===============================
+
+Introduction to Programming
+---------------------------
+
+Today we learned about the basics of programming. Programming is the process of giving instructions to a computer to perform specific tasks.
+
+Key Concepts:
+- Variables: Containers for storing data values
+- Data Types: Different kinds of values (numbers, text, booleans)
+- Operators: Symbols that perform operations on variables and values
+
+Data Types Explained:
+1. Integer: Whole numbers (e.g., 5, 10, -3)
+2. Float: Decimal numbers (e.g., 3.14, -0.5)
+3. String: Text values (e.g., "Hello", "World")
+4. Boolean: True or false values
+
+Variables in Practice:
+  x = 10           // Assign value 10 to variable x
+  name = "Alice"   // Assign text to variable name
+  is_valid = true  // Assign boolean value
+
+Operators:
+- Arithmetic: +, -, *, /
+- Comparison: ==, !=, <, >
+- Logical: AND, OR, NOT
+
+Homework Assignment:
+Complete exercises 1-10 from Chapter 2 of the textbook. Submit by Friday at 5 PM.
+
+Remember to practice daily! Programming skills improve with consistent practice.

@@ -96,6 +96,7 @@ self.addEventListener("push", (event) => {
         notificationData.body = text;
       } catch (textError) {
         console.error("[Service Worker] Error parsing push data:", error);
+        console.error("[Service Worker] Error parsing push data:", textError);
         // Use default notification data
       }
     }

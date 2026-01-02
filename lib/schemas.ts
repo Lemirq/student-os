@@ -1,4 +1,4 @@
-import { createInsertSchema, createSelectSchema } from "drizzle-zod";
+import { createInsertSchema } from "drizzle-zod";
 import { courses, gradeWeights, semesters, tasks } from "@/schema";
 import { z } from "zod";
 

@@ -13,10 +13,8 @@ import {
   DragEndEvent,
   useDroppable,
   closestCorners,
-  DragOverEvent,
   pointerWithin,
   rectIntersection,
-  getFirstCollision,
   CollisionDetection,
 } from "@dnd-kit/core";
 import {
@@ -129,7 +127,7 @@ export function TaskBoardView({ tasks, context }: TaskBoardViewProps) {
     }
   }
 
-  function handleDragOver(event: DragOverEvent) {
+  function handleDragOver() {
     // We don't need manual optimistic updates here
     // React Query will handle them when we call the mutation
   }

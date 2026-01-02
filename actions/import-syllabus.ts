@@ -26,14 +26,6 @@ export async function importSyllabusTasks(
   // Validate the input data
   const validatedData = importSyllabusSchema.parse(data);
 
-  // Filter out tasks with empty or invalid dates upfront
-  const tasksWithDates = validatedData.tasks.filter(
-    (task) => task.due_date && task.due_date.trim() !== "",
-  );
-  const tasksWithoutDates = validatedData.tasks.filter(
-    (task) => !task.due_date || task.due_date.trim() === "",
-  );
-
   const supabase = await createClient();
 
   const { data: user } = await supabase.auth.getUser();

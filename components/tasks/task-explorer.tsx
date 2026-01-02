@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useSearchParams, useRouter, usePathname } from "next/navigation";
+import { useSearchParams, usePathname } from "next/navigation";
 import { TaskWithDetails, columns } from "./columns";
 import { DataTable } from "./data-table";
 import { TaskBoardView } from "./task-board-view";
@@ -28,7 +28,6 @@ export function TaskExplorer({
   externalDateFilter,
   onDateFilterChange,
 }: TaskExplorerProps) {
-  const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
 

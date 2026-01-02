@@ -91,3 +91,9 @@ export function formatContextForAI(context: PageContext): string {
       return "User's current page is unknown.";
   }
 }
+
+export function stripSystemReminders(text: string): string {
+  return text
+    .replace(/<system-reminder>[\s\S]*?<\/system-reminder>/g, "")
+    .trim();
+}

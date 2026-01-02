@@ -8,7 +8,6 @@ import {
   GraduationCap,
   FileText,
   Upload,
-  Brain,
   Search,
   Globe,
   ExternalLink,
@@ -38,13 +37,8 @@ import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
 import { ChatHistory } from "./chat-history";
 import { saveChat } from "@/actions/chats";
-import { cn } from "@/lib/utils";
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion";
+import { cn, stripSystemReminders } from "@/lib/utils";
+import { ReasoningAccordion } from "./reasoning-accordion";
 
 export function AICopilotSidebar({ aiEnabled }: { aiEnabled: boolean }) {
   const [chatId, setChatId] = React.useState<string>("");
@@ -398,7 +392,9 @@ export function AICopilotSidebar({ aiEnabled }: { aiEnabled: boolean }) {
                           StudentOSTools
                         >;
                         switch (p.type) {
-                          case "text":
+                          case "text": {
+                            const sanitizedText = stripSystemReminders(p.text);
+                            if (!sanitizedText) return null;
                             return (
                               <div
                                 key={i}
@@ -408,9 +404,10 @@ export function AICopilotSidebar({ aiEnabled }: { aiEnabled: boolean }) {
                                     : "bg-muted"
                                 }`}
                               >
-                                <ReactMarkdown>{p.text}</ReactMarkdown>
+                                <ReactMarkdown>{sanitizedText}</ReactMarkdown>
                               </div>
                             );
+                          }
 
                           case "file":
                             if (p.url && p.mediaType?.startsWith("image/")) {
@@ -446,38 +443,8 @@ export function AICopilotSidebar({ aiEnabled }: { aiEnabled: boolean }) {
                           // REASONING: Show AI's thinking process in accordion
                           // -----------------------------------------------------------------------
                           case "reasoning": {
-                            const wordCount = p.text.trim().split(/\s+/).length;
-                            // Collapse automatically when more than 100 words
-                            const shouldBeOpen = wordCount < 100;
                             return (
-                              <Accordion
-                                key={i}
-                                type="single"
-                                collapsible
-                                defaultValue={
-                                  shouldBeOpen ? "reasoning" : undefined
-                                }
-                                className="w-full"
-                              >
-                                <AccordionItem
-                                  value="reasoning"
-                                  className="border-none"
-                                >
-                                  <AccordionTrigger className="flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground transition-colors py-1.5 px-2 rounded-md hover:bg-muted/50 hover:no-underline">
-                                    <Brain className="size-3.5 text-purple-500" />
-                                    <span className="font-medium">
-                                      Reasoning
-                                    </span>
-                                  </AccordionTrigger>
-                                  <AccordionContent>
-                                    <div className="mt-1 p-3 rounded-lg bg-purple-500/5 border border-purple-500/20 text-xs text-muted-foreground overflow-hidden">
-                                      <div className="prose prose-xs dark:prose-invert max-w-none prose-p:text-muted-foreground prose-p:text-xs prose-p:leading-relaxed wrap-anywhere">
-                                        <ReactMarkdown>{p.text}</ReactMarkdown>
-                                      </div>
-                                    </div>
-                                  </AccordionContent>
-                                </AccordionItem>
-                              </Accordion>
+                              <ReasoningAccordion key={i} content={p.text} />
                             );
                           }
 
@@ -1070,6 +1037,119 @@ export function AICopilotSidebar({ aiEnabled }: { aiEnabled: boolean }) {
                           }
 
                           // -----------------------------------------------------------------------
+                          // TOOL: retrieve_course_context (RAG - course document search)
+                          // -----------------------------------------------------------------------
+                          case "tool-retrieve_course_context": {
+                            const callId = p.toolCallId;
+                            switch (p.state) {
+                              case "input-streaming":
+                              case "input-available":
+                                return (
+                                  <div
+                                    key={callId}
+                                    className="bg-muted p-3 rounded-lg text-sm w-full animate-pulse"
+                                  >
+                                    <div className="flex items-center gap-2">
+                                      <Search className="size-3.5 animate-pulse" />
+                                      <span>Searching course documents...</span>
+                                    </div>
+                                  </div>
+                                );
+                              case "output-available": {
+                                const output = p.output;
+                                const results = output?.results || [];
+                                const summary = output?.summary;
+
+                                return (
+                                  <div
+                                    key={callId}
+                                    className="bg-muted/50 border border-border/50 p-4 rounded-lg my-2 text-sm w-full"
+                                  >
+                                    <div className="flex flex-wrap items-center gap-2 mb-3 text-blue-600 dark:text-blue-400">
+                                      <Search className="size-4" />
+                                      <span className="font-semibold text-sm">
+                                        Document Search Results
+                                      </span>
+                                      {output?.found > 0 && (
+                                        <Badge
+                                          variant="outline"
+                                          className="ml-auto"
+                                        >
+                                          {output.found} found
+                                        </Badge>
+                                      )}
+                                    </div>
+
+                                    {summary && (
+                                      <div className="mb-3 text-xs text-muted-foreground">
+                                        {summary}
+                                      </div>
+                                    )}
+
+                                    {results.length > 0 ? (
+                                      <div className="space-y-2 max-h-[400px] overflow-y-auto scrollbar-sleek">
+                                        {results.map(
+                                          (
+                                            result: {
+                                              chunk_number: number;
+                                              file_name: string;
+                                              document_type: string;
+                                              content: string;
+                                              similarity: string;
+                                            },
+                                            i: number,
+                                          ) => (
+                                            <div
+                                              key={i}
+                                              className="p-3 bg-background/50 rounded border border-border/30 hover:border-blue-400/50 transition-colors"
+                                            >
+                                              <div className="flex  flex-wrap items-start justify-between gap-2 mb-1.5">
+                                                <div className="flex  flex-wrap items-center gap-1.5">
+                                                  <FileText className="size-3.5 text-muted-foreground shrink-0" />
+                                                  <span className="font-medium text-xs truncate max-w-[180px]">
+                                                    {result.file_name}
+                                                  </span>
+                                                </div>
+                                                <div className="flex items-center gap-2 shrink-0">
+                                                  <Badge
+                                                    variant="outline"
+                                                    className="text-[10px] h-4 px-1"
+                                                  >
+                                                    Chunk {result.chunk_number}
+                                                  </Badge>
+                                                  <Badge
+                                                    variant="outline"
+                                                    className="text-[10px] h-4 px-1 bg-green-500/10 text-green-600 dark:text-green-400 border-green-500/20"
+                                                  >
+                                                    {result.similarity}%
+                                                  </Badge>
+                                                </div>
+                                              </div>
+                                              <div className="text-[10px] text-muted-foreground mb-1.5 capitalize">
+                                                {result.document_type}
+                                              </div>
+                                              <div className="text-xs text-muted-foreground line-clamp-3">
+                                                {result.content}
+                                              </div>
+                                            </div>
+                                          ),
+                                        )}
+                                      </div>
+                                    ) : (
+                                      <div className="text-xs text-muted-foreground italic">
+                                        {output?.message ||
+                                          "No documents found"}
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              }
+                              default:
+                                return null;
+                            }
+                          }
+
+                          // -----------------------------------------------------------------------
                           // TOOL: manage_grade_weights (composite - handles grade weights CRUD + UI)
                           // -----------------------------------------------------------------------
                           case "tool-manage_grade_weights": {
@@ -1356,13 +1436,16 @@ export function AICopilotSidebar({ aiEnabled }: { aiEnabled: boolean }) {
                                               </div>
                                               <div className="prose prose-xs dark:prose-invert max-w-none text-xs">
                                                 <ReactMarkdown>
-                                                  {result.content &&
-                                                  result.content.length > 500
-                                                    ? result.content.slice(
-                                                        0,
-                                                        500,
-                                                      ) + "..."
-                                                    : result.content}
+                                                  {stripSystemReminders(
+                                                    result.content &&
+                                                      result.content.length >
+                                                        500
+                                                      ? result.content.slice(
+                                                          0,
+                                                          500,
+                                                        ) + "..."
+                                                      : result.content,
+                                                  )}
                                                 </ReactMarkdown>
                                               </div>
                                             </div>
@@ -1447,10 +1530,14 @@ export function AICopilotSidebar({ aiEnabled }: { aiEnabled: boolean }) {
                                                 {result.url}
                                               </a>
                                               <div className="text-xs text-muted-foreground line-clamp-2">
-                                                {result.content.slice(0, 150)}
-                                                {result.content.length > 150
-                                                  ? "..."
-                                                  : ""}
+                                                {stripSystemReminders(
+                                                  result.content.length > 150
+                                                    ? result.content.slice(
+                                                        0,
+                                                        150,
+                                                      ) + "..."
+                                                    : result.content,
+                                                )}
                                               </div>
                                             </div>
                                           ),

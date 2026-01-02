@@ -2,7 +2,6 @@
 
 import * as React from "react";
 import * as chrono from "chrono-node";
-import { format } from "date-fns";
 import { Calendar as CalendarIcon, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
@@ -13,7 +12,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { formatDate, formatDateForInput, hasTime } from "@/lib/date-parser";
+import { formatDate, hasTime } from "@/lib/date-parser";
 
 export interface SmartDatetimeInputProps extends Omit<
   React.InputHTMLAttributes<HTMLInputElement>,

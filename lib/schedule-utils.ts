@@ -1,5 +1,5 @@
 import type { ScheduleData, ScheduleEvent } from "@/types";
-import { addDays, addWeeks, format, parse, isWithinInterval } from "date-fns";
+import { addDays, addWeeks, format, parse } from "date-fns";
 
 type Semester = {
   id: string;
@@ -20,7 +20,15 @@ type CalendarEvent = {
   title: string;
   start: Date;
   end: Date;
-  resource: any;
+  resource: {
+    courseId: string;
+    courseCode: string;
+    type: string;
+    section: string;
+    location?: string;
+    building?: string;
+    isExamSlot?: boolean;
+  };
   color: string;
 };
 
@@ -249,6 +257,7 @@ export function validateScheduleEvent(event: ScheduleEvent): boolean {
 
     return true;
   } catch (error) {
+    console.error("[Service Worker] Error validating schedule event:", error);
     return false;
   }
 }

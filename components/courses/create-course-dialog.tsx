@@ -25,7 +25,7 @@ import { Input } from "@/components/ui/input";
 import { courseFormSchema } from "@/lib/schemas";
 import { createCourse } from "@/actions/courses";
 import { toast } from "sonner";
-import { Plus, Check } from "lucide-react";
+import { Plus } from "lucide-react";
 import { SidebarMenuSubButton } from "@/components/ui/sidebar";
 import { cn } from "@/lib/utils";
 import { useQueryClient } from "@tanstack/react-query";

@@ -68,7 +68,7 @@ import { DataTableViewOptions } from "./data-table-view-options";
 import { DataTableAdvancedFilters } from "./data-table-advanced-filters";
 import { useDebtStore } from "@/hooks/use-debt-store";
 import { isBefore, startOfToday } from "date-fns";
-import { AlertTriangle, TrendingUp } from "lucide-react";
+import { TrendingUp } from "lucide-react";
 
 interface DraggableTableHeaderProps<TData, TValue> {
   header: Header<TData, TValue>;

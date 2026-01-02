@@ -11,7 +11,6 @@ import {
 import { Input } from "@/components/ui/input";
 import { getTask } from "@/actions/tasks";
 import { getAllCourses } from "@/actions/get-course-data";
-import { toast } from "sonner";
 import { useTaskMutations } from "@/hooks/use-task-mutations";
 import { TaskStatus, TaskPriority, Course } from "@/types";
 import { SmartDatetimeInput } from "@/components/ui/smart-datetime-input";
@@ -49,7 +48,7 @@ export function TaskProperties({ task }: TaskPropertiesProps) {
   };
 
   const handleCourseChange = async (value: string) => {
-    await updateTaskGeneric(task.id, { courseId: value } as any);
+    await updateTaskGeneric(task.id, { courseId: value });
   };
 
   const handleDateSelect = async (newDate: Date | null) => {
@@ -59,11 +58,11 @@ export function TaskProperties({ task }: TaskPropertiesProps) {
 
   const handleDoDateSelect = async (newDate: Date | null) => {
     setDoDate(newDate || undefined);
-    await updateTaskGeneric(task.id, { doDate: newDate } as any);
+    await updateTaskGeneric(task.id, { doDate: newDate });
   };
 
   const handleWeightChange = async (value: string) => {
-    await updateTaskGeneric(task.id, { gradeWeightId: value } as any);
+    await updateTaskGeneric(task.id, { gradeWeightId: value });
   };
 
   const handleScoreBlur = async (
@@ -78,11 +77,11 @@ export function TaskProperties({ task }: TaskPropertiesProps) {
     if (field === "received") {
       await updateTaskGeneric(task.id, {
         scoreReceived: num !== null ? String(num) : null,
-      } as any);
+      });
     } else {
       await updateTaskGeneric(task.id, {
         scoreMax: num !== null ? String(num) : null,
-      } as any);
+      });
     }
   };
 

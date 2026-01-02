@@ -28,6 +28,7 @@ import { useDebounce } from "@/hooks/use-debounce";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/query-keys";
+import { DocumentsSection } from "@/components/documents/documents-section";
 
 interface CourseStrategySidebarProps {
   course: CourseData;
@@ -84,52 +85,51 @@ export function CourseStrategySidebar({ course }: CourseStrategySidebarProps) {
   }, [debouncedNotes, course.id, queryClient]);
 
   // 1. Calculate Weights and Scores
-  const { completedWeight, currentWeightedScore, remainingWeight } =
-    React.useMemo(() => {
-      let completedWeight = 0;
-      let currentWeightedScore = 0;
+  const { currentWeightedScore, remainingWeight } = React.useMemo(() => {
+    let completedWeight = 0;
+    let currentWeightedScore = 0;
 
-      // Group tasks by gradeWeightId to distribute weight
-      const tasksByWeight: Record<string, Task[]> = {};
-      course.tasks.forEach((task) => {
-        if (task.gradeWeightId) {
-          if (!tasksByWeight[task.gradeWeightId]) {
-            tasksByWeight[task.gradeWeightId] = [];
+    // Group tasks by gradeWeightId to distribute weight
+    const tasksByWeight: Record<string, Task[]> = {};
+    course.tasks.forEach((task) => {
+      if (task.gradeWeightId) {
+        if (!tasksByWeight[task.gradeWeightId]) {
+          tasksByWeight[task.gradeWeightId] = [];
+        }
+        tasksByWeight[task.gradeWeightId].push(task);
+      }
+    });
+
+    // Iterate through grade weights to calculate contributions
+    course.grade_weights.forEach((gw) => {
+      const gwTasks = tasksByWeight[gw.id] || [];
+      const totalTasksInGw = gwTasks.length;
+      const weightPercent = parseFloat(gw.weightPercent?.toString() || "0");
+
+      if (totalTasksInGw > 0) {
+        const weightPerTask = weightPercent / totalTasksInGw;
+
+        gwTasks.forEach((task) => {
+          if (task.scoreReceived !== null) {
+            completedWeight += weightPerTask;
+            const score = parseFloat(task.scoreReceived.toString());
+            const max = parseFloat(task.scoreMax?.toString() || "100");
+            const percentage = max > 0 ? score / max : 0;
+            currentWeightedScore += percentage * weightPerTask;
           }
-          tasksByWeight[task.gradeWeightId].push(task);
-        }
-      });
+        });
+      }
+    });
 
-      // Iterate through grade weights to calculate contributions
-      course.grade_weights.forEach((gw) => {
-        const gwTasks = tasksByWeight[gw.id] || [];
-        const totalTasksInGw = gwTasks.length;
-        const weightPercent = parseFloat(gw.weightPercent?.toString() || "0");
+    // Handle tasks without grade weights or if logic needs adjustment
+    // For now, only weighted tasks contribute to the "decided" portion.
 
-        if (totalTasksInGw > 0) {
-          const weightPerTask = weightPercent / totalTasksInGw;
-
-          gwTasks.forEach((task) => {
-            if (task.scoreReceived !== null) {
-              completedWeight += weightPerTask;
-              const score = parseFloat(task.scoreReceived.toString());
-              const max = parseFloat(task.scoreMax?.toString() || "100");
-              const percentage = max > 0 ? score / max : 0;
-              currentWeightedScore += percentage * weightPerTask;
-            }
-          });
-        }
-      });
-
-      // Handle tasks without grade weights or if logic needs adjustment
-      // For now, only weighted tasks contribute to the "decided" portion.
-
-      return {
-        completedWeight,
-        currentWeightedScore,
-        remainingWeight: 100 - completedWeight,
-      };
-    }, [course]);
+    return {
+      completedWeight,
+      currentWeightedScore,
+      remainingWeight: 100 - completedWeight,
+    };
+  }, [course]);
 
   // 2. State for What-If Calculator
   const [whatIfScore, setWhatIfScore] = React.useState([85]);
@@ -260,6 +260,9 @@ export function CourseStrategySidebar({ course }: CourseStrategySidebarProps) {
           <TipTapEditor initialContent={notes} onChange={setNotes} />
         </CardContent>
       </Card>
+
+      {/* Documents Section */}
+      <DocumentsSection courseId={course.id} initialDocuments={[]} />
 
       {/* Widget A: Grade Weights */}
       <Card>

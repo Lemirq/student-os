@@ -90,7 +90,10 @@ const DueDateCell = ({ task }: { task: Task }) => {
   const { setDueDate } = useTaskMutations();
   const [open, setOpen] = React.useState(false);
 
-  const date = task.dueDate ? new Date(task.dueDate) : null;
+  const date = React.useMemo(
+    () => (task.dueDate ? new Date(task.dueDate) : null),
+    [task.dueDate],
+  );
   const dateHasTime = date ? hasTime(date) : false;
 
   // Natural language input state
@@ -108,7 +111,7 @@ const DueDateCell = ({ task }: { task: Task }) => {
     } else if (open && !date) {
       setInputValue("");
     }
-  }, [open, task.dueDate]);
+  }, [open, date]);
 
   // Overdue: compare full datetime, not just date
   // If no specific time is set (midnight), treat deadline as end of day (23:59:59)

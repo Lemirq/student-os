@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import {
   Card,
   CardContent,
@@ -31,7 +31,8 @@ const isStandalone = (): boolean => {
 
   return (
     window.matchMedia("(display-mode: standalone)").matches ||
-    (window.navigator as any).standalone === true
+    ("standalone" in window.navigator &&
+      (window.navigator as { standalone?: boolean }).standalone === true)
   );
 };
 
@@ -41,15 +42,11 @@ const isStandalone = (): boolean => {
  * Dismissible and stores dismissal state in localStorage
  */
 export const IOSInstallPrompt = (): React.ReactElement | null => {
-  const [isVisible, setIsVisible] = useState<boolean>(false);
-
-  useEffect(() => {
-    // Check if we should show the prompt
-    const shouldShow =
-      isIOSDevice() && !isStandalone() && !localStorage.getItem(STORAGE_KEY);
-
-    setIsVisible(shouldShow);
-  }, []);
+  const [isVisible, setIsVisible] = useState<boolean>(() => {
+    return (
+      isIOSDevice() && !isStandalone() && !localStorage.getItem(STORAGE_KEY)
+    );
+  });
 
   const handleDismiss = (): void => {
     localStorage.setItem(STORAGE_KEY, "true");
@@ -90,7 +87,7 @@ export const IOSInstallPrompt = (): React.ReactElement | null => {
               </span>
             </li>
             <li>
-              Select "Add to Home Screen"{" "}
+              Select &quot;Add to Home Screen&quot;{" "}
               <span className="inline-flex items-center justify-center w-5 h-5 text-xs border rounded">
                 ➕
               </span>

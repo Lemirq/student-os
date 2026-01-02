@@ -11,7 +11,6 @@ import {
 } from "@/components/ui/chart";
 import { Activity } from "lucide-react";
 import { format, parseISO } from "date-fns";
-import { useTheme } from "next-themes";
 
 interface WorkloadHeatmapProps {
   data: DashboardMetrics["workloadHeatmap"];
@@ -25,8 +24,6 @@ const chartConfig = {
 } satisfies ChartConfig;
 
 export function WorkloadHeatmap({ data }: WorkloadHeatmapProps) {
-  const { theme } = useTheme();
-
   // Format dates for display
   const chartData = data.map((d) => ({
     ...d,
@@ -34,7 +31,6 @@ export function WorkloadHeatmap({ data }: WorkloadHeatmapProps) {
     formattedDate: format(parseISO(d.date), "MMM d"),
   }));
 
-  const isDark = theme === "dark";
   const defaultBarColor = "var(--chart-1)";
   const warningBarColor = "var(--destructive)";
 

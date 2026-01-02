@@ -1,12 +1,5 @@
 import { getCourseData } from "@/actions/get-course-data";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent } from "@/components/ui/card";
-import { Progress } from "@/components/ui/progress";
 import { notFound } from "next/navigation";
-import { CourseStrategySidebar } from "@/components/dashboard/course-strategy-sidebar";
-import { TaskExplorer } from "@/components/tasks/task-explorer";
-import { QuickAddCourseTask } from "@/components/dashboard/quick-add-course-task";
-import { EditCourseDialog } from "@/components/courses/edit-course-dialog";
 import { HydrationBoundary } from "@tanstack/react-query";
 import {
   createServerQueryClient,

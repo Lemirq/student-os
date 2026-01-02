@@ -10,10 +10,9 @@ import {
 } from "@/components/ui/popover";
 import { Badge } from "@/components/ui/badge";
 import { Filter, X } from "lucide-react";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Calendar } from "@/components/ui/calendar";
-import { format, startOfDay, endOfDay, isWithinInterval } from "date-fns";
+import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 
 interface DataTableAdvancedFiltersProps<TData> {
@@ -116,7 +115,18 @@ export function DataTableAdvancedFilters<TData>({
     setDateRange({ from: undefined, to: undefined });
   };
 
-  const toggleArrayFilter = (column: any, value: string) => {
+  const toggleArrayFilter = (
+    column:
+      | {
+          id: string;
+          getFilterValue: () => unknown;
+          setFilterValue: (value: unknown) => void;
+        }
+      | undefined,
+    value: string,
+  ) => {
+    if (!column) return undefined;
+
     const currentFilter = (column?.getFilterValue() as string[]) || [];
     const newFilter = currentFilter.includes(value)
       ? currentFilter.filter((v) => v !== value)

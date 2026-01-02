@@ -32,20 +32,18 @@ import {
   Tag,
   X,
 } from "lucide-react";
-import { Task, GradeWeight } from "@/types";
+import { Task, GradeWeight, TaskStatus } from "@/types";
 import { useTaskMutations } from "@/hooks/use-task-mutations";
 import { toast } from "sonner";
 import { getAllCourses } from "@/actions/get-course-data";
 import { getGradeWeightsForCourses } from "@/actions/courses";
 import { Course } from "@/types";
 import { useCommandStore } from "@/hooks/use-command-store";
-import { format } from "date-fns";
 import { formatDate, hasTime } from "@/lib/date-parser";
 
 export function TaskCommandMenu() {
   const { isOpen, tasks, close, view, setView } = useCommandStore();
-  const { setStatus, setPriority, setDueDate, removeTask, updateTaskGeneric } =
-    useTaskMutations();
+  const { setDueDate, removeTask, updateTaskGeneric } = useTaskMutations();
   const [courses, setCourses] = React.useState<Course[]>([]);
   const [gradeWeights, setGradeWeights] = React.useState<GradeWeight[]>([]);
   const [search, setSearch] = React.useState("");
@@ -141,7 +139,19 @@ export function TaskCommandMenu() {
       Promise.all(
         tasks.map((task) => {
           if (!task.id) return Promise.resolve();
-          return updateTaskGeneric(task.id, update as any);
+          return updateTaskGeneric(
+            task.id,
+            update as {
+              status?: TaskStatus;
+              priority?: "Low" | "Medium" | "High";
+              title?: string;
+              dueDate?: Date | null;
+              doDate?: Date | null;
+              scoreReceived?: string | null;
+              scoreMax?: string | null;
+              gradeWeightId?: string | null;
+            },
+          );
         }),
       )
         .then(() => {
@@ -174,9 +184,13 @@ export function TaskCommandMenu() {
       // Close palette immediately
       close();
 
-      const payload: Record<string, any> = {
+      const payload: {
+        scoreReceived: string;
+        scoreMax?: string;
+        status: TaskStatus;
+      } = {
         scoreReceived: String(received),
-        status: "Done",
+        status: "Done" as TaskStatus,
       };
       if (max !== undefined && !isNaN(max)) {
         payload.scoreMax = String(max);

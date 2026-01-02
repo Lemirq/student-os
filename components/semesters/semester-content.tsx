@@ -24,20 +24,19 @@ interface SemesterContentProps {
 }
 
 export function SemesterContent({ semesterId }: SemesterContentProps) {
-  // Fetch data using React Query - will use prefetched data from server
   const { data: semester, isLoading: semesterLoading } =
     useSemesterData(semesterId);
   const { data: metrics, isLoading: metricsLoading } =
     useDashboardMetrics(semesterId);
 
-  if (semesterLoading || metricsLoading || !semester || !metrics) {
-    return <div>Loading...</div>;
-  }
-  // Date filter state for heatmap <-> table integration
   const [dateFilter, setDateFilter] = useState<{
     from: Date | undefined;
     to: Date | undefined;
   }>({ from: undefined, to: undefined });
+
+  if (semesterLoading || metricsLoading || !semester || !metrics) {
+    return <div>Loading...</div>;
+  }
 
   return (
     <>

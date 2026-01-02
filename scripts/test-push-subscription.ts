@@ -152,6 +152,8 @@ async function testPushSubscription() {
 }
 
 // Make function available globally
-(window as any).testPushSubscription = testPushSubscription;
+(
+  window as Window & { testPushSubscription: typeof testPushSubscription }
+).testPushSubscription = testPushSubscription;
 
 console.log("Diagnostic script loaded. Run: testPushSubscription()");

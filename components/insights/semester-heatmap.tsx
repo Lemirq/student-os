@@ -181,14 +181,13 @@ export function SemesterHeatmap({
   onWeekSelect,
   className,
 }: SemesterHeatmapProps & { className?: string }) {
-  const startDate =
-    semesterStart instanceof Date ? semesterStart : new Date(semesterStart);
-  const endDate =
-    semesterEnd instanceof Date ? semesterEnd : new Date(semesterEnd);
-
   const heatmapData = useMemo(() => {
+    const startDate =
+      semesterStart instanceof Date ? semesterStart : new Date(semesterStart);
+    const endDate =
+      semesterEnd instanceof Date ? semesterEnd : new Date(semesterEnd);
     return getHeatmapData(startDate, endDate, tasks);
-  }, [startDate, endDate, tasks]);
+  }, [semesterStart, semesterEnd, tasks]);
 
   const now = startOfDay(new Date());
 

@@ -16,6 +16,19 @@ type TaskUpdate = {
   scoreReceived?: string | null;
   scoreMax?: string | null;
   gradeWeightId?: string | null;
+  description?: string | null;
+  notes?: unknown;
+  courseId?: string | null;
+};
+
+type QueryDataWithTasks = {
+  tasks?: TaskWithDetails[];
+  [key: string]: unknown;
+};
+
+type CachedQuery = {
+  key: readonly unknown[];
+  data: unknown;
 };
 
 /**
@@ -51,8 +64,8 @@ export function useTaskMutations() {
       // Snapshot previous values
       const previousData = {
         tasks: queryClient.getQueryData(queryKeys.tasks.all),
-        semesters: [] as any[],
-        courses: [] as any[],
+        semesters: [] as CachedQuery[],
+        courses: [] as CachedQuery[],
       };
 
       // Collect all semester and course queries to update
@@ -82,22 +95,24 @@ export function useTaskMutations() {
 
       // Update semester queries
       previousData.semesters.forEach(({ key }) => {
-        queryClient.setQueryData(key, (old: any) => {
+        queryClient.setQueryData(key, (old: unknown) => {
           if (!old) return old;
+          const oldData = old as QueryDataWithTasks;
           return {
-            ...old,
-            tasks: updateTaskInList(old.tasks),
+            ...oldData,
+            tasks: updateTaskInList(oldData.tasks),
           };
         });
       });
 
       // Update course queries
       previousData.courses.forEach(({ key }) => {
-        queryClient.setQueryData(key, (old: any) => {
+        queryClient.setQueryData(key, (old: unknown) => {
           if (!old) return old;
+          const oldData = old as QueryDataWithTasks;
           return {
-            ...old,
-            tasks: updateTaskInList(old.tasks),
+            ...oldData,
+            tasks: updateTaskInList(oldData.tasks),
           };
         });
       });
@@ -145,8 +160,8 @@ export function useTaskMutations() {
       await queryClient.cancelQueries({ queryKey: queryKeys.courses.all });
 
       const previousData = {
-        semesters: [] as any[],
-        courses: [] as any[],
+        semesters: [] as CachedQuery[],
+        courses: [] as CachedQuery[],
       };
 
       // Collect queries
@@ -173,21 +188,23 @@ export function useTaskMutations() {
       };
 
       previousData.semesters.forEach(({ key }) => {
-        queryClient.setQueryData(key, (old: any) => {
+        queryClient.setQueryData(key, (old: unknown) => {
           if (!old) return old;
+          const oldData = old as QueryDataWithTasks;
           return {
-            ...old,
-            tasks: removeTaskFromList(old.tasks),
+            ...oldData,
+            tasks: removeTaskFromList(oldData.tasks),
           };
         });
       });
 
       previousData.courses.forEach(({ key }) => {
-        queryClient.setQueryData(key, (old: any) => {
+        queryClient.setQueryData(key, (old: unknown) => {
           if (!old) return old;
+          const oldData = old as QueryDataWithTasks;
           return {
-            ...old,
-            tasks: removeTaskFromList(old.tasks),
+            ...oldData,
+            tasks: removeTaskFromList(oldData.tasks),
           };
         });
       });
