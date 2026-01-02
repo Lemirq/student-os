@@ -17,7 +17,7 @@ import {
   ArrowRight,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
-import { useChat } from "@ai-sdk-tools/store";
+import { useChat } from "@ai-sdk/react";
 import { lastAssistantMessageIsCompleteWithToolCalls, UIMessagePart } from "ai";
 import { StudentOSTools, StudentOSDataTypes } from "@/types";
 import { getPageContext, PageContext } from "@/actions/page-context";
@@ -104,6 +104,19 @@ export function AICopilotSidebar({ aiEnabled }: { aiEnabled: boolean }) {
   } = useChat({
     id: chatId,
     sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithToolCalls,
+    onData: (data) => {
+      console.log("[DATA] ", data);
+    },
+    onError: (error) => {
+      console.error("[ERROR] ", error);
+    },
+    onFinish: (data) => {
+      console.log("[FINISH] ", data);
+    },
+
+    onToolCall: (toolCall) => {
+      console.log("[TOOL CALL] ", toolCall);
+    },
   });
 
   // Apply pending messages after chatId changes
@@ -472,6 +485,7 @@ export function AICopilotSidebar({ aiEnabled }: { aiEnabled: boolean }) {
                           // -----------------------------------------------------------------------
                           case "tool-parse_syllabus": {
                             const callId = p.toolCallId;
+
                             switch (p.state) {
                               case "input-streaming":
                               case "input-available":
@@ -486,17 +500,22 @@ export function AICopilotSidebar({ aiEnabled }: { aiEnabled: boolean }) {
                               case "output-available": {
                                 // The composite tool returns { course, tasks, ui }
                                 const output = p.output;
-                                if (!output?.course || !output?.tasks)
+                                // Only require tasks to exist - course can be empty string
+                                if (
+                                  !output?.tasks ||
+                                  !Array.isArray(output.tasks)
+                                )
                                   return null;
                                 // Pass the data in the format SyllabusPreviewCard expects
                                 const data = {
-                                  course: output.course,
+                                  course: output.course || "",
                                   tasks: output.tasks,
                                 };
                                 return (
-                                  <div key={callId}>
-                                    <SyllabusPreviewCard data={data} />
-                                  </div>
+                                  <SyllabusPreviewCard
+                                    key={callId}
+                                    data={data}
+                                  />
                                 );
                               }
                               default:
