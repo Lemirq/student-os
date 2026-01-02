@@ -237,11 +237,12 @@ export function AICopilotSidebar({ aiEnabled }: { aiEnabled: boolean }) {
   const handleSubmit = async (text: string, submittedFiles?: File[]) => {
     const filesToSend = submittedFiles || files;
 
-    // Pass page context and cached AI context via body
+    // Pass page context, cached AI context, and user timezone via body
     const options = {
       body: {
         pageContext,
         aiContext, // Pass cached courses + grade weights
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone, // User's local timezone
       },
     };
 
@@ -1355,7 +1356,8 @@ export function AICopilotSidebar({ aiEnabled }: { aiEnabled: boolean }) {
                                               </div>
                                               <div className="prose prose-xs dark:prose-invert max-w-none text-xs">
                                                 <ReactMarkdown>
-                                                  {result.content.length > 500
+                                                  {result.content &&
+                                                  result.content.length > 500
                                                     ? result.content.slice(
                                                         0,
                                                         500,
@@ -1634,34 +1636,31 @@ export function AICopilotSidebar({ aiEnabled }: { aiEnabled: boolean }) {
                                     {updatedTasks.length > 0 ? (
                                       <div className="space-y-2 max-h-[300px] overflow-y-auto scrollbar-sleek">
                                         {updatedTasks.map(
-                                          (
-                                            task: {
-                                              id: string;
-                                              title: string;
-                                              changes: {
-                                                status?: string;
-                                                priority?: string;
-                                                dueDate?: {
-                                                  from: string;
-                                                  to: string;
-                                                };
-                                                doDate?: {
-                                                  from: string;
-                                                  to: string;
-                                                };
-                                              };
-                                            },
-                                            i: number,
-                                          ) => (
+                                          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                                          (task: any, i: number) => (
                                             <div
                                               key={task.id || i}
                                               className="p-2.5 bg-background/50 rounded border border-border/30 hover:border-blue-400/50 transition-colors"
                                             >
                                               <div className="font-medium text-xs mb-1.5 truncate">
-                                                {task.title}
+                                                {task.new_title ||
+                                                  task.original_title ||
+                                                  task.title}
                                               </div>
                                               <div className="space-y-1">
-                                                {task.changes.status && (
+                                                {task.changes?.title && (
+                                                  <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                                                    <span>Renamed:</span>
+                                                    <span className="text-muted-foreground/70 truncate max-w-[80px]">
+                                                      {task.changes.title.from}
+                                                    </span>
+                                                    <ArrowRight className="size-2.5 flex-shrink-0" />
+                                                    <span className="text-blue-600 dark:text-blue-400 font-medium truncate max-w-[80px]">
+                                                      {task.changes.title.to}
+                                                    </span>
+                                                  </div>
+                                                )}
+                                                {task.changes?.status && (
                                                   <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
                                                     <span>Status:</span>
                                                     <Badge
@@ -1672,7 +1671,7 @@ export function AICopilotSidebar({ aiEnabled }: { aiEnabled: boolean }) {
                                                     </Badge>
                                                   </div>
                                                 )}
-                                                {task.changes.priority && (
+                                                {task.changes?.priority && (
                                                   <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
                                                     <span>Priority:</span>
                                                     <Badge
@@ -1683,7 +1682,29 @@ export function AICopilotSidebar({ aiEnabled }: { aiEnabled: boolean }) {
                                                     </Badge>
                                                   </div>
                                                 )}
-                                                {task.changes.dueDate && (
+                                                {task.changes?.description !==
+                                                  undefined && (
+                                                  <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                                                    <span>Description:</span>
+                                                    <span className="text-blue-600 dark:text-blue-400 font-medium truncate max-w-[120px]">
+                                                      {task.changes
+                                                        .description ||
+                                                        "(cleared)"}
+                                                    </span>
+                                                  </div>
+                                                )}
+                                                {task.changes?.scoreReceived !==
+                                                  undefined && (
+                                                  <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                                                    <span>Score:</span>
+                                                    <span className="text-blue-600 dark:text-blue-400 font-medium">
+                                                      {task.changes
+                                                        .scoreReceived ??
+                                                        "(cleared)"}
+                                                    </span>
+                                                  </div>
+                                                )}
+                                                {task.changes?.dueDate && (
                                                   <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
                                                     <span>Due:</span>
                                                     <span className="text-muted-foreground/70">
@@ -1707,7 +1728,7 @@ export function AICopilotSidebar({ aiEnabled }: { aiEnabled: boolean }) {
                                                     </span>
                                                   </div>
                                                 )}
-                                                {task.changes.doDate && (
+                                                {task.changes?.doDate && (
                                                   <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
                                                     <span>Do:</span>
                                                     <span className="text-muted-foreground/70">

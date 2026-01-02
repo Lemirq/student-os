@@ -18,12 +18,12 @@ import {
 } from "@tavily/ai-sdk";
 
 export type StudentOSToolCallsMessage = UIMessage;
-import { tasks, courses, gradeWeights } from "@/schema";
+import { tasks, courses, gradeWeights, semesters } from "@/schema";
 import { eq, and, ilike, isNull, gte, lte, inArray, sql } from "drizzle-orm";
 import { createClient } from "@/utils/supabase/server";
 import { openRouterApiKey, tavilyApiKey } from "@/lib/env";
 import { PageContext } from "@/actions/page-context";
-import { formatContextForAI } from "@/lib/utils";
+import { formatContextForAI, setTimeInTimezone } from "@/lib/utils";
 
 export const maxDuration = 60; // Allow longer timeouts for complex DB ops
 
@@ -33,14 +33,17 @@ const openRouterClient = createOpenRouter({
 const glm = openRouterClient.chat("z-ai/glm-4.7");
 
 export async function POST(req: Request) {
-  const { messages, pageContext, aiContext } = (await req.json()) as {
+  const { messages, pageContext, aiContext, timezone } = (await req.json()) as {
     messages: UIMessage[];
     pageContext?: PageContext;
     aiContext?: {
       courses: (typeof courses.$inferSelect)[];
       gradeWeights: (typeof gradeWeights.$inferSelect)[];
     };
+    timezone?: string; // User's IANA timezone (e.g., "America/New_York")
   };
+  // Default to UTC if no timezone provided
+  const userTimezone = timezone || "UTC";
   const supabase = await createClient();
   const {
     data: { user },
@@ -50,6 +53,15 @@ export async function POST(req: Request) {
     return new Response("Unauthorized", { status: 401 });
   }
 
+  // Get current semester ID for filtering
+  const [currentSemester] = await db
+    .select({ id: semesters.id })
+    .from(semesters)
+    .where(and(eq(semesters.userId, user.id), eq(semesters.isCurrent, true)))
+    .limit(1);
+
+  const currentSemesterId = currentSemester?.id;
+
   // Use cached AI context if available, otherwise fetch from DB
   let userCourses, userGradeWeights;
 
@@ -58,7 +70,7 @@ export async function POST(req: Request) {
     userCourses = aiContext.courses;
     userGradeWeights = aiContext.gradeWeights;
   } else {
-    // Fallback: fetch from DB
+    // Fallback: fetch from DB (filtered by current semester)
     userCourses = await db
       .select({
         id: courses.id,
@@ -72,7 +84,14 @@ export async function POST(req: Request) {
         syllabus: sql<string | null>`NULL`.as("syllabus"), // Exclude syllabus data
       })
       .from(courses)
-      .where(eq(courses.userId, user.id));
+      .where(
+        and(
+          eq(courses.userId, user.id),
+          currentSemesterId
+            ? eq(courses.semesterId, currentSemesterId)
+            : sql`1=0`,
+        ),
+      );
 
     const courseIds = userCourses.map((c) => c.id);
     userGradeWeights =
@@ -334,22 +353,76 @@ ${raw_text}`,
         }),
         execute: async ({ task_name, score }) => {
           // 1. Try Simple Match
-          let foundTasks = await db
-            .select()
-            .from(tasks)
-            .where(
-              and(
-                eq(tasks.userId, user.id),
-                ilike(tasks.title, `%${task_name}%`),
-              ),
-            );
+          let foundTasks: (typeof tasks.$inferSelect)[];
+          if (currentSemesterId) {
+            const semesterCourses = await db
+              .select({ id: courses.id })
+              .from(courses)
+              .where(
+                and(
+                  eq(courses.userId, user.id),
+                  eq(courses.semesterId, currentSemesterId),
+                ),
+              );
+            const courseIds = semesterCourses.map((c) => c.id);
+            foundTasks = await db
+              .select()
+              .from(tasks)
+              .where(
+                and(
+                  eq(tasks.userId, user.id),
+                  inArray(
+                    tasks.courseId,
+                    courseIds.length > 0 ? courseIds : [""],
+                  ),
+                  ilike(tasks.title, `%${task_name}%`),
+                ),
+              );
+          } else {
+            foundTasks = await db
+              .select()
+              .from(tasks)
+              .where(
+                and(
+                  eq(tasks.userId, user.id),
+                  ilike(tasks.title, `%${task_name}%`),
+                ),
+              );
+          }
 
           // 2. Fallback: LLM Fuzzy Match
           if (foundTasks.length === 0) {
-            const allTasks = await db
-              .select({ id: tasks.id, title: tasks.title })
-              .from(tasks)
-              .where(eq(tasks.userId, user.id));
+            let allTasks: { id: string; title: string }[];
+            if (currentSemesterId) {
+              const semesterCourses = await db
+                .select({ id: courses.id })
+                .from(courses)
+                .where(
+                  and(
+                    eq(courses.userId, user.id),
+                    eq(courses.semesterId, currentSemesterId),
+                  ),
+                );
+              const courseIds = semesterCourses.map((c) => c.id);
+              allTasks = await db
+                .select({ id: tasks.id, title: tasks.title })
+                .from(tasks)
+                .where(
+                  and(
+                    eq(tasks.userId, user.id),
+                    inArray(
+                      tasks.courseId,
+                      courseIds.length > 0 ? courseIds : [""],
+                    ),
+                  ),
+                );
+            } else {
+              allTasks = await db
+                .select({ id: tasks.id, title: tasks.title })
+                .from(tasks)
+                .where(eq(tasks.userId, user.id));
+            }
+
             if (allTasks.length > 0) {
               const { output: match } = await generateText({
                 // @ts-expect-error OpenRouter provider types are incompatible with AI SDK beta
@@ -511,16 +584,44 @@ Extract tasks from: "${request}"
         description: "Assigns 'do_date' to unscheduled tasks.",
         inputSchema: z.object({}),
         execute: async () => {
-          const unscheduled = await db
-            .select()
-            .from(tasks)
-            .where(
-              and(
-                eq(tasks.userId, user.id),
-                isNull(tasks.doDate),
-                eq(tasks.status, "Todo"),
-              ),
-            );
+          let unscheduled: (typeof tasks.$inferSelect)[];
+          if (currentSemesterId) {
+            const semesterCourses = await db
+              .select({ id: courses.id })
+              .from(courses)
+              .where(
+                and(
+                  eq(courses.userId, user.id),
+                  eq(courses.semesterId, currentSemesterId),
+                ),
+              );
+            const courseIds = semesterCourses.map((c) => c.id);
+            unscheduled = await db
+              .select()
+              .from(tasks)
+              .where(
+                and(
+                  eq(tasks.userId, user.id),
+                  inArray(
+                    tasks.courseId,
+                    courseIds.length > 0 ? courseIds : [""],
+                  ),
+                  isNull(tasks.doDate),
+                  eq(tasks.status, "Todo"),
+                ),
+              );
+          } else {
+            unscheduled = await db
+              .select()
+              .from(tasks)
+              .where(
+                and(
+                  eq(tasks.userId, user.id),
+                  isNull(tasks.doDate),
+                  eq(tasks.status, "Todo"),
+                ),
+              );
+          }
 
           const updates = [];
           for (const t of unscheduled) {
@@ -539,18 +640,44 @@ Extract tasks from: "${request}"
         description: "Sets priority to High for heavy assignments (>15%).",
         inputSchema: z.object({}),
         execute: async () => {
-          // Complex Join: Tasks -> GradeWeights -> Check Weight > 15
-          const highStakes = await db
-            .select({ id: tasks.id })
-            .from(tasks)
-            .innerJoin(gradeWeights, eq(tasks.gradeWeightId, gradeWeights.id))
-            .where(
-              and(
-                eq(tasks.userId, user.id),
-                eq(tasks.status, "Todo"),
-                gte(gradeWeights.weightPercent, "15.00"),
-              ),
-            );
+          let highStakes: { id: string }[];
+          if (currentSemesterId) {
+            const semesterCourses = await db
+              .select({ id: courses.id })
+              .from(courses)
+              .where(
+                and(
+                  eq(courses.userId, user.id),
+                  eq(courses.semesterId, currentSemesterId),
+                ),
+              );
+            const courseIds = semesterCourses.map((c) => c.id);
+            highStakes = await db
+              .select({ id: tasks.id })
+              .from(tasks)
+              .innerJoin(courses, eq(tasks.courseId, courses.id))
+              .innerJoin(gradeWeights, eq(tasks.gradeWeightId, gradeWeights.id))
+              .where(
+                and(
+                  eq(tasks.userId, user.id),
+                  eq(tasks.status, "Todo"),
+                  gte(gradeWeights.weightPercent, "15.00"),
+                  inArray(courses.id, courseIds),
+                ),
+              );
+          } else {
+            highStakes = await db
+              .select({ id: tasks.id })
+              .from(tasks)
+              .innerJoin(gradeWeights, eq(tasks.gradeWeightId, gradeWeights.id))
+              .where(
+                and(
+                  eq(tasks.userId, user.id),
+                  eq(tasks.status, "Todo"),
+                  gte(gradeWeights.weightPercent, "15.00"),
+                ),
+              );
+          }
 
           if (highStakes.length > 0) {
             await db
@@ -578,16 +705,44 @@ Extract tasks from: "${request}"
           end_date: z.string().describe("End date in ISO format"),
         }),
         execute: async ({ start_date, end_date }) => {
-          const scheduledTasks = await db
-            .select()
-            .from(tasks)
-            .where(
-              and(
-                eq(tasks.userId, user.id),
-                gte(tasks.dueDate, new Date(start_date)),
-                lte(tasks.dueDate, new Date(end_date)),
-              ),
-            );
+          let scheduledTasks: (typeof tasks.$inferSelect)[];
+          if (currentSemesterId) {
+            const semesterCourses = await db
+              .select({ id: courses.id })
+              .from(courses)
+              .where(
+                and(
+                  eq(courses.userId, user.id),
+                  eq(courses.semesterId, currentSemesterId),
+                ),
+              );
+            const courseIds = semesterCourses.map((c) => c.id);
+            scheduledTasks = await db
+              .select()
+              .from(tasks)
+              .where(
+                and(
+                  eq(tasks.userId, user.id),
+                  inArray(
+                    tasks.courseId,
+                    courseIds.length > 0 ? courseIds : [""],
+                  ),
+                  gte(tasks.dueDate, new Date(start_date)),
+                  lte(tasks.dueDate, new Date(end_date)),
+                ),
+              );
+          } else {
+            scheduledTasks = await db
+              .select()
+              .from(tasks)
+              .where(
+                and(
+                  eq(tasks.userId, user.id),
+                  gte(tasks.dueDate, new Date(start_date)),
+                  lte(tasks.dueDate, new Date(end_date)),
+                ),
+              );
+          }
 
           return {
             tasks: scheduledTasks,
@@ -602,10 +757,37 @@ Extract tasks from: "${request}"
         description: "Finds tasks missing weights or dates.",
         inputSchema: z.object({}),
         execute: async () => {
-          const missing = await db
-            .select({ title: tasks.title })
-            .from(tasks)
-            .where(and(eq(tasks.userId, user.id), isNull(tasks.dueDate)));
+          let missing: (typeof tasks.$inferSelect)[];
+          if (currentSemesterId) {
+            const semesterCourses = await db
+              .select({ id: courses.id })
+              .from(courses)
+              .where(
+                and(
+                  eq(courses.userId, user.id),
+                  eq(courses.semesterId, currentSemesterId),
+                ),
+              );
+            const courseIds = semesterCourses.map((c) => c.id);
+            missing = await db
+              .select()
+              .from(tasks)
+              .where(
+                and(
+                  eq(tasks.userId, user.id),
+                  inArray(
+                    tasks.courseId,
+                    courseIds.length > 0 ? courseIds : [""],
+                  ),
+                  isNull(tasks.dueDate),
+                ),
+              );
+          } else {
+            missing = await db
+              .select()
+              .from(tasks)
+              .where(and(eq(tasks.userId, user.id), isNull(tasks.dueDate)));
+          }
           return { tasks_without_dates: missing, suggestion: "Add due dates?" };
         },
       }),
@@ -958,7 +1140,7 @@ Extract tasks from: "${request}"
       // -----------------------------------------------------------------------
       bulk_update_tasks: tool({
         description:
-          "Searches for tasks matching criteria and updates them in bulk. Use for requests like 'update all weekly prep tasks in CSC148 to be due at 5pm' or 'change priority of all assignments in MAT102 to high'.",
+          "Searches for tasks matching criteria and updates them in bulk. Supports renaming with sequential numbering (use {n} placeholder), changing status/priority, modifying dates/times, updating scores, descriptions, and more. Examples: 'rename all online assignments to Assignment {n}', 'set all quizzes to high priority', 'update weekly prep due times to 5pm'.",
         inputSchema: z.object({
           search_query: z
             .string()
@@ -969,7 +1151,24 @@ Extract tasks from: "${request}"
             .string()
             .optional()
             .describe("Filter by course code (e.g., 'CSC148')"),
+          sort_by: z
+            .enum(["due_date", "created_at", "title"])
+            .optional()
+            .describe(
+              "Sort order for tasks before applying updates (important for sequential numbering). Defaults to 'due_date'.",
+            ),
+          sort_order: z
+            .enum(["asc", "desc"])
+            .optional()
+            .describe("Sort direction. Defaults to 'asc'."),
           updates: z.object({
+            // Title/rename support with {n} placeholder for sequential numbering
+            title_template: z
+              .string()
+              .optional()
+              .describe(
+                "New title template. Use {n} for sequential number based on sort order (e.g., 'Assignment {n}' becomes 'Assignment 1', 'Assignment 2', etc.)",
+              ),
             status: z
               .enum(["Todo", "In Progress", "Done"])
               .optional()
@@ -978,6 +1177,31 @@ Extract tasks from: "${request}"
               .enum(["Low", "Medium", "High"])
               .optional()
               .describe("New priority for matched tasks"),
+            description: z
+              .string()
+              .optional()
+              .describe("New description for matched tasks"),
+            // Score fields
+            score_received: z
+              .number()
+              .nullable()
+              .optional()
+              .describe(
+                "Score received (e.g., 85 for 85%). Use null to clear.",
+              ),
+            score_max: z
+              .number()
+              .optional()
+              .describe("Maximum possible score (e.g., 100)"),
+            // Grade weight assignment
+            grade_weight_id: z
+              .string()
+              .nullable()
+              .optional()
+              .describe(
+                "Grade weight ID to assign tasks to. Use null to unassign.",
+              ),
+            // Date/time modifications
             due_time: z
               .string()
               .optional()
@@ -1004,14 +1228,37 @@ Extract tasks from: "${request}"
               ),
           }),
         }),
-        execute: async ({ search_query, course_code, updates }) => {
-          // Build the where clause
+        execute: async ({
+          search_query,
+          course_code,
+          sort_by = "due_date",
+          sort_order = "asc",
+          updates,
+        }) => {
+          // Build where clause
           const conditions = [
             eq(tasks.userId, user.id),
             ilike(tasks.title, `%${search_query}%`),
           ];
 
-          // If course_code provided, find the course first
+          // Add current semester filter
+          if (currentSemesterId) {
+            const semesterCourses = await db
+              .select({ id: courses.id })
+              .from(courses)
+              .where(
+                and(
+                  eq(courses.userId, user.id),
+                  eq(courses.semesterId, currentSemesterId),
+                ),
+              );
+            const courseIds = semesterCourses.map((c) => c.id);
+            conditions.push(
+              inArray(tasks.courseId, courseIds.length > 0 ? courseIds : [""]),
+            );
+          }
+
+          // If course_code provided, find course first
           let courseInfo = null;
           if (course_code) {
             const foundCourse = await db
@@ -1040,7 +1287,7 @@ Extract tasks from: "${request}"
           }
 
           // Find matching tasks
-          const matchingTasks = await db
+          let matchingTasks = await db
             .select()
             .from(tasks)
             .where(and(...conditions));
@@ -1054,18 +1301,49 @@ Extract tasks from: "${request}"
             };
           }
 
+          // Sort tasks for sequential numbering
+          matchingTasks = matchingTasks.sort((a, b) => {
+            let comparison = 0;
+            if (sort_by === "due_date") {
+              const aDate = a.dueDate?.getTime() ?? 0;
+              const bDate = b.dueDate?.getTime() ?? 0;
+              comparison = aDate - bDate;
+            } else if (sort_by === "created_at") {
+              const aDate = a.createdAt?.getTime() ?? 0;
+              const bDate = b.createdAt?.getTime() ?? 0;
+              comparison = aDate - bDate;
+            } else if (sort_by === "title") {
+              comparison = (a.title ?? "").localeCompare(b.title ?? "");
+            }
+            return sort_order === "desc" ? -comparison : comparison;
+          });
+
           // Prepare updates for each task
           const updatedTasks = [];
           const errors = [];
 
-          for (const task of matchingTasks) {
+          for (let i = 0; i < matchingTasks.length; i++) {
+            const task = matchingTasks[i];
             try {
               const taskUpdates: {
+                title?: string;
                 status?: string;
                 priority?: string;
+                description?: string | null;
+                scoreReceived?: string | null;
+                scoreMax?: string;
+                gradeWeightId?: string | null;
                 dueDate?: Date;
                 doDate?: Date;
               } = {};
+
+              // Apply title template with sequential numbering
+              if (updates.title_template) {
+                taskUpdates.title = updates.title_template.replace(
+                  /\{n\}/gi,
+                  String(i + 1),
+                );
+              }
 
               // Apply status update
               if (updates.status) {
@@ -1077,14 +1355,38 @@ Extract tasks from: "${request}"
                 taskUpdates.priority = updates.priority;
               }
 
-              // Apply due date time modification
+              // Apply description update
+              if (updates.description !== undefined) {
+                taskUpdates.description = updates.description;
+              }
+
+              // Apply score updates
+              if (updates.score_received !== undefined) {
+                taskUpdates.scoreReceived =
+                  updates.score_received === null
+                    ? null
+                    : String(updates.score_received);
+              }
+              if (updates.score_max !== undefined) {
+                taskUpdates.scoreMax = String(updates.score_max);
+              }
+
+              // Apply grade weight assignment
+              if (updates.grade_weight_id !== undefined) {
+                taskUpdates.gradeWeightId = updates.grade_weight_id;
+              }
+
+              // Apply due date time modification (respects user's timezone)
               if (updates.due_time && task.dueDate) {
                 const [hours, minutes] = updates.due_time
                   .split(":")
                   .map(Number);
-                const newDueDate = new Date(task.dueDate);
-                newDueDate.setHours(hours, minutes, 0, 0);
-                taskUpdates.dueDate = newDueDate;
+                taskUpdates.dueDate = setTimeInTimezone(
+                  task.dueDate,
+                  hours,
+                  minutes,
+                  userTimezone,
+                );
               }
 
               // Apply due date offset
@@ -1098,12 +1400,15 @@ Extract tasks from: "${request}"
                 taskUpdates.dueDate = newDueDate;
               }
 
-              // Apply do date time modification
+              // Apply do date time modification (respects user's timezone)
               if (updates.do_time && task.doDate) {
                 const [hours, minutes] = updates.do_time.split(":").map(Number);
-                const newDoDate = new Date(task.doDate);
-                newDoDate.setHours(hours, minutes, 0, 0);
-                taskUpdates.doDate = newDoDate;
+                taskUpdates.doDate = setTimeInTimezone(
+                  task.doDate,
+                  hours,
+                  minutes,
+                  userTimezone,
+                );
               }
 
               // Apply do date offset
@@ -1126,11 +1431,27 @@ Extract tasks from: "${request}"
 
                 updatedTasks.push({
                   id: task.id,
-                  title: task.title,
+                  original_title: task.title,
+                  new_title: taskUpdates.title,
                   changes: {
+                    ...(taskUpdates.title && {
+                      title: { from: task.title, to: taskUpdates.title },
+                    }),
                     ...(taskUpdates.status && { status: taskUpdates.status }),
                     ...(taskUpdates.priority && {
                       priority: taskUpdates.priority,
+                    }),
+                    ...(taskUpdates.description !== undefined && {
+                      description: taskUpdates.description,
+                    }),
+                    ...(taskUpdates.scoreReceived !== undefined && {
+                      scoreReceived: taskUpdates.scoreReceived,
+                    }),
+                    ...(taskUpdates.scoreMax !== undefined && {
+                      scoreMax: taskUpdates.scoreMax,
+                    }),
+                    ...(taskUpdates.gradeWeightId !== undefined && {
+                      gradeWeightId: taskUpdates.gradeWeightId,
                     }),
                     ...(taskUpdates.dueDate && {
                       dueDate: {

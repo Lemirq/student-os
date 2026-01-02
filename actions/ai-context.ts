@@ -1,8 +1,8 @@
 "use server";
 
 import { db } from "@/drizzle";
-import { courses, gradeWeights } from "@/schema";
-import { eq, inArray, sql } from "drizzle-orm";
+import { courses, gradeWeights, semesters } from "@/schema";
+import { eq, inArray, sql, and } from "drizzle-orm";
 import { createClient } from "@/utils/supabase/server";
 
 export async function getAIContext() {
@@ -12,6 +12,12 @@ export async function getAIContext() {
   } = await supabase.auth.getUser();
 
   if (!user) throw new Error("Unauthorized");
+
+  const [currentSemester] = await db
+    .select({ id: semesters.id })
+    .from(semesters)
+    .where(and(eq(semesters.userId, user.id), eq(semesters.isCurrent, true)))
+    .limit(1);
 
   const userCourses = await db
     .select({
@@ -26,7 +32,12 @@ export async function getAIContext() {
       syllabus: sql<string | null>`NULL`.as("syllabus"), // Exclude syllabus data
     })
     .from(courses)
-    .where(eq(courses.userId, user.id));
+    .where(
+      and(
+        eq(courses.userId, user.id),
+        currentSemester ? eq(courses.semesterId, currentSemester.id) : sql`1=0`,
+      ),
+    );
 
   const courseIds = userCourses.map((c) => c.id);
   const userGradeWeights =
