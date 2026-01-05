@@ -16,8 +16,11 @@ import {
   ArrowRight,
   Save,
   Database,
+  ChevronRight,
+  ChevronLeft,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { useChat } from "@ai-sdk/react";
 import { lastAssistantMessageIsCompleteWithToolCalls, UIMessagePart } from "ai";
 import { StudentOSTools, StudentOSDataTypes } from "@/types";
@@ -47,6 +50,7 @@ export function AICopilotSidebar({ aiEnabled }: { aiEnabled: boolean }) {
   const [mounted, setMounted] = React.useState(false);
   const [files, setFiles] = React.useState<File[]>([]);
   const [isDragging, setIsDragging] = React.useState(false);
+  const [isExpanded, setIsExpanded] = React.useState(false);
   const [pageContext, setPageContext] = React.useState<PageContext>({
     type: "unknown",
   });
@@ -293,9 +297,14 @@ export function AICopilotSidebar({ aiEnabled }: { aiEnabled: boolean }) {
     <Sidebar
       side="right"
       className={cn(
-        "hidden lg:flex h-full ml-0 border bg-sidebar transition-colors",
+        "hidden lg:flex h-full ml-0 border bg-sidebar transition-all duration-200",
         isDragging && "border-primary/50 bg-primary/5",
       )}
+      style={
+        {
+          "--sidebar-width-right": isExpanded ? "50rem" : "22rem",
+        } as React.CSSProperties
+      }
       onDragOver={onDragOver}
       onDragLeave={onDragLeave}
       onDrop={onDrop}
@@ -318,6 +327,21 @@ export function AICopilotSidebar({ aiEnabled }: { aiEnabled: boolean }) {
             <span>StudentOS AI</span>
           </div>
           <div className="flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="icon"
+              title={isExpanded ? "Collapse" : "Expand"}
+              onClick={() => setIsExpanded(!isExpanded)}
+            >
+              {isExpanded ? (
+                <ChevronRight className="size-4" />
+              ) : (
+                <ChevronLeft className="size-4" />
+              )}
+              <span className="sr-only">
+                {isExpanded ? "Collapse" : "Expand"}
+              </span>
+            </Button>
             <ChatHistory
               onSelectChat={handleSelectChat}
               onNewChat={handleNewChat}
@@ -406,7 +430,9 @@ export function AICopilotSidebar({ aiEnabled }: { aiEnabled: boolean }) {
                                     : "bg-muted"
                                 }`}
                               >
-                                <ReactMarkdown>{sanitizedText}</ReactMarkdown>
+                                <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                  {sanitizedText}
+                                </ReactMarkdown>
                               </div>
                             );
                           }
@@ -1437,7 +1463,9 @@ export function AICopilotSidebar({ aiEnabled }: { aiEnabled: boolean }) {
                                                 </a>
                                               </div>
                                               <div className="prose prose-xs dark:prose-invert max-w-none text-xs">
-                                                <ReactMarkdown>
+                                                <ReactMarkdown
+                                                  remarkPlugins={[remarkGfm]}
+                                                >
                                                   {stripSystemReminders(
                                                     result.content &&
                                                       result.content.length >
