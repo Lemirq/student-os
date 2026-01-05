@@ -1,6 +1,6 @@
 "use client";
 
-import { useTransition } from "react";
+import { useTransition, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -86,32 +86,49 @@ export function AddScheduleEventDialog({
 
   const form = useForm<FormValues>({
     resolver: zodResolver(scheduleEventFormSchema),
-    defaultValues: initialEvent
-      ? {
-          courseId: initialCourseId || "",
-          type: initialEvent.type as "LEC" | "TUT" | "PRA" | "LAB",
-          section: initialEvent.section,
-          dayOfWeek: initialEvent.dayOfWeek.toString(),
-          startTime: initialEvent.startTime,
-          endTime: initialEvent.endTime,
-          location: initialEvent.location || "",
-          building: initialEvent.building || "",
-          startDate: new Date(initialEvent.startDate),
-          endDate: new Date(initialEvent.endDate),
-        }
-      : {
-          courseId: initialCourseId || "",
-          type: "LEC",
-          section: "",
-          dayOfWeek: "",
-          startTime: "",
-          endTime: "",
-          location: "",
-          building: "",
-          startDate: new Date(),
-          endDate: new Date(),
-        },
+    defaultValues: {
+      courseId: initialCourseId || "",
+      type: "LEC",
+      section: "",
+      dayOfWeek: "",
+      startTime: "",
+      endTime: "",
+      location: "",
+      building: "",
+      startDate: new Date(),
+      endDate: new Date(),
+    },
   });
+
+  useEffect(() => {
+    if (initialEvent) {
+      form.reset({
+        courseId: initialCourseId || "",
+        type: initialEvent.type as "LEC" | "TUT" | "PRA" | "LAB",
+        section: initialEvent.section,
+        dayOfWeek: initialEvent.dayOfWeek.toString(),
+        startTime: initialEvent.startTime,
+        endTime: initialEvent.endTime,
+        location: initialEvent.location || "",
+        building: initialEvent.building || "",
+        startDate: new Date(initialEvent.startDate),
+        endDate: new Date(initialEvent.endDate),
+      });
+    } else {
+      form.reset({
+        courseId: initialCourseId || "",
+        type: "LEC",
+        section: "",
+        dayOfWeek: "",
+        startTime: "",
+        endTime: "",
+        location: "",
+        building: "",
+        startDate: new Date(),
+        endDate: new Date(),
+      });
+    }
+  }, [initialEvent, initialCourseId, form]);
 
   const onSubmit = (values: FormValues) => {
     startTransition(async () => {
@@ -185,7 +202,7 @@ export function AddScheduleEventDialog({
                   <FormLabel>Course</FormLabel>
                   <Select
                     onValueChange={field.onChange}
-                    defaultValue={field.value}
+                    value={field.value}
                     disabled={isEditMode}
                   >
                     <FormControl>
@@ -215,10 +232,7 @@ export function AddScheduleEventDialog({
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Event Type</FormLabel>
-                    <Select
-                      onValueChange={field.onChange}
-                      defaultValue={field.value}
-                    >
+                    <Select onValueChange={field.onChange} value={field.value}>
                       <FormControl>
                         <SelectTrigger>
                           <SelectValue placeholder="Select type" />
@@ -259,10 +273,7 @@ export function AddScheduleEventDialog({
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Day of Week</FormLabel>
-                    <Select
-                      onValueChange={field.onChange}
-                      defaultValue={field.value}
-                    >
+                    <Select onValueChange={field.onChange} value={field.value}>
                       <FormControl>
                         <SelectTrigger>
                           <SelectValue placeholder="Day" />

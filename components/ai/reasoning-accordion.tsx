@@ -11,14 +11,18 @@ interface ReasoningAccordionProps {
 
 export function ReasoningAccordion({ content }: ReasoningAccordionProps) {
   const [isOpen, setIsOpen] = React.useState(false);
+  const initializedRef = React.useRef(false);
 
   const sanitizedContent = stripSystemReminders(content);
   const wordCount = sanitizedContent.trim().split(/\s+/).length;
   const shouldAutoCollapse = wordCount > 100;
 
   React.useEffect(() => {
-    setIsOpen(!shouldAutoCollapse);
-  }, [content, shouldAutoCollapse]);
+    if (!initializedRef.current) {
+      setIsOpen(!shouldAutoCollapse);
+      initializedRef.current = true;
+    }
+  }, [shouldAutoCollapse]);
 
   if (!sanitizedContent) return null;
 

@@ -253,6 +253,13 @@
   .rbc-calendar {
     @apply font-sans;
   }
+  .rbc-overlay-header,
+  .rbc-overlay {
+    @apply bg-popover! text-popover-foreground! border-border!;
+  }
+  .rbc-button-link.rbc-show-more {
+    @apply text-primary! bg-transparent!;
+  }
   .rbc-toolbar button {
     @apply text-foreground border-border hover:bg-muted active:bg-muted/80 focus:ring-ring;
   }
@@ -296,8 +303,9 @@
   .rbc-time-header.rbc-overflowing,
   .rbc-timeslot-group,
   .rbc-agenda-time-cell {
-    @apply border-border! border-l-border! border-t-border! border-b-border! border-r-border!;
+    @apply border-border/30! border-l-border/30! border-t-border/30! border-b-border/30! border-r-border/30!;
   }
+
   .rbc-event {
     @apply rounded-sm shadow-sm opacity-90 hover:opacity-100 transition-opacity;
   }
@@ -312,7 +320,7 @@
     @apply border-border!;
   }
   .dark .rbc-header + .rbc-header {
-    @apply border-border!;
+    @apply border-border/30!;
   }
 }
 

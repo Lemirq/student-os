@@ -1,6 +1,6 @@
 import ical from "node-ical";
 import type { ParsedICSCourse, ScheduleEvent } from "@/types";
-import { format } from "date-fns";
+import { format } from "date-fns-tz";
 
 /**
  * Extracts the course code from an ICS event summary.
@@ -77,17 +77,25 @@ export function rruleToSchedule(event: any): ScheduleEvent | null {
     const type = extractEventType(summary);
     const section = extractSection(summary);
     const dayOfWeek = startDate.getDay();
-    const startTime = format(startDate, "HH:mm");
-    const endTimeStr = format(endDate, "HH:mm");
+    const startTime = format(startDate, "HH:mm", {
+      timeZone: "America/Toronto",
+    });
+    const endTimeStr = format(endDate, "HH:mm", {
+      timeZone: "America/Toronto",
+    });
     const location = event.location || undefined;
     const building = extractBuilding(event.description);
 
     // Determine end date from RRULE
-    let finalEndDate = format(startDate, "yyyy-MM-dd");
+    let finalEndDate = format(startDate, "yyyy-MM-dd", {
+      timeZone: "America/Toronto",
+    });
     if (event.rrule) {
       const rruleOptions = event.rrule.options;
       if (rruleOptions && rruleOptions.until) {
-        finalEndDate = format(rruleOptions.until, "yyyy-MM-dd");
+        finalEndDate = format(rruleOptions.until, "yyyy-MM-dd", {
+          timeZone: "America/Toronto",
+        });
       }
     }
 
@@ -100,7 +108,9 @@ export function rruleToSchedule(event: any): ScheduleEvent | null {
       exceptionDates = exdates.map((exdate: unknown) => {
         const date =
           typeof exdate === "string" ? new Date(exdate) : (exdate as Date);
-        return format(date, "yyyy-MM-dd");
+        return format(date, "yyyy-MM-dd", {
+          timeZone: "America/Toronto",
+        });
       });
     }
 
@@ -115,7 +125,9 @@ export function rruleToSchedule(event: any): ScheduleEvent | null {
       endTime: endTimeStr,
       location,
       building,
-      startDate: format(startDate, "yyyy-MM-dd"),
+      startDate: format(startDate, "yyyy-MM-dd", {
+        timeZone: "America/Toronto",
+      }),
       endDate: finalEndDate,
       exceptionDates,
       isExamSlot,
