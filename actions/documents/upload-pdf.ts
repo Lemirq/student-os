@@ -5,13 +5,10 @@ import { documents, users, courses } from "@/schema";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/utils/supabase/server";
 import { eq, and } from "drizzle-orm";
-import { parseFile } from "@/lib/file-parser";
-import { chunkText } from "@/lib/chunker";
-import { generateEmbeddings } from "@/lib/embedder";
 import { z } from "zod";
 
 const uploadPdfSchema = z.object({
-  courseId: z.string().uuid("Invalid course ID"),
+  courseId: z.uuid("Invalid course ID"),
   file: z.instanceof(File),
   fileName: z.string().min(1, "File name is required"),
   documentType: z.enum(["syllabus", "notes", "other"]).default("notes"),
@@ -58,48 +55,60 @@ export async function uploadPdf(data: {
       throw new Error("Course not found or unauthorized");
     }
 
-    const arrayBuffer = await validated.file.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
+    // Call RAG microservice to process PDF
+    const ragApiUrl = process.env.RAG_API_URL || "http://localhost:8000";
+    const ragApiKey = process.env.RAG_API_KEY;
 
-    const parseResult = await parseFile(buffer, validated.fileName);
-    const text = parseResult.text;
-
-    if (text.trim().length === 0) {
-      throw new Error("Document contains no text content");
+    if (!ragApiKey) {
+      throw new Error("RAG_API_KEY is not configured");
     }
 
-    const chunks = await chunkText(text, 500, 50);
+    const formData = new FormData();
+    formData.append("file", validated.file);
+    formData.append("user_id", user.user.id);
+    formData.append("file_name", validated.fileName);
+    formData.append("document_type", validated.documentType);
+    formData.append("course_id", validated.courseId);
 
-    if (chunks.length === 0) {
-      throw new Error("Failed to create chunks from document");
+    const ragResponse = await fetch(`${ragApiUrl}/process-pdf`, {
+      method: "POST",
+      headers: {
+        "X-API-Key": ragApiKey,
+      },
+      body: formData,
+    });
+
+    if (!ragResponse.ok) {
+      const errorData = await ragResponse.json().catch(() => ({}));
+      throw new Error(
+        errorData.detail || "Failed to process PDF with RAG service",
+      );
     }
 
-    const chunkTexts = chunks.map((chunk) => chunk.text);
-    const embeddings = await generateEmbeddings(chunkTexts);
+    const ragResult = await ragResponse.json();
 
-    if (embeddings.length !== chunks.length) {
-      throw new Error("Embedding count mismatch with chunks");
+    if (!ragResult.chunks || ragResult.chunks.length === 0) {
+      throw new Error("RAG service returned no chunks");
     }
 
-    const documentRecords = chunks.map((chunk, index) => ({
-      userId: user.user.id,
-      courseId: validated.courseId,
-      documentType: validated.documentType,
-      fileName: validated.fileName,
-      chunkIndex: chunk.index,
-      content: chunk.text,
-      embedding: embeddings[index],
-      metadata: {
-        fileType: parseResult.fileType,
-        pageCount: parseResult.metadata.pageCount,
-        tokenCount: chunk.tokenCount,
-        startChar: chunk.metadata.startChar,
-        endChar: chunk.metadata.endChar,
-        fileSize: parseResult.metadata.fileSize,
-        title: parseResult.metadata.title,
-        author: parseResult.metadata.author,
-      } as Record<string, unknown>,
-    }));
+    // Transform RAG response to database records
+    const documentRecords = ragResult.chunks.map(
+      (chunk: {
+        chunk_index: number;
+        content: string;
+        embedding: number[];
+        metadata: Record<string, unknown>;
+      }) => ({
+        userId: user.user.id,
+        courseId: validated.courseId,
+        documentType: validated.documentType,
+        fileName: validated.fileName,
+        chunkIndex: chunk.chunk_index,
+        content: chunk.content,
+        embedding: chunk.embedding,
+        metadata: chunk.metadata,
+      }),
+    );
 
     await db.insert(documents).values(documentRecords);
 
@@ -120,9 +129,9 @@ export async function uploadPdf(data: {
 
     return {
       success: true,
-      message: `Successfully uploaded ${validated.fileName} with ${chunks.length} chunks`,
+      message: `Successfully uploaded ${validated.fileName} with ${ragResult.total_chunks} chunks`,
       documentId: insertedDocs[0]?.id,
-      chunkCount: chunks.length,
+      chunkCount: ragResult.total_chunks,
     };
   } catch (error) {
     console.error("Failed to upload document:", error);

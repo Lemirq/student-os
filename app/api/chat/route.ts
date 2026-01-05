@@ -17,6 +17,7 @@ import {
   tavilyMap,
 } from "@tavily/ai-sdk";
 import { searchDocuments } from "@/actions/documents/search-documents";
+import { saveTextDocument } from "@/actions/documents/save-text-document";
 
 export type StudentOSToolCallsMessage = UIMessage;
 import { tasks, courses, gradeWeights, semesters } from "@/schema";
@@ -161,6 +162,23 @@ ${
     13. **Extract Content:** Call 'extract_content' to extract clean content from any URL.
     14. **Crawl Website:** Call 'crawl_website' to crawl and extract content from multiple pages of a website.
     15. **Map Website:** Call 'map_website' to discover and map the structure of a website.
+    16. **Save to Memory:** Call 'save_to_memory' to save any text content the user wants to remember (e.g., pasted documents, notes, reference materials, important information). Generate a descriptive name from the content. Saved documents become searchable via 'retrieve_course_context'.
+
+    PROACTIVE MEMORY SAVING:
+    Automatically save useful information to memory when you encounter:
+    - Important course policies, grading schemes, or academic information
+    - Detailed project requirements or assignment specifications
+    - Key concepts, formulas, or reference material the user shares
+    - Study guides, exam preparation materials, or lecture summaries
+    - Helpful resources, tips, or instructions for future reference
+
+    DO NOT save:
+    - Simple questions or casual conversation
+    - Temporary information or one-time queries
+    - Information already in the database (tasks, grades, courses)
+    - Trivial or very short text snippets
+
+    When saving proactively, generate a clear, descriptive name and use appropriate document_type.
 
     IMPORTANT: Do NOT chain tools. Each tool call handles everything including UI. Do not display raw JSON.`;
   console.log(system);
@@ -1629,6 +1647,147 @@ Extract tasks from: "${request}"
               type: "success",
               title: `Found ${searchResults.results.length} Document${searchResults.results.length > 1 ? "s" : ""}`,
               icon: "search",
+            },
+          };
+        },
+      }),
+
+      // -----------------------------------------------------------------------
+      // 6b. SAVE TO MEMORY TOOL (Document Storage)
+      // -----------------------------------------------------------------------
+      save_to_memory: tool({
+        description:
+          "Saves text content to the knowledge base for future retrieval. Use this when the user wants to remember any text information - course materials, reference documents, important notes, research findings, etc. The saved text will be chunked, embedded, and searchable later via 'retrieve_course_context'. This builds a persistent memory database.",
+        inputSchema: z.object({
+          text: z
+            .string()
+            .min(50, "Text must be at least 50 characters")
+            .max(100000, "Text is too long (max 100,000 characters)")
+            .describe("The raw text content to save to memory"),
+          document_name: z
+            .string()
+            .min(1)
+            .max(200)
+            .describe(
+              "A descriptive name for this document. Generate from content if not explicitly provided (e.g., 'Algorithm Notes', 'Project Requirements', 'Research Paper Summary')",
+            ),
+          course_code: z
+            .string()
+            .optional()
+            .describe(
+              "Optional course code to associate this document with. Only include if the content is course-specific. Use from page context if available, or infer from text content. Can be omitted for general knowledge.",
+            ),
+          document_type: z
+            .enum(["syllabus", "notes", "other"])
+            .default("other")
+            .describe(
+              "Type of document: 'syllabus' for course syllabi, 'notes' for lecture/study notes, 'other' for general documents and reference materials",
+            ),
+          description: z
+            .string()
+            .optional()
+            .describe(
+              "Brief description of what this document contains (optional)",
+            ),
+        }),
+        execute: async ({
+          text,
+          document_name,
+          course_code,
+          document_type,
+          description,
+        }) => {
+          console.log("[save_to_memory] Saving document:", document_name);
+
+          // Resolve course from code or page context
+          let courseId: string | undefined = undefined;
+          let courseInfo: { code: string; name: string } | null = null;
+
+          if (course_code) {
+            console.log("[save_to_memory] Looking up course:", course_code);
+            const course = await db
+              .select()
+              .from(courses)
+              .where(
+                and(
+                  eq(courses.userId, user.id),
+                  ilike(courses.code, course_code),
+                ),
+              )
+              .limit(1);
+
+            if (course.length === 0) {
+              const availableCourses = userCourses
+                .map((c) => c.code)
+                .join(", ");
+              return {
+                success: false,
+                error: `Course not found: ${course_code}. Available courses: ${availableCourses || "none"}`,
+              };
+            }
+
+            courseId = course[0].id;
+            courseInfo = { code: course[0].code, name: course[0].name || "" };
+            console.log("[save_to_memory] Found course:", courseInfo);
+          } else if (pageContext?.type === "course") {
+            // Use course from page context
+            courseId = pageContext.id;
+            const contextCourse = userCourses.find((c) => c.id === courseId);
+            if (contextCourse) {
+              courseInfo = {
+                code: contextCourse.code,
+                name: contextCourse.name || "",
+              };
+              console.log(
+                "[save_to_memory] Using course from page context:",
+                courseInfo,
+              );
+            }
+          }
+
+          console.log("[save_to_memory] Calling saveTextDocument action...");
+
+          // Call server action
+          const result = await saveTextDocument({
+            text,
+            documentName: document_name,
+            courseId,
+            documentType: document_type,
+            description,
+          });
+
+          if (!result.success) {
+            console.error("[save_to_memory] Save failed:", result.message);
+            return {
+              success: false,
+              error: result.message,
+            };
+          }
+
+          console.log(
+            "[save_to_memory] Successfully saved:",
+            result.chunkCount,
+            "chunks",
+          );
+
+          const courseText = courseInfo
+            ? ` to ${courseInfo.code} (${courseInfo.name})`
+            : "";
+
+          return {
+            success: true,
+            saved: {
+              document_name,
+              file_name: result.fileName,
+              chunk_count: result.chunkCount,
+              course: courseInfo,
+              document_type,
+            },
+            message: `Successfully saved "${document_name}" with ${result.chunkCount ?? 0} chunk${(result.chunkCount ?? 0) > 1 ? "s" : ""}${courseText}. You can now retrieve this information using retrieve_course_context.`,
+            ui: {
+              type: "success",
+              title: "Saved to Memory",
+              icon: "check",
             },
           };
         },

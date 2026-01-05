@@ -287,6 +287,27 @@ export type StudentOSTools = {
       };
     };
   };
+  save_to_memory: {
+    input: {
+      content: string;
+      document_name?: string;
+      course_code?: string;
+      document_type?: "syllabus" | "notes" | "other";
+    };
+    output: {
+      success: boolean;
+      error?: string;
+      saved?: {
+        course?: {
+          code: string;
+          name: string;
+        };
+        document_name: string;
+        document_type: string;
+        chunk_count: number;
+      };
+    };
+  };
 };
 
 export type StudentOSDataTypes = Record<string, never>;

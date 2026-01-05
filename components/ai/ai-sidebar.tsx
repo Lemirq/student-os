@@ -14,6 +14,8 @@ import {
   Link2,
   RefreshCw,
   ArrowRight,
+  Save,
+  Database,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { useChat } from "@ai-sdk/react";
@@ -1876,6 +1878,114 @@ export function AICopilotSidebar({ aiEnabled }: { aiEnabled: boolean }) {
                                         </div>
                                       </div>
                                     )}
+                                  </div>
+                                );
+                              }
+                              default:
+                                return null;
+                            }
+                          }
+
+                          // -----------------------------------------------------------------------
+                          // TOOL: save_to_memory (Save text to knowledge base)
+                          // -----------------------------------------------------------------------
+                          case "tool-save_to_memory": {
+                            const callId = p.toolCallId;
+                            switch (p.state) {
+                              case "input-streaming":
+                              case "input-available":
+                                return (
+                                  <div
+                                    key={callId}
+                                    className="bg-muted p-3 rounded-lg text-sm w-full animate-pulse"
+                                  >
+                                    <div className="flex items-center gap-2">
+                                      <Database className="size-3.5 animate-pulse" />
+                                      <span>Saving to memory...</span>
+                                    </div>
+                                  </div>
+                                );
+                              case "output-available": {
+                                const output = p.output;
+
+                                // Handle error case
+                                if (!output?.success) {
+                                  return (
+                                    <div
+                                      key={callId}
+                                      className="bg-destructive/10 border border-destructive/20 p-3 rounded-lg my-2 text-sm w-full"
+                                    >
+                                      <div className="text-destructive font-medium flex items-center gap-2">
+                                        <span>❌</span>
+                                        <span>
+                                          {output?.error ||
+                                            "Failed to save to memory"}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  );
+                                }
+
+                                const saved = output.saved;
+
+                                return (
+                                  <div
+                                    key={callId}
+                                    className="bg-green-500/10 border border-green-500/20 p-4 rounded-lg my-2 text-sm w-full"
+                                  >
+                                    <div className="flex items-center gap-2 mb-3 text-green-600 dark:text-green-400">
+                                      <Save className="size-4" />
+                                      <span className="font-semibold text-sm">
+                                        Saved to Memory
+                                      </span>
+                                      {saved?.course && (
+                                        <Badge
+                                          variant="outline"
+                                          className="ml-auto bg-green-500/10 border-green-500/30"
+                                        >
+                                          {saved.course.code}
+                                        </Badge>
+                                      )}
+                                    </div>
+
+                                    <div className="space-y-2">
+                                      <div className="flex items-start justify-between gap-2">
+                                        <div className="flex-1">
+                                          <div className="font-medium text-xs text-green-800 dark:text-green-300 mb-0.5">
+                                            {saved?.document_name}
+                                          </div>
+                                          {saved?.course && (
+                                            <div className="text-[10px] text-green-700/70 dark:text-green-400/70">
+                                              {saved.course.name}
+                                            </div>
+                                          )}
+                                        </div>
+                                      </div>
+
+                                      <div className="flex items-center gap-3 text-[10px] text-green-700/80 dark:text-green-400/80">
+                                        <div className="flex items-center gap-1">
+                                          <Database className="size-3" />
+                                          <span>
+                                            {saved?.chunk_count} chunk
+                                            {saved?.chunk_count !== 1
+                                              ? "s"
+                                              : ""}
+                                          </span>
+                                        </div>
+                                        <div className="flex items-center gap-1">
+                                          <FileText className="size-3" />
+                                          <span className="capitalize">
+                                            {saved?.document_type}
+                                          </span>
+                                        </div>
+                                      </div>
+
+                                      <div className="text-[10px] text-green-700/60 dark:text-green-400/60 italic pt-2 border-t border-green-500/20">
+                                        This information is now searchable and I
+                                        can reference it in future
+                                        conversations.
+                                      </div>
+                                    </div>
                                   </div>
                                 );
                               }
