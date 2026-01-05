@@ -4,6 +4,15 @@ import { db } from "@/drizzle";
 import { chats } from "@/schema";
 import { createClient } from "@/utils/supabase/server";
 import { eq, desc, and } from "drizzle-orm";
+import { createOpenRouter } from "@openrouter/ai-sdk-provider";
+import { generateText, LanguageModel } from "ai";
+import { openRouterApiKey } from "@/lib/env";
+
+const openRouterClient = createOpenRouter({
+  apiKey: openRouterApiKey,
+});
+
+const glm = openRouterClient.chat("z-ai/glm-4.7") as LanguageModel;
 
 export async function saveChat({
   id,
@@ -32,59 +41,72 @@ export async function saveChat({
 
   if (!chatTitle && !existingChat && messages.length > 0) {
     try {
-      // For now just use `new chat` as the title
+      const firstMessage = messages[0];
+      const firstContent =
+        firstMessage?.content ||
+        (firstMessage?.parts?.[0]?.type === "text"
+          ? firstMessage.parts[0].text
+          : null);
 
-      // Truncate messages to avoid context length issues with large attachments
-      // const truncatedMessages = messages.map((m) => ({
-      //   role: m.role,
-      //   content:
-      //     typeof m.content === "string"
-      //       ? m.content.slice(0, 1000)
-      //       : "[Content omitted]",
-      // }));
+      const contentString = firstContent
+        ? typeof firstContent === "string"
+          ? firstContent.slice(0, 500)
+          : JSON.stringify(firstContent).slice(0, 500)
+        : "";
 
-      // const { text } = await generateText({
-      //   model: openai("gpt-4o-mini"),
-      //   system:
-      //     "You are a helpful assistant that generates a short, concise title (max 5 words) for a chat conversation based on the first message.",
-      //   prompt: `Generate a title for this chat message: ${JSON.stringify(
-      //     truncatedMessages,
-      //   )}`,
-      // });
-      chatTitle = "New Chat";
+      const { text } = await generateText({
+        model: glm,
+        system:
+          "You are a helpful assistant that generates a short, concise title (max 5 words) for a chat conversation based on the first message.",
+        prompt: `Generate a title for this chat message: ${contentString}`,
+        temperature: 0.7,
+      });
+
+      chatTitle = text.trim().slice(0, 50);
     } catch (error) {
-      console.error("Failed to generate chat title:", error);
-      const firstContent = messages[0]?.content;
-      chatTitle =
-        typeof firstContent === "string"
+      const firstMessage = messages[0];
+      const firstContent =
+        firstMessage?.content ||
+        (firstMessage?.parts?.[0]?.type === "text"
+          ? firstMessage.parts[0].text
+          : null);
+      chatTitle = firstContent
+        ? typeof firstContent === "string"
           ? firstContent.slice(0, 50)
-          : "New Chat";
+          : "New Chat"
+        : "New Chat";
     }
   }
 
-  if (existingChat) {
-    await db
-      .update(chats)
-      .set({
+  const firstMessage = messages[0];
+  const defaultMessageContent =
+    firstMessage?.content ||
+    (firstMessage?.parts?.[0]?.type === "text"
+      ? firstMessage.parts[0].text
+      : null);
+  const defaultTitle =
+    typeof defaultMessageContent === "string"
+      ? defaultMessageContent.slice(0, 50)
+      : "New Chat";
+
+  await db
+    .insert(chats)
+    .values({
+      id,
+      userId: user.id,
+      title: chatTitle || defaultTitle,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      messages: messages as any,
+    })
+    .onConflictDoUpdate({
+      target: chats.id,
+      set: {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         messages: messages as any,
         updatedAt: new Date(),
         ...(chatTitle ? { title: chatTitle } : {}),
-      })
-      .where(eq(chats.id, id));
-  } else {
-    await db.insert(chats).values({
-      id,
-      userId: user.id,
-      title:
-        chatTitle ||
-        (typeof messages[0]?.content === "string"
-          ? messages[0].content.slice(0, 50)
-          : "New Chat"),
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      messages: messages as any,
+      },
     });
-  }
 
   // Invalidate cache for chats table
   await db.$cache.invalidate({ tables: [chats] });

@@ -61,10 +61,8 @@ export function ChatHistory({
   }, []);
 
   React.useEffect(() => {
-    if (isOpen) {
-      loadChats();
-    }
-  }, [isOpen, loadChats]);
+    loadChats();
+  }, [loadChats]);
 
   const handleDelete = async (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
@@ -121,7 +119,12 @@ export function ChatHistory({
                             onSelectChat(chat.id, chat.messages);
                             setIsOpen(false);
                           }}
-                          className="h-auto hover:bg-primary/10! px-2 group/menu-button relative"
+                          className={cn(
+                            "h-auto px-2 group/menu-button relative",
+                            chat.id === currentChatId
+                              ? "bg-primary/10"
+                              : "hover:bg-primary/10!",
+                          )}
                         >
                           <div className="flex flex-col gap-1 w-full text-left overflow-hidden pr-6">
                             <span

@@ -366,3 +366,47 @@
 .dark .scrollbar-sleek::-webkit-scrollbar-thumb:hover {
   background: hsl(0 0% 60% / 0.4);
 }
+
+/* Table styling for markdown content */
+.prose table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 1em 0;
+}
+
+.prose th,
+.prose td {
+  border: 1px solid var(--border);
+  padding: 0.5rem 0.75rem;
+  text-align: left;
+}
+
+.prose th {
+  background-color: var(--muted);
+  font-weight: 600;
+}
+
+.prose tr:nth-child(even) {
+  background-color: var(--muted);
+}
+
+.prose tr:hover {
+  background-color: var(--accent);
+}
+
+.dark .prose th {
+  background-color: var(--muted);
+  border-color: var(--border);
+}
+
+.dark .prose td {
+  border-color: var(--border);
+}
+
+.dark .prose tr:nth-child(even) {
+  background-color: var(--muted);
+}
+
+.dark .prose tr:hover {
+  background-color: var(--accent);
+}

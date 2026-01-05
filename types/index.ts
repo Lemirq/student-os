@@ -263,6 +263,109 @@ export type StudentOSTools = {
       }>;
     };
   };
+  search_tasks: {
+    input: {
+      search_query?: string;
+      status?: Array<"Todo" | "In Progress" | "Done">;
+      priority?: Array<"Low" | "Medium" | "High">;
+      course_code?: string;
+      grade_weight_id?: string;
+      has_due_date?: boolean;
+      due_date_from?: string;
+      due_date_to?: string;
+      has_do_date?: boolean;
+      do_date_from?: string;
+      do_date_to?: string;
+      is_submitted?: boolean;
+      has_score?: boolean;
+      min_score?: number;
+      max_score?: number;
+      is_overdue?: boolean;
+      sort_by?:
+        | "due_date"
+        | "do_date"
+        | "created_at"
+        | "title"
+        | "priority"
+        | "status";
+      sort_order?: "asc" | "desc";
+      limit?: number;
+    };
+    output: {
+      tasks: Array<{
+        id: string;
+        userId: string;
+        courseId: string | null;
+        gradeWeightId: string | null;
+        title: string;
+        status: string;
+        priority: string;
+        doDate: string | null;
+        dueDate: string | null;
+        scoreReceived: string | null;
+        scoreMax: string | null;
+        description: string | null;
+        notes: Record<string, unknown> | null;
+        createdAt: string;
+        completedAt: string | null;
+        course: {
+          id: string;
+          userId: string;
+          semesterId: string | null;
+          code: string;
+          name: string | null;
+          color: string;
+          syllabus: string | null;
+          goalGrade: string | null;
+          schedule: Record<string, unknown> | null;
+          createdAt: string;
+        } | null;
+        gradeWeight: {
+          id: string;
+          courseId: string;
+          name: string;
+          weightPercent: string;
+          createdAt: string;
+        } | null;
+        _derived?: {
+          isOverdue: boolean;
+          scorePercent: number | null;
+          daysUntilDue: number | null;
+          isSubmitted: boolean;
+        };
+      }>;
+      count: number;
+      total_count?: number;
+      filters_applied: {
+        search_query?: string;
+        status?: Array<"Todo" | "In Progress" | "Done">;
+        priority?: Array<"Low" | "Medium" | "High">;
+        course_code?: string;
+        grade_weight_id?: string;
+        has_due_date?: boolean;
+        due_date_from?: string;
+        due_date_to?: string;
+        has_do_date?: boolean;
+        do_date_from?: string;
+        do_date_to?: string;
+        is_submitted?: boolean;
+        has_score?: boolean;
+        min_score?: number;
+        max_score?: number;
+        is_overdue?: boolean;
+        sort_by?: string;
+        sort_order?: string;
+        limit?: number;
+      };
+      summary?: string;
+      message?: string;
+      ui: {
+        type: string;
+        title: string;
+        icon: string;
+      };
+    };
+  };
   retrieve_course_context: {
     input: {
       query: string;

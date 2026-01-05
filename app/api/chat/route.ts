@@ -16,13 +16,24 @@ import {
   tavilyCrawl,
   tavilyMap,
 } from "@tavily/ai-sdk";
-import { searchDocuments } from "@/actions/documents/search-documents";
+// import { searchDocuments } from "@/actions/documents/search-documents";
 import { saveTextDocument } from "@/actions/documents/save-text-document";
 import { searchDocumentsWithRRF } from "@/actions/documents/search-documents-rrf";
+import * as chrono from "chrono-node";
 
 export type StudentOSToolCallsMessage = UIMessage;
 import { tasks, courses, gradeWeights, semesters } from "@/schema";
-import { eq, and, ilike, isNull, gte, lte, inArray, sql } from "drizzle-orm";
+import {
+  eq,
+  and,
+  ilike,
+  isNull,
+  gte,
+  lte,
+  inArray,
+  sql,
+  SQL,
+} from "drizzle-orm";
 import { createClient } from "@/utils/supabase/server";
 import { openRouterApiKey, tavilyApiKey } from "@/lib/env";
 import { PageContext } from "@/actions/page-context";
@@ -158,12 +169,13 @@ ${
     8. **Grade Weights:** Call 'manage_grade_weights' with action and course. Shows grade weights UI directly.
     9. **Update Score:** Call 'update_task_score' with task name and score. Shows update confirmation UI directly.
     10. **Bulk Update Tasks:** Call 'bulk_update_tasks' to update multiple tasks at once. Use for requests like "change all weekly prep due times to 5pm" or "set priority high for all quizzes in CSC148".
-    11. **Course Context Retrieval:** Call 'retrieve_course_context' to search course documents (syllabus, notes, slides, etc.). Use this when answering questions about course materials, policies, deadlines, or specific course information.
-    12. **Web Search:** Call 'web_search' to search the web for current information, news, or research.
-    13. **Extract Content:** Call 'extract_content' to extract clean content from any URL.
-    14. **Crawl Website:** Call 'crawl_website' to crawl and extract content from multiple pages of a website.
-    15. **Map Website:** Call 'map_website' to discover and map the structure of a website.
-    16. **Save to Memory:** Call 'save_to_memory' to save any text content the user wants to remember (e.g., pasted documents, notes, reference materials, important information). Generate a descriptive name from the content. Saved documents become searchable via 'retrieve_course_context'.
+    11. **Task Search:** Call 'search_tasks' to find and filter tasks with comprehensive criteria (status, priority, dates, courses, scores, overdue, submitted, etc.). Use for queries like "show overdue tasks", "high priority due this week", "completed CSC148 exams", "submitted assignments", etc.
+    12. **Course Context Retrieval:** Call 'retrieve_course_context' to search course documents (syllabus, notes, slides, etc.). Use this when answering questions about course materials, policies, deadlines, or specific course information.
+    13. **Web Search:** Call 'web_search' to search the web for current information, news, or research.
+    14. **Extract Content:** Call 'extract_content' to extract clean content from any URL.
+    15. **Crawl Website:** Call 'crawl_website' to crawl and extract content from multiple pages of a website.
+    16. **Map Website:** Call 'map_website' to discover and map the structure of a website.
+    17. **Save to Memory:** Call 'save_to_memory' to save any text content the user wants to remember (e.g., pasted documents, notes, reference materials, important information). Generate a descriptive name from the content. Saved documents become searchable via 'retrieve_course_context'.
 
     PROACTIVE MEMORY SAVING:
     Automatically save useful information to memory when you encounter:
@@ -1548,7 +1560,501 @@ Extract tasks from: "${request}"
       }),
 
       // -----------------------------------------------------------------------
-      // 6. COURSE CONTEXT RETRIEVAL TOOL (RAG)
+      // 6b. SEARCH TASKS TOOL
+      // -----------------------------------------------------------------------
+      search_tasks: tool({
+        description:
+          "Searches tasks with comprehensive filters. Returns tasks with course and grade weight details. Supports full-text search, status/priority filtering, date ranges, score filtering, natural language dates, and more. Use for queries like 'show overdue tasks', 'high priority due this week', 'completed CSC148 exams', 'submitted assignments', etc.",
+        inputSchema: z.object({
+          search_query: z
+            .string()
+            .optional()
+            .describe("Full-text search in task title and description"),
+          status: z
+            .array(z.enum(["Todo", "In Progress", "Done"]))
+            .optional()
+            .describe("Filter by status(es). Can include multiple statuses."),
+          priority: z
+            .array(z.enum(["Low", "Medium", "High"]))
+            .optional()
+            .describe(
+              "Filter by priority level(s). Can include multiple priorities.",
+            ),
+          course_code: z
+            .string()
+            .optional()
+            .describe(
+              "Filter by course code (fuzzy match for both code and name)",
+            ),
+          grade_weight_id: z
+            .string()
+            .optional()
+            .describe("Filter by specific grade weight ID"),
+          has_due_date: z
+            .boolean()
+            .optional()
+            .describe("Filter tasks that have/don't have due dates"),
+          due_date_from: z
+            .string()
+            .optional()
+            .describe(
+              "Start date filter (ISO format YYYY-MM-DD or natural language like 'today', 'this week')",
+            ),
+          due_date_to: z
+            .string()
+            .optional()
+            .describe(
+              "End date filter (ISO format YYYY-MM-DD or natural language like 'next Friday')",
+            ),
+          has_do_date: z
+            .boolean()
+            .optional()
+            .describe("Filter tasks that have/don't have do dates"),
+          do_date_from: z
+            .string()
+            .optional()
+            .describe(
+              "Start do-date filter (ISO format YYYY-MM-DD or natural language)",
+            ),
+          do_date_to: z
+            .string()
+            .optional()
+            .describe(
+              "End do-date filter (ISO format YYYY-MM-DD or natural language)",
+            ),
+          is_submitted: z
+            .boolean()
+            .optional()
+            .describe(
+              "Filter submitted tasks (status=Done AND completedAt IS NOT NULL)",
+            ),
+          has_score: z
+            .boolean()
+            .optional()
+            .describe("Filter tasks that have/don't have scores"),
+          min_score: z
+            .number()
+            .optional()
+            .describe(
+              "Minimum score percentage (0-100). Filters by calculated percentage.",
+            ),
+          max_score: z
+            .number()
+            .optional()
+            .describe(
+              "Maximum score percentage (0-100). Filters by calculated percentage.",
+            ),
+          is_overdue: z
+            .boolean()
+            .optional()
+            .describe(
+              "Filter overdue tasks (due date < today AND status != Done)",
+            ),
+          sort_by: z
+            .enum([
+              "due_date",
+              "do_date",
+              "created_at",
+              "title",
+              "priority",
+              "status",
+            ])
+            .optional()
+            .describe("Sort field (default: due_date)"),
+          sort_order: z
+            .enum(["asc", "desc"])
+            .optional()
+            .describe("Sort direction (default: asc)"),
+          limit: z
+            .number()
+            .min(1)
+            .max(50)
+            .optional()
+            .describe("Maximum results to return (default: 20, max: 50)"),
+        }),
+        execute: async ({
+          search_query,
+          status,
+          priority,
+          course_code,
+          grade_weight_id,
+          has_due_date,
+          due_date_from,
+          due_date_to,
+          has_do_date,
+          do_date_from,
+          do_date_to,
+          is_submitted,
+          has_score,
+          min_score,
+          max_score,
+          is_overdue,
+          sort_by = "due_date",
+          sort_order = "asc",
+          limit = 20,
+        }) => {
+          console.log("[search_tasks] Searching tasks with filters:", {
+            search_query,
+            status,
+            priority,
+            course_code,
+            limit,
+          });
+
+          // Build base conditions
+          const conditions = [eq(tasks.userId, user.id)];
+
+          // Add current semester filter
+          if (currentSemesterId) {
+            const semesterCourses = await db
+              .select({ id: courses.id })
+              .from(courses)
+              .where(
+                and(
+                  eq(courses.userId, user.id),
+                  eq(courses.semesterId, currentSemesterId),
+                ),
+              );
+            const courseIds = semesterCourses.map((c) => c.id);
+            conditions.push(
+              inArray(tasks.courseId, courseIds.length > 0 ? courseIds : [""]),
+            );
+          }
+
+          // Handle course code fuzzy matching
+          if (course_code) {
+            const foundCourses = await db
+              .select()
+              .from(courses)
+              .where(
+                and(
+                  eq(courses.userId, user.id),
+                  ilike(courses.code, `%${course_code}%`),
+                ),
+              );
+
+            if (foundCourses.length === 0) {
+              // Try searching by course name too
+              const coursesByName = await db
+                .select()
+                .from(courses)
+                .where(
+                  and(
+                    eq(courses.userId, user.id),
+                    ilike(courses.name, `%${course_code}%`),
+                  ),
+                );
+
+              if (coursesByName.length > 0) {
+                const matchedCourseIds = coursesByName.map((c) => c.id);
+                conditions.push(inArray(tasks.courseId, matchedCourseIds));
+              } else {
+                // Return empty result if no course matches
+                return {
+                  tasks: [],
+                  count: 0,
+                  filters_applied: { course_code },
+                  message: `No courses found matching "${course_code}"`,
+                  ui: {
+                    type: "info",
+                    title: "No Courses Found",
+                    icon: "search-x",
+                  },
+                };
+              }
+            } else {
+              const matchedCourseIds = foundCourses.map((c) => c.id);
+              conditions.push(inArray(tasks.courseId, matchedCourseIds));
+            }
+          }
+
+          // Full-text search in title and description
+          if (search_query) {
+            const searchCondition = sql`(
+              ${ilike(tasks.title, `%${search_query}%`)} OR
+              ${ilike(tasks.description, `%${search_query}%`)}
+            )`;
+            conditions.push(searchCondition);
+          }
+
+          // Status filter (multiple values allowed)
+          if (status && status.length > 0) {
+            conditions.push(inArray(tasks.status, status));
+          }
+
+          // Priority filter (multiple values allowed)
+          if (priority && priority.length > 0) {
+            conditions.push(inArray(tasks.priority, priority));
+          }
+
+          // Grade weight filter
+          if (grade_weight_id) {
+            conditions.push(eq(tasks.gradeWeightId, grade_weight_id));
+          }
+
+          // Due date presence filter
+          if (has_due_date !== undefined) {
+            if (has_due_date) {
+              conditions.push(sql`${tasks.dueDate} IS NOT NULL`);
+            } else {
+              conditions.push(sql`${tasks.dueDate} IS NULL`);
+            }
+          }
+
+          // Due date range filters (support natural language)
+          if (due_date_from) {
+            const parsedResult = chrono.parseDate(due_date_from, new Date(), {
+              forwardDate: true,
+            });
+            const parsedDate = parsedResult as unknown as Array<{
+              start?: { date?: Date | string };
+            }>;
+            const fromDate =
+              parsedDate && parsedDate.length > 0 && parsedDate[0].start?.date
+                ? parsedDate[0].start.date instanceof Date
+                  ? parsedDate[0].start.date
+                  : new Date(parsedDate[0].start.date as unknown as string)
+                : new Date(due_date_from);
+            conditions.push(gte(tasks.dueDate, fromDate));
+          }
+
+          if (due_date_to) {
+            const parsedResult = chrono.parseDate(due_date_to, new Date(), {
+              forwardDate: true,
+            });
+            const parsedDate = parsedResult as unknown as Array<{
+              start?: { date?: Date | string };
+            }>;
+            const toDate =
+              parsedDate && parsedDate.length > 0 && parsedDate[0].start?.date
+                ? parsedDate[0].start.date instanceof Date
+                  ? parsedDate[0].start.date
+                  : new Date(parsedDate[0].start.date as unknown as string)
+                : new Date(due_date_to);
+            conditions.push(lte(tasks.dueDate, toDate));
+          }
+
+          // Do date presence filter
+          if (has_do_date !== undefined) {
+            if (has_do_date) {
+              conditions.push(sql`${tasks.doDate} IS NOT NULL`);
+            } else {
+              conditions.push(sql`${tasks.doDate} IS NULL`);
+            }
+          }
+
+          // Do date range filters (support natural language)
+          if (do_date_from) {
+            const parsedResult = chrono.parseDate(do_date_from, new Date(), {
+              forwardDate: true,
+            });
+            const parsedDate = parsedResult as unknown as Array<{
+              start?: { date?: Date | string };
+            }>;
+            const fromDate =
+              parsedDate && parsedDate.length > 0 && parsedDate[0].start?.date
+                ? parsedDate[0].start.date instanceof Date
+                  ? parsedDate[0].start.date
+                  : new Date(parsedDate[0].start.date as unknown as string)
+                : new Date(do_date_from);
+            conditions.push(gte(tasks.doDate, fromDate));
+          }
+
+          if (do_date_to) {
+            const parsedResult = chrono.parseDate(do_date_to, new Date(), {
+              forwardDate: true,
+            });
+            const parsedDate = parsedResult as unknown as Array<{
+              start?: { date?: Date | string };
+            }>;
+            const toDate =
+              parsedDate && parsedDate.length > 0 && parsedDate[0].start?.date
+                ? parsedDate[0].start.date instanceof Date
+                  ? parsedDate[0].start.date
+                  : new Date(parsedDate[0].start.date as unknown as string)
+                : new Date(do_date_to);
+            conditions.push(lte(tasks.doDate, toDate));
+          }
+
+          // Submitted filter (status=Done AND completedAt IS NOT NULL)
+          if (is_submitted !== undefined) {
+            if (is_submitted) {
+              conditions.push(
+                sql`(${tasks.status} = 'Done' AND ${tasks.completedAt} IS NOT NULL)`,
+              );
+            } else {
+              conditions.push(
+                sql`(${tasks.status} != 'Done' OR ${tasks.completedAt} IS NULL)`,
+              );
+            }
+          }
+
+          // Score presence filter
+          if (has_score !== undefined) {
+            if (has_score) {
+              conditions.push(sql`${tasks.scoreReceived} IS NOT NULL`);
+            } else {
+              conditions.push(sql`${tasks.scoreReceived} IS NULL`);
+            }
+          }
+
+          // Score percentage filters
+          if (min_score !== undefined || max_score !== undefined) {
+            conditions.push(sql`${tasks.scoreReceived} IS NOT NULL`);
+            if (min_score !== undefined) {
+              conditions.push(
+                sql`CAST(${tasks.scoreReceived} AS DECIMAL) / NULLIF(CAST(${tasks.scoreMax} AS DECIMAL), 0) * 100 >= ${min_score}`,
+              );
+            }
+            if (max_score !== undefined) {
+              conditions.push(
+                sql`CAST(${tasks.scoreReceived} AS DECIMAL) / NULLIF(CAST(${tasks.scoreMax} AS DECIMAL), 0) * 100 <= ${max_score}`,
+              );
+            }
+          }
+
+          // Overdue filter
+          if (is_overdue) {
+            const today = new Date();
+            today.setHours(23, 59, 59, 999);
+            conditions.push(
+              sql`${tasks.dueDate} < ${today} AND ${tasks.status} != 'Done'`,
+            );
+          }
+
+          // Execute query with relations
+          let results = await db.query.tasks.findMany({
+            where: and(...conditions),
+            with: {
+              course: true,
+              gradeWeight: true,
+            },
+          });
+
+          // Apply client-side sorting for complex cases
+          results = results.sort((a, b) => {
+            let comparison = 0;
+
+            // Priority sort order helper
+            const priorityOrder = { High: 3, Medium: 2, Low: 1 };
+
+            switch (sort_by) {
+              case "due_date":
+                const aDue = a.dueDate?.getTime() ?? Infinity;
+                const bDue = b.dueDate?.getTime() ?? Infinity;
+                comparison = aDue - bDue;
+                break;
+              case "do_date":
+                const aDo = a.doDate?.getTime() ?? Infinity;
+                const bDo = b.doDate?.getTime() ?? Infinity;
+                comparison = aDo - bDo;
+                break;
+              case "created_at":
+                const aCreated = a.createdAt?.getTime() ?? 0;
+                const bCreated = b.createdAt?.getTime() ?? 0;
+                comparison = aCreated - bCreated;
+                break;
+              case "title":
+                comparison = (a.title ?? "").localeCompare(b.title ?? "");
+                break;
+              case "priority":
+                comparison =
+                  priorityOrder[a.priority as keyof typeof priorityOrder] -
+                  priorityOrder[b.priority as keyof typeof priorityOrder];
+                break;
+              case "status":
+                comparison = (a.status ?? "").localeCompare(b.status ?? "");
+                break;
+            }
+
+            return sort_order === "desc" ? -comparison : comparison;
+          });
+
+          // Apply limit
+          const limitedResults = results.slice(0, limit);
+
+          // Calculate derived fields for display
+          const enrichedResults = limitedResults.map((task) => {
+            const isOverdue =
+              task.dueDate &&
+              task.status !== "Done" &&
+              task.dueDate < new Date();
+            const scorePercent =
+              task.scoreReceived && task.scoreMax
+                ? (parseFloat(task.scoreReceived) / parseFloat(task.scoreMax)) *
+                  100
+                : null;
+            const daysUntilDue = task.dueDate
+              ? Math.ceil(
+                  (task.dueDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24),
+                )
+              : null;
+
+            return {
+              ...task,
+              _derived: {
+                isOverdue,
+                scorePercent,
+                daysUntilDue,
+                isSubmitted:
+                  task.status === "Done" && task.completedAt !== null,
+              },
+            };
+          });
+
+          // Build summary
+          const summaryParts = [];
+          if (search_query) summaryParts.push(`matching "${search_query}"`);
+          if (status?.length)
+            summaryParts.push(`with status ${status.join(", ")}`);
+          if (priority?.length)
+            summaryParts.push(`with priority ${priority.join(", ")}`);
+          if (course_code) summaryParts.push(`in ${course_code}`);
+          if (is_overdue) summaryParts.push("that are overdue");
+          if (is_submitted) summaryParts.push("that have been submitted");
+
+          const summary =
+            summaryParts.length > 0
+              ? `Found ${limitedResults.length} task${limitedResults.length !== 1 ? "s" : ""} ${summaryParts.join(", ")}`
+              : `Found ${limitedResults.length} task${limitedResults.length !== 1 ? "s" : ""}`;
+
+          return {
+            tasks: enrichedResults,
+            count: limitedResults.length,
+            total_count: results.length,
+            filters_applied: {
+              search_query,
+              status,
+              priority,
+              course_code,
+              grade_weight_id,
+              has_due_date,
+              due_date_from,
+              due_date_to,
+              has_do_date,
+              do_date_from,
+              do_date_to,
+              is_submitted,
+              has_score,
+              min_score,
+              max_score,
+              is_overdue,
+              sort_by,
+              sort_order,
+              limit,
+            },
+            summary,
+            ui: {
+              type: limitedResults.length > 0 ? "success" : "info",
+              title: `${limitedResults.length} Task${limitedResults.length !== 1 ? "s" : ""} Found`,
+              icon: limitedResults.length > 0 ? "search-check" : "search-x",
+            },
+          };
+        },
+      }),
+
+      // -----------------------------------------------------------------------
+      // 7. COURSE CONTEXT RETRIEVAL TOOL (RAG)
       // -----------------------------------------------------------------------
       retrieve_course_context: tool({
         description:

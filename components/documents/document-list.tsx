@@ -10,6 +10,7 @@ import { getCourseDocuments } from "@/actions/documents/get-documents";
 import { deleteDocument } from "@/actions/documents/delete-document";
 import { cn } from "@/lib/utils";
 import type { DocumentSummary } from "@/actions/documents/get-documents";
+import { DocumentViewerDialog } from "@/components/documents/document-viewer-dialog";
 import React from "react";
 
 interface DocumentListProps {
@@ -26,6 +27,10 @@ export const DocumentList = React.memo(function DocumentList({
   const [documents, setDocuments] = useState<DocumentSummary[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [selectedDocument, setSelectedDocument] = useState<{
+    fileName: string;
+    courseId: string;
+  } | null>(null);
   const onDocumentsChangeRef = useRef(onDocumentsChange);
 
   const getBadgeVariant = useMemo(() => {
@@ -96,7 +101,13 @@ export const DocumentList = React.memo(function DocumentList({
       {documents.map((doc) => (
         <Card key={doc.firstChunkId} className="p-0">
           <CardContent className="flex items-start justify-between py-4 px-6">
-            <div className="flex items-start gap-3 flex-1 min-w-0">
+            <button
+              type="button"
+              className="flex items-start gap-3 flex-1 min-w-0 text-left hover:bg-muted/50 rounded-md px-2 py-1 transition-colors"
+              onClick={() =>
+                setSelectedDocument({ fileName: doc.fileName, courseId })
+              }
+            >
               <div className="mt-0.5">
                 <FileText className="h-5 w-5 text-muted-foreground" />
               </div>
@@ -125,11 +136,14 @@ export const DocumentList = React.memo(function DocumentList({
                   )}
                 </div>
               </div>
-            </div>
+            </button>
             <Button
               variant="ghost"
               size="icon-sm"
-              onClick={() => handleDelete(doc.fileName, doc.firstChunkId)}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleDelete(doc.fileName, doc.firstChunkId);
+              }}
               disabled={deletingId === doc.firstChunkId}
               className="shrink-0"
             >
@@ -143,6 +157,14 @@ export const DocumentList = React.memo(function DocumentList({
           </CardContent>
         </Card>
       ))}
+      {selectedDocument && courseId && (
+        <DocumentViewerDialog
+          open={!!selectedDocument}
+          onOpenChange={(open) => !open && setSelectedDocument(null)}
+          fileName={selectedDocument.fileName}
+          courseId={courseId}
+        />
+      )}
     </div>
   );
 });
