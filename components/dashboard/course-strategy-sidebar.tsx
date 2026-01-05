@@ -385,7 +385,6 @@ export function CourseStrategySidebar({ course }: CourseStrategySidebarProps) {
                           className="h-7 text-xs"
                           placeholder="Category name"
                           disabled={isSaving}
-                          autoFocus
                         />
                       </TableCell>
                       <TableCell className="text-right text-xs py-2">

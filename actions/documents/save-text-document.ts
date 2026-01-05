@@ -135,7 +135,7 @@ async function ensureUserExists(userId: string, email: string) {
 function sanitizeFileName(name: string): string {
   return name
     .toLowerCase()
-    .replace(/[\/\\:*?"<>|]/g, "") // Remove invalid filesystem characters
+    .replace(/[/\\:*?"<>|]/g, "") // Remove invalid filesystem characters
     .replace(/\s+/g, "_") // Replace spaces with underscores
     .substring(0, 100); // Limit length
 }

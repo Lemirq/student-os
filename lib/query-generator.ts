@@ -1,4 +1,4 @@
-import { generateObject, ObjectStreamPart } from "ai";
+import { generateObject, LanguageModel } from "ai";
 import { z } from "zod";
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import { openRouterApiKey } from "./env";
@@ -6,7 +6,7 @@ import { openRouterApiKey } from "./env";
 const openRouterClient = createOpenRouter({
   apiKey: openRouterApiKey,
 });
-const glm = openRouterClient.chat("z-ai/glm-4.7") as any;
+const glm = openRouterClient.chat("z-ai/glm-4.7") as LanguageModel;
 
 export interface QueryVariationsOutput {
   variations: string[];

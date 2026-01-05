@@ -3,6 +3,7 @@
  * Stores query data in localStorage and enables mutation queue retry.
  */
 
+import * as React from "react";
 import { QueryClient } from "@tanstack/react-query";
 import { persistQueryClient } from "@tanstack/react-query-persist-client";
 import { createSyncStoragePersister } from "@tanstack/query-sync-storage-persister";
@@ -48,11 +49,13 @@ export function setupQueryPersistence(queryClient: QueryClient) {
 
 // Online/offline detection hooks
 export function useOnlineStatus() {
-  if (typeof window === "undefined") return true;
-
-  const [isOnline, setIsOnline] = React.useState(window.navigator.onLine);
+  const [isOnline, setIsOnline] = React.useState(
+    typeof window !== "undefined" ? window.navigator.onLine : true,
+  );
 
   React.useEffect(() => {
+    if (typeof window === "undefined") return;
+
     const handleOnline = () => setIsOnline(true);
     const handleOffline = () => setIsOnline(false);
 
@@ -67,5 +70,3 @@ export function useOnlineStatus() {
 
   return isOnline;
 }
-
-import * as React from "react";

@@ -84,11 +84,7 @@ export function CreateTaskModal({
         >
           <div className="space-y-2">
             <label className="text-sm font-medium">Title</label>
-            <Input
-              {...form.register("title")}
-              placeholder="Task title"
-              autoFocus
-            />
+            <Input {...form.register("title")} placeholder="Task title" />
             {form.formState.errors.title && (
               <p className="text-xs text-red-500">
                 {form.formState.errors.title.message}
