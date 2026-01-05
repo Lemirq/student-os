@@ -18,6 +18,7 @@ import {
 } from "@tavily/ai-sdk";
 import { searchDocuments } from "@/actions/documents/search-documents";
 import { saveTextDocument } from "@/actions/documents/save-text-document";
+import { searchDocumentsWithRRF } from "@/actions/documents/search-documents-rrf";
 
 export type StudentOSToolCallsMessage = UIMessage;
 import { tasks, courses, gradeWeights, semesters } from "@/schema";
@@ -1602,12 +1603,14 @@ Extract tasks from: "${request}"
             courseId = pageContext.id;
           }
 
-          console.log("[retrieve_course_context] Searching in database...");
+          console.log(
+            "[retrieve_course_context] Searching in database with RRF...",
+          );
 
-          const searchResults = await searchDocuments({
+          const searchResults = await searchDocumentsWithRRF({
             query,
             courseId: courseId || undefined,
-            topK: top_k || 5,
+            topK: top_k || 10, // Increased from 5 to 10
           });
 
           console.log(
@@ -1634,10 +1637,19 @@ Extract tasks from: "${request}"
             file_name: result.fileName,
             document_type: result.documentType,
             content: result.content,
-            similarity: (result.similarity * 100).toFixed(1),
+            similarity: result.rrfScore
+              ? (result.rrfScore * 100).toFixed(1)
+              : (result.similarity * 100).toFixed(1),
           }));
 
-          const summary = `Found ${searchResults.results.length} relevant section${searchResults.results.length > 1 ? "s" : ""} from ${new Set(formattedResults.map((r) => r.file_name)).size} document${new Set(formattedResults.map((r) => r.file_name)).size > 1 ? "s" : ""}.`;
+          const strategyText =
+            {
+              simple: "adaptive retrieval",
+              medium: "2-query retrieval",
+              full: "multi-query retrieval",
+            }[searchResults.strategy] || searchResults.strategy;
+
+          const summary = `Found ${searchResults.results.length} relevant section${searchResults.results.length > 1 ? "s" : ""} from ${new Set(formattedResults.map((r) => r.file_name)).size} document${new Set(formattedResults.map((r) => r.file_name)).size > 1 ? "s" : ""}. (Using ${strategyText})`;
 
           return {
             found: searchResults.results.length,
