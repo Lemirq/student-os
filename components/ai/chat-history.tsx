@@ -17,6 +17,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { getChats, deleteChat } from "@/actions/chats";
 import { formatDistanceToNow } from "date-fns";
 import { toast } from "sonner";
@@ -38,6 +39,8 @@ interface ChatHistoryProps {
   currentChatId?: string;
 }
 
+const CHATS_PER_PAGE = 20;
+
 export function ChatHistory({
   onSelectChat,
   onNewChat,
@@ -46,23 +49,54 @@ export function ChatHistory({
   const [isOpen, setIsOpen] = React.useState(false);
   const [chats, setChats] = React.useState<Chat[]>([]);
   const [loading, setLoading] = React.useState(false);
+  const [loadingMore, setLoadingMore] = React.useState(false);
+  const [hasMore, setHasMore] = React.useState(true);
+  const [page, setPage] = React.useState(0);
 
-  const loadChats = React.useCallback(async () => {
-    setLoading(true);
-    try {
-      const data = await getChats();
-      setChats(data as unknown as Chat[]);
-    } catch (error) {
-      toast.error("Failed to load chats");
-      console.error(error);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const loadChats = React.useCallback(
+    async (pageNum: number, append = false) => {
+      if (append) {
+        setLoadingMore(true);
+      } else {
+        setLoading(true);
+      }
+
+      try {
+        const offset = pageNum * CHATS_PER_PAGE;
+        const data = await getChats(CHATS_PER_PAGE + 1, offset);
+        const newChats = data as unknown as Chat[];
+
+        if (newChats.length <= CHATS_PER_PAGE) {
+          setHasMore(false);
+        }
+
+        setChats((prev) =>
+          append
+            ? [...prev, ...newChats.slice(0, CHATS_PER_PAGE)]
+            : newChats.slice(0, CHATS_PER_PAGE),
+        );
+      } catch (error) {
+        toast.error("Failed to load chats");
+        console.error(error);
+      } finally {
+        setLoading(false);
+        setLoadingMore(false);
+      }
+    },
+    [],
+  );
 
   React.useEffect(() => {
-    loadChats();
-  }, [loadChats]);
+    if (isOpen && chats.length === 0) {
+      loadChats(0);
+    }
+  }, [isOpen, loadChats, chats.length]);
+
+  const handleLoadMore = () => {
+    const nextPage = page + 1;
+    setPage(nextPage);
+    loadChats(nextPage, true);
+  };
 
   const handleDelete = async (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
@@ -102,70 +136,90 @@ export function ChatHistory({
             </SidebarGroup>
             <SidebarGroup>
               <SidebarGroupContent className="gap-0">
-                <SidebarMenu>
-                  {loading ? (
-                    <div className="p-4 text-center text-xs text-muted-foreground">
-                      Loading...
-                    </div>
-                  ) : chats.length === 0 ? (
-                    <div className="p-4 text-center text-xs text-muted-foreground">
-                      No recent chats
-                    </div>
-                  ) : (
-                    chats.map((chat) => (
-                      <SidebarMenuItem key={chat.id}>
-                        <SidebarMenuButton
-                          onClick={() => {
-                            onSelectChat(chat.id, chat.messages);
-                            setIsOpen(false);
-                          }}
-                          className={cn(
-                            "h-auto px-2 group/menu-button relative",
-                            chat.id === currentChatId
-                              ? "bg-primary/10"
-                              : "hover:bg-primary/10!",
-                          )}
-                        >
-                          <div className="flex flex-col gap-1 w-full text-left overflow-hidden pr-6">
-                            <span
+                <ScrollArea className="h-[500px]">
+                  <SidebarMenu>
+                    {loading ? (
+                      <div className="p-4 text-center text-xs text-muted-foreground">
+                        Loading...
+                      </div>
+                    ) : chats.length === 0 ? (
+                      <div className="p-4 text-center text-xs text-muted-foreground">
+                        No recent chats
+                      </div>
+                    ) : (
+                      <>
+                        {chats.map((chat) => (
+                          <SidebarMenuItem key={chat.id}>
+                            <SidebarMenuButton
+                              onClick={() => {
+                                onSelectChat(chat.id, chat.messages);
+                                setIsOpen(false);
+                              }}
                               className={cn(
-                                "truncate font-medium text-xs",
-                                chat.id === currentChatId && "font-bold",
+                                "h-auto px-2 group/menu-button relative",
+                                chat.id === currentChatId
+                                  ? "bg-primary/10"
+                                  : "hover:bg-primary/10!",
                               )}
                             >
-                              {chat.title.length > 50
-                                ? chat.title.slice(0, 50) + "..."
-                                : chat.title}
-                            </span>
-                            <span className="text-[10px] text-muted-foreground truncate">
-                              {formatDistanceToNow(new Date(chat.createdAt), {
-                                addSuffix: true,
-                              })}
-                            </span>
-                          </div>
-                          <div className="absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover/menu-button:opacity-100 transition-opacity">
-                            <div
-                              role="button"
-                              tabIndex={0}
-                              className="hover:bg-accent text-muted-foreground hover:text-destructive flex aspect-square w-6 items-center justify-center rounded-md p-0 transition-transform cursor-pointer"
-                              onClick={(e) => handleDelete(e, chat.id)}
-                              onKeyDown={(e) => {
-                                if (e.key === "Enter" || e.key === " ") {
-                                  handleDelete(
-                                    e as unknown as React.MouseEvent,
-                                    chat.id,
-                                  );
-                                }
-                              }}
+                              <div className="flex flex-col gap-1 w-full text-left overflow-hidden pr-6">
+                                <span
+                                  className={cn(
+                                    "truncate font-medium text-xs",
+                                    chat.id === currentChatId && "font-bold",
+                                  )}
+                                >
+                                  {chat.title.length > 50
+                                    ? chat.title.slice(0, 50) + "..."
+                                    : chat.title}
+                                </span>
+                                <span className="text-[10px] text-muted-foreground truncate">
+                                  {formatDistanceToNow(
+                                    new Date(chat.updatedAt),
+                                    {
+                                      addSuffix: true,
+                                    },
+                                  )}
+                                </span>
+                              </div>
+                              <div className="absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover/menu-button:opacity-100 transition-opacity">
+                                <div
+                                  role="button"
+                                  tabIndex={0}
+                                  className="hover:bg-accent text-muted-foreground hover:text-destructive flex aspect-square w-6 items-center justify-center rounded-md p-0 transition-transform cursor-pointer"
+                                  onClick={(e) => handleDelete(e, chat.id)}
+                                  onKeyDown={(e) => {
+                                    if (e.key === "Enter" || e.key === " ") {
+                                      handleDelete(
+                                        e as unknown as React.MouseEvent,
+                                        chat.id,
+                                      );
+                                    }
+                                  }}
+                                >
+                                  <Trash2 className="size-3" />
+                                </div>
+                              </div>
+                            </SidebarMenuButton>
+                          </SidebarMenuItem>
+                        ))}
+                        {hasMore && (
+                          <div className="p-2">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="w-full"
+                              onClick={handleLoadMore}
+                              disabled={loadingMore}
                             >
-                              <Trash2 className="size-3" />
-                            </div>
+                              {loadingMore ? "Loading..." : "Load More"}
+                            </Button>
                           </div>
-                        </SidebarMenuButton>
-                      </SidebarMenuItem>
-                    ))
-                  )}
-                </SidebarMenu>
+                        )}
+                      </>
+                    )}
+                  </SidebarMenu>
+                </ScrollArea>
               </SidebarGroupContent>
             </SidebarGroup>
           </SidebarContent>

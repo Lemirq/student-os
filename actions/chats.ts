@@ -112,7 +112,7 @@ export async function saveChat({
   await db.$cache.invalidate({ tables: [chats] });
 }
 
-export async function getChats() {
+export async function getChats(limitValue?: number, offsetValue?: number) {
   const supabase = await createClient();
   const {
     data: { user },
@@ -124,7 +124,9 @@ export async function getChats() {
 
   return await db.query.chats.findMany({
     where: eq(chats.userId, user.id),
-    orderBy: [desc(chats.createdAt)],
+    orderBy: [desc(chats.updatedAt)],
+    limit: limitValue,
+    offset: offsetValue,
   });
 }
 
