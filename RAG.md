@@ -42,8 +42,8 @@ StudentOS uses a hybrid RAG architecture:
 │  1. PDF → Markdown      │                 │
 │     (pymupdf4llm)       │                 │
 │                         │                 │
-│  2. Semantic Chunking   │                 │
-│     (by headers)        │                 │
+│  2. Multi-Pass Adaptive  │                 │
+│     Chunking (4 passes)   │                 │
 │                         │                 │
 │  3. Generate Embeddings │                 │
 │     (OpenAI)            │                 │
@@ -174,11 +174,114 @@ Returns service health status and configuration.
    - Optimized for LLM consumption
    - Preserves document structure
 
-2. **Semantic Chunking**
-   - Splits by markdown headers (H1-H6)
-   - Respects 500 token limit per chunk
-   - Falls back to paragraph/sentence splitting for large sections
-   - Metadata includes heading text and section level
+### Multi-Pass Adaptive Chunking Strategy
+
+The chunker uses **4 progressive passes** with intelligent fallback to handle documents with varying levels of structure.
+
+#### Pass 1: Markdown Headers (Primary Method)
+
+- **Pattern**: `r"(?=^#{1,6}\s+)"` - Splits at `#`, `##`, `###`, etc.
+- **Best for**: Well-structured academic documents with proper markdown hierarchy
+- **Preserves**: Document structure and semantic boundaries
+- **Metadata**: Includes heading text, section level (`h1`-`h6`), and `chunking_method: "markdown_headers"`
+
+#### Pass 2: Bold Heading Detection
+
+- **Pattern**: `r"^\*\*.{6,}\*\*$"` - Detects standalone bold text at line start
+- **Filters**: Minimum 3 words per bold heading (avoids noise like "Note:" or "Key:")
+- **Activates when**: Document has one H1 but ≥2 bold headings detected
+- **Best for**: Documents using bold text as pseudo-headers (e.g., lecture notes with `**Introduction**`, `**Core Concepts**`)
+- **Metadata**: `chunking_method: "bold_headings"` with bold heading name
+
+#### Pass 3: Structural Markers
+
+- **Patterns**:
+  - Bullet lists: `r"[-*]\s+"`
+  - Numbered lists: `r"\d+\.\s+"`
+  - Horizontal rules: `r"[-*]{3,}$"`
+- **Activates when**: No markdown subheaders or insufficient bold headings (≥2)
+- **Best for**: Documents with list-based structure or study guides
+- **Metadata**: `chunking_method: "structural_markers"` with first line as heading
+
+#### Pass 4: Paragraph Splitting with Increased Overlap (Fallback)
+
+- **Activates when**: No semantic structure detected (no headers, bold, or lists)
+- **Overlap**: 2x increased (100 tokens vs 50 tokens standard)
+- **Strategy**: Splits by paragraphs and sentences while respecting token limits
+- **Best for**: Unstructured documents with poor formatting
+- **Metadata**: `chunking_method: "paragraph_split"` to indicate fallback used
+- **Purpose**: Maintains semantic context when natural boundaries are unclear
+
+#### Adaptive Trigger Logic
+
+A section uses adaptive splitting when:
+
+```python
+needs_adaptive_splitting = (
+    section_tokens > max_tokens OR  # Exceeds limit
+    (section_tokens > max_tokens * 0.8 AND has_markdown_subheaders(text)) OR  # Large with headers
+    (section_tokens > max_tokens * 0.8 AND has_bold_headings(text, min_splits=2))  # Large with bold
+)
+```
+
+This ensures:
+
+- Small, unstructured sections stay as one chunk
+- Large sections with structure use appropriate method
+- Complex sections get split intelligently by best available structure
+
+#### Metadata Enhancement
+
+Every chunk now includes a `chunking_method` field:
+
+```json
+{
+  "heading": "Introduction",
+  "section": "h1",
+  "chunking_method": "markdown_headers",  // or "bold_headings", "structural_markers", "paragraph_split"
+  [other_metadata_fields]
+}
+```
+
+**Benefits of `chunking_method` field**:
+
+- **Debugging**: Trace which method was used for each document
+- **Analysis**: Understand chunking patterns across your document corpus
+- **Monitoring**: Track distribution of methods in production
+- **Optimization**: Identify documents that need better formatting
+
+#### Example Chunking Results
+
+| Document Type                   | Pass Used | Chunks | Method               |
+| ------------------------------- | --------- | ------ | -------------------- |
+| Syllabus with H1-H6 headers     | Pass 1    | 4      | `markdown_headers`   |
+| Lecture notes with `**Topics**` | Pass 2    | 4      | `bold_headings`      |
+| Study guide with bullet lists   | Pass 3    | 8      | `structural_markers` |
+| Unstructured plain text         | Pass 4    | 2      | `paragraph_split`    |
+
+#### Configuration
+
+Chunking behavior is configurable via environment variables:
+
+```bash
+# Maximum tokens per chunk (default: 500)
+MAX_CHUNK_TOKENS=500
+
+# Standard overlap between chunks (default: 50)
+CHUNK_OVERLAP_TOKENS=50
+
+# Increased overlap for fallback mode (automatically calculated: overlap * 2)
+# Results in 100-token overlap for paragraph splitting fallback
+```
+
+2. **Multi-Pass Adaptive Chunking**
+   - Intelligent chunking with progressive fallback methods
+   - **Pass 1: Markdown Headers** - Splits by `#`, `##`, `###`, etc. (primary method)
+   - **Pass 2: Bold Heading Detection** - Detects `**bold**` text as pseudo-headers (minimum 3 words)
+   - **Pass 3: Structural Markers** - Splits by bullet lists (`- `), numbered lists (`1.`), rules (`---`)
+   - **Pass 4: Paragraph Splitting** - Fallback with 2x overlap (100 vs 50 tokens)
+   - Adaptive trigger: Activates when section >80% of max_tokens AND has sub-structure
+   - Metadata includes `chunking_method` field for debugging: `markdown_headers`, `bold_headings`, `structural_markers`, `paragraph_split`
 
 3. **Embedding Generation**
    - OpenAI `text-embedding-3-small` model
@@ -260,7 +363,8 @@ USING ivfflat (embedding vector_cosine_ops);
 ```json
 {
   "heading": "Introduction to Machine Learning",
-  "section": "h1"
+  "section": "h1",
+  "chunking_method": "markdown_headers" // or "bold_headings", "structural_markers", "paragraph_split"
 }
 ```
 
@@ -516,15 +620,19 @@ const tools = {
 
 ### Chunking Strategy
 
-- **PDF documents**: Semantic chunking by headers
-  - Preserves document structure
-  - Better for academic/structured content
-  - Metadata includes section hierarchy
+- **PDF documents**: Multi-pass adaptive chunking
+  - Pass 1: Markdown headers (H1-H6) for well-structured docs
+  - Pass 2: Bold heading detection for docs with `**Topic**` structure
+  - Pass 3: Structural markers (lists, rules) for list-based content
+  - Pass 4: Paragraph splitting with 2x overlap for unstructured text
+  - Metadata includes `chunking_method` field for analysis
+  - Best for: Academic documents, lecture notes, study guides
 
-- **Text documents**: Simple paragraph-based chunking
-  - Faster processing
-  - Good for unstructured notes
-  - Simpler metadata
+- **Text documents**: Simple paragraph-based chunking (processed locally in Next.js)
+  - 500 tokens per chunk with 50 token overlap
+  - Faster processing without RAG service overhead
+  - Good for: Quick notes, unstructured text
+  - Simpler metadata (no heading/section info)
 
 ### Embedding Generation
 
@@ -666,10 +774,7 @@ python main.py
    - PowerPoint presentations (.pptx)
    - Images with OCR
 
-2. **Advanced chunking strategies**
-   - Sliding window chunking
-   - Contextual chunking with overlap
-   - Hierarchical chunking
+2. ~~**Advanced chunking strategies**~~ (Implemented - see Multi-Pass Adaptive Chunking above)
 
 3. **Metadata enrichment**
    - Auto-detect document categories
@@ -718,5 +823,5 @@ For issues or questions:
 
 ---
 
-**Last Updated**: January 2026
-**Version**: 1.0.0
+**Last Updated**: January 5, 2026
+**Version**: 1.1.0 (Multi-Pass Adaptive Chunking)
