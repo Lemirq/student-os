@@ -3,6 +3,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import { useState, useEffect } from "react";
+import { setupQueryPersistence } from "@/lib/query-persist";
 
 // TypeScript declaration for DevTools
 declare global {
@@ -41,24 +42,26 @@ export function ReactQueryProvider({
             refetchInterval: false, // We'll enable this per-query where needed
           },
           mutations: {
-            // Retry failed mutations once
-            retry: 1,
+            // Retry failed mutations 3 times for offline support
+            retry: 3,
 
-            // Network timeout of 10 seconds
-            // This ensures mutations fail properly when offline instead of hanging
-            networkMode: "online",
+            // Allow mutations when offline - will be queued
+            networkMode: "offlineFirst",
 
-            // Retry delay - exponential backoff
+            // Retry delay - exponential backoff (1s, 2s, 4s)
             retryDelay: (attemptIndex) =>
-              Math.min(1000 * 2 ** attemptIndex, 3000),
+              Math.min(1000 * 2 ** attemptIndex, 4000),
           },
         },
       }),
   );
 
-  // Expose queryClient to DevTools
+  // Expose queryClient to DevTools & Setup persistence
   useEffect(() => {
     window.__TANSTACK_QUERY_CLIENT__ = queryClient;
+
+    // Enable offline persistence for Linear-like offline-first experience
+    setupQueryPersistence(queryClient);
   }, [queryClient]);
 
   return (

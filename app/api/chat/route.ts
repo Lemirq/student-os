@@ -191,9 +191,30 @@ ${
           // Build context about existing courses
           const existingCoursesContext =
             userCourses.length > 0
-              ? `EXISTING COURSES (use these exact codes if the syllabus matches one of them):
+              ? `EXISTING COURSES (use these exact codes if syllabus matches one of them):
 ${userCourses.map((c) => `- ${c.code}: ${c.name}`).join("\n")}`
               : "No existing courses.";
+
+          // Get semester date range for recurring task expansion
+          const currentSemester = currentSemesterId
+            ? await db
+                .select({
+                  startDate: semesters.startDate,
+                  endDate: semesters.endDate,
+                })
+                .from(semesters)
+                .where(eq(semesters.id, currentSemesterId))
+                .limit(1)
+            : [];
+
+          const semesterStart = currentSemester[0]?.startDate
+            ? new Date(currentSemester[0].startDate).toISOString().split("T")[0]
+            : new Date().toISOString().split("T")[0];
+          const semesterEnd = currentSemester[0]?.endDate
+            ? new Date(currentSemester[0].endDate).toISOString().split("T")[0]
+            : new Date(Date.now() + 90 * 24 * 60 * 60 * 1000)
+                .toISOString()
+                .split("T")[0];
 
           // Parse syllabus into structured data
           const { output: parsed } = await generateText({
@@ -234,13 +255,28 @@ ${userCourses.map((c) => `- ${c.code}: ${c.name}`).join("\n")}`
 
 ${existingCoursesContext}
 
+SEMESTER DATE RANGE: ${semesterStart} to ${semesterEnd}
+
 IMPORTANT RULES:
 1. COURSE CODE: If the syllabus is for a course that matches one of the existing courses above, you MUST use the exact same course code. Do not create variations like "CSC108H" if "CSC108" already exists.
 2. due_date MUST be in YYYY-MM-DD format (e.g., "2025-02-15")
 3. If a specific date is mentioned (e.g., "February 15"), convert it to YYYY-MM-DD
-4. If only a week is mentioned (e.g., "Week 5"), estimate the date based on a typical semester starting in January or September
+4. If only a week is mentioned (e.g., "Week 5"), estimate a date based on a typical semester starting in January or September
 5. If no date can be determined, use an empty string ""
-6. Do NOT include descriptive text in due_date field
+6. Do NOT include descriptive text in the due_date field
+7. CRITICAL RECURRING TASKS: For recurring patterns (weekly, bi-weekly, monthly, etc.), you MUST create MULTIPLE individual task entries - one for each occurrence within the semester date range (${semesterStart} to ${semesterEnd}). Examples:
+   - "Weekly quiz on Sundays" → Create separate tasks for each Sunday in the semester
+   - "Weekly quiz due Sunday at 11:59pm" → Create separate tasks for each Sunday
+   - "Bi-weekly lab on Tuesdays" → Create separate tasks for every other Tuesday
+   - "Monthly assignment on the 1st" → Create separate tasks for the 1st of each month
+   - ALWAYS expand recurring events into individual task instances. Do NOT create a single task with a repeating note.
+8. MERGE SIMILAR GRADE WEIGHTS: If multiple tasks belong to the same grade weight category with similar weights (e.g., two tests both worth 19%, both belonging to "Test" category), you MUST merge them into a single grade weight entry. Example:
+   - test1 is 19% (Test category) + test2 is 19% (Test category) → Create ONE "Test" grade weight of 38%, not two separate "Test" weights
+   - Only merge when the weights are similar (within ~2% of each other) and belong to the exact same grade weight category name.
+9. CRITICAL GRADE WEIGHT NAMING: You MUST use DISTINCT names for grade weights. Even if tasks are similar type (e.g., both are "exams"), use specific names that distinguish them. Examples:
+   - "Midterm" (25%) + "Final Exam" (40%) → Create two SEPARATE grade weights with distinct names
+   - "Quiz 1" (5%) + "Quiz 2" (5%) → Can either merge to "Quizzes" (10%) OR keep separate as "Quiz 1", "Quiz 2"
+   - NEVER create two grade weights with the same generic name (e.g., two "Exam" entries). Always use descriptive names that reflect what the assessment actually is (Midterm, Final, Quiz, Lab, Assignment, Project, etc.).
 
 Today's date: ${new Date().toISOString().split("T")[0]}
 

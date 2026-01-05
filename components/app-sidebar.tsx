@@ -41,6 +41,7 @@ import { Kbd } from "@/components/ui/kbd";
 import { CreateSemesterDialog } from "@/components/semesters/create-semester-dialog";
 import { CreateCourseDialog } from "@/components/courses/create-course-dialog";
 import { createClient } from "@/utils/supabase/client";
+import { usePrefetchLinks } from "@/hooks/use-prefetch-links";
 
 const SIDEBAR_YEARS_KEY = "sidebar-expanded-years";
 const SIDEBAR_SEMESTERS_KEY = "sidebar-expanded-semesters";
@@ -53,6 +54,7 @@ export function AppSidebar({
   const pathname = usePathname();
   const router = useRouter();
   const supabase = createClient();
+  const { prefetchCourse } = usePrefetchLinks();
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -374,7 +376,12 @@ export function AppSidebar({
                                           pathname === `/courses/${course.id}`
                                         }
                                       >
-                                        <Link href={`/courses/${course.id}`}>
+                                        <Link
+                                          href={`/courses/${course.id}`}
+                                          onMouseEnter={() =>
+                                            prefetchCourse(course.id)
+                                          }
+                                        >
                                           <span
                                             className="mr-2 size-2 rounded-full border"
                                             style={{

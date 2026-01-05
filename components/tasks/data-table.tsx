@@ -69,6 +69,7 @@ import { DataTableAdvancedFilters } from "./data-table-advanced-filters";
 import { useDebtStore } from "@/hooks/use-debt-store";
 import { isBefore, startOfToday } from "date-fns";
 import { TrendingUp } from "lucide-react";
+import { usePrefetchLinks } from "@/hooks/use-prefetch-links";
 
 interface DraggableTableHeaderProps<TData, TValue> {
   header: Header<TData, TValue>;
@@ -167,6 +168,7 @@ export function DataTable<TData, TValue>({
   const { removeTask } = useTaskMutations();
   const { open } = useCommandStore();
   const router = useRouter();
+  const { prefetchTask } = usePrefetchLinks();
 
   const [hasMounted, setHasMounted] = React.useState(false);
 
@@ -669,6 +671,7 @@ export function DataTable<TData, TValue>({
                     data-state={row.getIsSelected() && "selected"}
                     className="group outline-none focus:outline-none focus:ring-1 focus:ring-primary focus:bg-muted/50 transition-colors data-[state=selected]:bg-muted select-none focus:relative focus:z-10"
                     tabIndex={0}
+                    onMouseEnter={() => prefetchTask((row.original as Task).id)}
                     onKeyDown={(e) => handleRowKeyDown(e, row)}
                     onClick={(e) => {
                       if (e.shiftKey) {

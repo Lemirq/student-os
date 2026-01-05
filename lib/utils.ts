@@ -93,6 +93,7 @@ export function formatContextForAI(context: PageContext): string {
 }
 
 export function stripSystemReminders(text: string): string {
+  if (!text) return "";
   return text
     .replace(/<system-reminder>[\s\S]*?<\/system-reminder>/g, "")
     .trim();

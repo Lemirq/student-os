@@ -1,15 +1,21 @@
+"use client";
+
 import { DashboardMetrics } from "@/actions/dashboard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { AlertTriangle, CheckCircle2 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { format } from "date-fns";
+import { usePrefetchLinks } from "@/hooks/use-prefetch-links";
+import Link from "next/link";
 
 interface HighStakesListProps {
   tasks: DashboardMetrics["highStakesTasks"];
 }
 
 export function HighStakesList({ tasks }: HighStakesListProps) {
+  const { prefetchTask } = usePrefetchLinks();
+
   return (
     <Card className="h-full flex flex-col">
       <CardHeader className="flex-none">
@@ -28,9 +34,11 @@ export function HighStakesList({ tasks }: HighStakesListProps) {
           ) : (
             <div className="space-y-4">
               {tasks.map((task) => (
-                <div
+                <Link
                   key={task.id}
-                  className="flex items-start justify-between border-b pb-3 last:border-0 last:pb-0"
+                  href={`/tasks/${task.id}`}
+                  onMouseEnter={() => prefetchTask(task.id)}
+                  className="flex items-start justify-between border-b pb-3 last:border-0 last:pb-0 hover:bg-muted/50 -mx-2 px-2 rounded-md transition-colors"
                 >
                   <div className="space-y-1">
                     <p className="text-sm font-medium leading-none">
@@ -58,7 +66,7 @@ export function HighStakesList({ tasks }: HighStakesListProps) {
                       </Badge>
                     )}
                   </div>
-                </div>
+                </Link>
               ))}
             </div>
           )}
