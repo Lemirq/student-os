@@ -147,8 +147,18 @@ export function DataTableAdvancedFilters<TData>({
           <Filter className="mr-2 h-4 w-4" />
           Filters
           {activeFilterCount > 0 && (
-            <Badge variant="secondary" className="ml-2 px-1.5 py-0.5 text-xs">
-              {activeFilterCount}
+            <Badge
+              variant="secondary"
+              className="ml-2 px-1.5 py-0.5 text-xs group cursor-pointer"
+              onClick={(e) => {
+                e.stopPropagation();
+                clearAllFilters();
+              }}
+            >
+              <span className="group-hover:hidden size-4">
+                {activeFilterCount}
+              </span>
+              <X className="h-3 w-3 hidden group-hover:inline" />
             </Badge>
           )}
         </Button>

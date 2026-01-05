@@ -14,6 +14,7 @@ import { format, parseISO } from "date-fns";
 
 interface WorkloadHeatmapProps {
   data: DashboardMetrics["workloadHeatmap"];
+  onDaySelect?: (date: string) => void;
 }
 
 const chartConfig = {
@@ -23,7 +24,7 @@ const chartConfig = {
   },
 } satisfies ChartConfig;
 
-export function WorkloadHeatmap({ data }: WorkloadHeatmapProps) {
+export function WorkloadHeatmap({ data, onDaySelect }: WorkloadHeatmapProps) {
   // Format dates for display
   const chartData = data.map((d) => ({
     ...d,
@@ -68,7 +69,12 @@ export function WorkloadHeatmap({ data }: WorkloadHeatmapProps) {
                 cursor={false}
                 content={<ChartTooltipContent hideLabel />}
               />
-              <Bar dataKey="taskCount" radius={[4, 4, 0, 0]}>
+              <Bar
+                dataKey="taskCount"
+                radius={[4, 4, 0, 0]}
+                onClick={(data) => onDaySelect?.(data.date)}
+                className="fill-primary"
+              >
                 {chartData.map((entry, index) => (
                   <Cell
                     key={`cell-${index}`}

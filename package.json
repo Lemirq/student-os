@@ -9,6 +9,7 @@
     "lint": "eslint",
     "check-types": "tsc --noEmit",
     "prepare": "husky",
+    "scan": "bunx react-scan@latest http://localhost:3000",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "generate-icons": "bun run scripts/generate-icons.ts"
@@ -92,6 +93,7 @@
     "react-hook-form": "^7.68.0",
     "react-hotkeys-hook": "^5.2.1",
     "react-markdown": "^10.1.0",
+    "react-scan": "^0.4.3",
     "recharts": "2.15.4",
     "sonner": "^2.0.7",
     "tailwind-merge": "^3.4.0",

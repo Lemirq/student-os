@@ -6,6 +6,7 @@ import { SemesterProgress } from "@/components/dashboard/semester-progress";
 import { GradeGapCard } from "@/components/dashboard/grade-gap-card";
 import { WorkloadHeatmap } from "@/components/dashboard/workload-heatmap";
 import { HighStakesList } from "@/components/dashboard/high-stakes-list";
+import { parseISO } from "date-fns";
 import {
   useSemesterData,
   useDashboardMetrics,
@@ -61,7 +62,13 @@ export function SemesterContent({ semesterId }: SemesterContentProps) {
           <GradeGapCard data={metrics.gradeGap} />
         </div>
         <div className="md:col-span-4 md:row-span-2 h-full">
-          <WorkloadHeatmap data={metrics.workloadHeatmap} />
+          <WorkloadHeatmap
+            data={metrics.workloadHeatmap}
+            onDaySelect={(date) => {
+              const parsedDate = parseISO(date);
+              setDateFilter({ from: parsedDate, to: parsedDate });
+            }}
+          />
         </div>
         <div className="md:col-span-4 md:row-span-2 h-full">
           <HighStakesList tasks={metrics.highStakesTasks} />

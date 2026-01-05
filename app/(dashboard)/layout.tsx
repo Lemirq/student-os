@@ -11,6 +11,8 @@ import { DashboardLayoutClient } from "@/components/dashboard-layout-client";
 import { createClient } from "@/utils/supabase/server";
 import { PushNotificationSetup } from "@/components/notifications/push-notification-setup";
 import { IOSInstallPrompt } from "@/components/notifications/ios-install-prompt";
+import Head from "next/head";
+import Script from "next/script";
 
 /**
  * Renders the dashboard layout with server-side hydrated query state and auxiliary setup components.
