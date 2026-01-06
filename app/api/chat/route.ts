@@ -20,6 +20,7 @@ import {
 import { saveTextDocument } from "@/actions/documents/save-text-document";
 import { searchDocumentsWithRRF } from "@/actions/documents/search-documents-rrf";
 import * as chrono from "chrono-node";
+import { documents } from "@/schema";
 
 export type StudentOSToolCallsMessage = UIMessage;
 import { tasks, courses, gradeWeights, semesters } from "@/schema";
@@ -39,12 +40,15 @@ import { openRouterApiKey, tavilyApiKey } from "@/lib/env";
 import { PageContext } from "@/actions/page-context";
 import { formatContextForAI, setTimeInTimezone } from "@/lib/utils";
 
-export const maxDuration = 60; // Allow longer timeouts for complex DB ops
+export const maxDuration = 90; // Allow longer timeouts for complex DB ops and parsing
 
 const openRouterClient = createOpenRouter({
   apiKey: openRouterApiKey,
 });
-const glm = openRouterClient.chat("z-ai/glm-4.7");
+// Main chat model - GPT-4o is fast and capable
+const glm = openRouterClient.chat("openai/gpt-4o");
+// Even faster model for structured data extraction (syllabus parsing, etc.)
+const glmFast = openRouterClient.chat("openai/gpt-4o-mini");
 
 export async function POST(req: Request) {
   const { messages, pageContext, aiContext, timezone } = (await req.json()) as {
@@ -120,89 +124,82 @@ export async function POST(req: Request) {
   const coreMessages = await convertToModelMessages(messages);
   // for debugging: console.log(JSON.stringify(coreMessages, null, 2));
 
+  const requestStartTime = Date.now();
+  console.log("[chat] Starting chat processing");
+
   // Format page context for the system prompt
   const pageContextString = pageContext
     ? formatContextForAI(pageContext)
     : "User's current page is unknown.";
 
+  // Fetch document information for current course if on course page
+  let availableDocumentsInfo = "";
+  if (pageContext?.type === "course") {
+    const docCounts = await db
+      .select({
+        documentType: documents.documentType,
+        count: sql<number>`count(*)`.as("count"),
+      })
+      .from(documents)
+      .where(
+        and(
+          eq(documents.userId, user.id),
+          eq(documents.courseId, pageContext.id),
+        ),
+      )
+      .groupBy(documents.documentType);
+
+    const totalCount = docCounts.reduce((sum, d) => sum + Number(d.count), 0);
+    if (totalCount > 0) {
+      const docInfo = docCounts
+        .map((d) => `${d.count} ${d.documentType}(s)`)
+        .join(", ");
+      availableDocumentsInfo = `
+    AVAILABLE DOCUMENTS FOR THIS COURSE:
+    This course has ${totalCount} uploaded documents (${docInfo}). Use 'retrieve_course_context' to search them.`;
+    }
+  }
+
   const system = `You are a helpful and precise Student Assistant. You have access to the student's database.
     Today is ${new Date().toDateString()}.
 
-    CURRENT PAGE CONTEXT:
-    ${pageContextString}
-    Use this information to infer implicit references like "this course", "add a task here", "for this class", etc.
-    When the user refers to "this course" or similar, use the course ID/code from the context above.
+    PAGE: ${pageContextString}
+    ${availableDocumentsInfo}
 
-    STUDENT'S COURSES:
-${
-  userCourses.length > 0
-    ? userCourses
-        .map(
-          (c) =>
-            `- ${c.code}: ${c.name} (ID: ${c.id}${c.goalGrade ? `, Goal: ${c.goalGrade}` : ""})`,
-        )
-        .join("\n")
-    : "(No courses added yet)"
-}
+    COURSES (${userCourses.length}): ${userCourses.map((c) => c.code).join(", ")}
 
-    GRADE WEIGHTS:
-${
-  userGradeWeights.length > 0
-    ? userGradeWeights
-        .map((gw) => {
-          const course = userCourses.find((c) => c.id === gw.courseId);
-          return `- [${course?.code}] ${gw.name}: ${gw.weightPercent}% (ID: ${gw.id})`;
-        })
-        .join("\n")
-    : "(No grade weights added yet)"
-}
+    TOOL USAGE:
+    - Each tool handles its own UI - call ONCE
+    - For course questions: Proactively use 'retrieve_course_context' when on course page
+    - For syllabi: 'parse_syllabus' (fast extraction)
+    - For tasks: 'create_tasks_natural_language', 'search_tasks', 'update_task_score', 'bulk_update_tasks'
+    - For grades: 'calculate_grade_requirements', 'manage_grade_weights'
+    - For schedule: 'query_schedule', 'auto_schedule_tasks'
+    - For research: 'web_search', 'extract_content', 'crawl_website'
+    - For memory: 'save_to_memory' to store info
+    - DO NOT chain tools. Do NOT display raw JSON.
 
-    RULES:
-    Each tool handles its own UI rendering - call each tool ONCE and it returns everything needed.
-    1. **Syllabus Import:** Call 'parse_syllabus' with the raw text. Shows preview UI directly.
-    2. **Schedule Check:** Call 'query_schedule' with date range. Shows schedule UI directly.
-    3. **Grades:** Call 'calculate_grade_requirements' with course code. Shows grade analysis UI directly.
-    4. **Scheduling:** Call 'auto_schedule_tasks'. Shows scheduling results UI directly.
-    5. **Priorities:** Call 'rebalance_priorities'. Shows priority changes UI directly.
-    6. **Quick Add:** Call 'create_tasks_natural_language' with the request. Shows created tasks UI directly.
-    7. **Clean Up:** Call 'find_missing_data'. Shows missing data UI directly.
-    8. **Grade Weights:** Call 'manage_grade_weights' with action and course. Shows grade weights UI directly.
-    9. **Update Score:** Call 'update_task_score' with task name and score. Shows update confirmation UI directly.
-    10. **Bulk Update Tasks:** Call 'bulk_update_tasks' to update multiple tasks at once. Use for requests like "change all weekly prep due times to 5pm" or "set priority high for all quizzes in CSC148".
-    11. **Task Search:** Call 'search_tasks' to find and filter tasks with comprehensive criteria (status, priority, dates, courses, scores, overdue, submitted, etc.). Use for queries like "show overdue tasks", "high priority due this week", "completed CSC148 exams", "submitted assignments", etc.
-    12. **Course Context Retrieval:** Call 'retrieve_course_context' to search course documents (syllabus, notes, slides, etc.). Use this when answering questions about course materials, policies, deadlines, or specific course information.
-    13. **Web Search:** Call 'web_search' to search the web for current information, news, or research.
-    14. **Extract Content:** Call 'extract_content' to extract clean content from any URL.
-    15. **Crawl Website:** Call 'crawl_website' to crawl and extract content from multiple pages of a website.
-    16. **Map Website:** Call 'map_website' to discover and map the structure of a website.
-    17. **Save to Memory:** Call 'save_to_memory' to save any text content the user wants to remember (e.g., pasted documents, notes, reference materials, important information). Generate a descriptive name from the content. Saved documents become searchable via 'retrieve_course_context'.
+    IMPORTANT: Be proactive about retrieving context from documents when viewing a course page.`;
+  console.log(
+    `[chat] System prompt length: ${system.length} characters, courses: ${userCourses.length}, grade weights: ${userGradeWeights.length}`,
+  );
+  console.log("[chat] Calling streamText...");
 
-    PROACTIVE MEMORY SAVING:
-    Automatically save useful information to memory when you encounter:
-    - Important course policies, grading schemes, or academic information
-    - Detailed project requirements or assignment specifications
-    - Key concepts, formulas, or reference material the user shares
-    - Study guides, exam preparation materials, or lecture summaries
-    - Helpful resources, tips, or instructions for future reference
-
-    DO NOT save:
-    - Simple questions or casual conversation
-    - Temporary information or one-time queries
-    - Information already in the database (tasks, grades, courses)
-    - Trivial or very short text snippets
-
-    When saving proactively, generate a clear, descriptive name and use appropriate document_type.
-
-    IMPORTANT: Do NOT chain tools. Each tool call handles everything including UI. Do not display raw JSON.`;
-  console.log(system);
   const result = streamText({
     // @ts-expect-error OpenRouter provider types are incompatible with AI SDK beta
     model: glm,
+    maxCompletionTokens: 2000, // Limit response length for faster generation
     messages: coreMessages,
     // -----------------------------------------------------------------------
     // THE BRAIN: System Prompt controls the "Workflow"
     // -----------------------------------------------------------------------
     system,
+
+    // Track completion time
+    onFinish: () => {
+      const totalTime = Date.now() - requestStartTime;
+      console.log(`[chat] Total processing time: ${totalTime}ms`);
+    },
 
     tools: {
       // -----------------------------------------------------------------------
@@ -219,6 +216,24 @@ ${
             .describe("Optional course code if already known"),
         }),
         execute: async ({ raw_text }) => {
+          const startTime = Date.now();
+          console.log("[parse_syllabus] Starting syllabus parsing...");
+
+          // Optimize: Truncate very long syllabus text (LLMs struggle with >100K chars)
+          // Focus on assessment sections by keeping most relevant parts
+          const MAX_TEXT_LENGTH = 100000;
+          const syllabusText =
+            raw_text.length > MAX_TEXT_LENGTH
+              ? raw_text.substring(0, MAX_TEXT_LENGTH) +
+                "\n\n[Note: Syllabus truncated for faster processing...]"
+              : raw_text;
+
+          console.log(
+            "[parse_syllabus] Syllabus text length:",
+            syllabusText.length,
+            "characters",
+          );
+
           // Build context about existing courses
           const existingCoursesContext =
             userCourses.length > 0
@@ -247,10 +262,14 @@ ${userCourses.map((c) => `- ${c.code}: ${c.name}`).join("\n")}`
                 .toISOString()
                 .split("T")[0];
 
-          // Parse syllabus into structured data
-          const { output: parsed } = await generateText({
+          // Parse syllabus into structured data (using faster model for extraction)
+          console.log("[parse_syllabus] Starting syllabus extraction...");
+
+          const parsePromise = generateText({
             // @ts-expect-error OpenRouter provider types are incompatible with AI SDK beta
-            model: glm,
+            model: glmFast,
+            temperature: 0.1, // Lower temperature for more consistent parsing
+            maxSteps: 3, // Limit reasoning steps for speed
             output: Output.object({
               schema: z.object({
                 course: z
@@ -271,7 +290,7 @@ ${userCourses.map((c) => `- ${c.code}: ${c.name}`).join("\n")}`
                     due_date: z
                       .string()
                       .describe(
-                        "Due date in ISO format YYYY-MM-DD. If no specific date is given, estimate based on context (e.g., 'midterm' = middle of semester, 'final' = end of semester). If truly unknown, use empty string.",
+                        "Due date in ISO format YYYY-MM-DD. If no specific date is given, estimate based on context. For recurring events, note the pattern (e.g., 'Weekly Sundays'). If truly unknown, use empty string.",
                       ),
                     type: z
                       .string()
@@ -288,38 +307,129 @@ ${existingCoursesContext}
 
 SEMESTER DATE RANGE: ${semesterStart} to ${semesterEnd}
 
-IMPORTANT RULES:
-1. COURSE CODE: If the syllabus is for a course that matches one of the existing courses above, you MUST use the exact same course code. Do not create variations like "CSC108H" if "CSC108" already exists.
-2. due_date MUST be in YYYY-MM-DD format (e.g., "2025-02-15")
-3. If a specific date is mentioned (e.g., "February 15"), convert it to YYYY-MM-DD
-4. If only a week is mentioned (e.g., "Week 5"), estimate a date based on a typical semester starting in January or September
-5. If no date can be determined, use an empty string ""
-6. Do NOT include descriptive text in the due_date field
-7. CRITICAL RECURRING TASKS: For recurring patterns (weekly, bi-weekly, monthly, etc.), you MUST create MULTIPLE individual task entries - one for each occurrence within the semester date range (${semesterStart} to ${semesterEnd}). Examples:
-   - "Weekly quiz on Sundays" → Create separate tasks for each Sunday in the semester
-   - "Weekly quiz due Sunday at 11:59pm" → Create separate tasks for each Sunday
-   - "Bi-weekly lab on Tuesdays" → Create separate tasks for every other Tuesday
-   - "Monthly assignment on the 1st" → Create separate tasks for the 1st of each month
-   - ALWAYS expand recurring events into individual task instances. Do NOT create a single task with a repeating note.
-8. MERGE SIMILAR GRADE WEIGHTS: If multiple tasks belong to the same grade weight category with similar weights (e.g., two tests both worth 19%, both belonging to "Test" category), you MUST merge them into a single grade weight entry. Example:
-   - test1 is 19% (Test category) + test2 is 19% (Test category) → Create ONE "Test" grade weight of 38%, not two separate "Test" weights
-   - Only merge when the weights are similar (within ~2% of each other) and belong to the exact same grade weight category name.
-9. CRITICAL GRADE WEIGHT NAMING: You MUST use DISTINCT names for grade weights. Even if tasks are similar type (e.g., both are "exams"), use specific names that distinguish them. Examples:
-   - "Midterm" (25%) + "Final Exam" (40%) → Create two SEPARATE grade weights with distinct names
-   - "Quiz 1" (5%) + "Quiz 2" (5%) → Can either merge to "Quizzes" (10%) OR keep separate as "Quiz 1", "Quiz 2"
-   - NEVER create two grade weights with the same generic name (e.g., two "Exam" entries). Always use descriptive names that reflect what the assessment actually is (Midterm, Final, Quiz, Lab, Assignment, Project, etc.).
+RULES:
+1. COURSE CODE: Use exact code if it matches existing courses.
+2. due_date format: YYYY-MM-DD (e.g., "2025-02-15")
+3. For recurring events (weekly, bi-weekly, monthly), just extract pattern with first date (e.g., "Weekly on Sundays starting 2025-01-12") - system will expand.
+4. If no date, use empty string "".
+5. Extract title, weight percentage, due date, and type accurately.
 
 Today's date: ${new Date().toISOString().split("T")[0]}
 
 Syllabus content:
-${raw_text}`,
+${syllabusText}`,
           });
+
+          // Add timeout to prevent hanging
+          const timeoutPromise = new Promise((_, reject) =>
+            setTimeout(
+              () => reject(new Error("Syllabus parsing timeout")),
+              60000,
+            ),
+          ) as Promise<never>;
+
+          const { output: parsed } = await Promise.race([
+            parsePromise,
+            timeoutPromise,
+          ]);
+
+          console.log(
+            "[parse_syllabus] Extraction complete, found",
+            parsed.tasks.length,
+            "tasks",
+          );
+
+          // Post-process: Expand recurring tasks (much faster than LLM)
+          const expandedTasks: typeof parsed.tasks = [];
+
+          for (const task of parsed.tasks) {
+            // Check if this is a recurring task
+            const recurringPatterns = [
+              /weekly/i,
+              /bi-weekly/i,
+              /every other week/i,
+              /monthly/i,
+              /fortnightly/i,
+            ];
+
+            const isRecurring = recurringPatterns.some((pattern) =>
+              pattern.test(task.due_date),
+            );
+
+            if (isRecurring && task.due_date) {
+              // Extract the first date mentioned in the due_date field
+              const dateMatch = task.due_date.match(/\d{4}-\d{2}-\d{2}/);
+
+              if (dateMatch) {
+                const firstDate = new Date(dateMatch[0]);
+                const startDate = new Date(semesterStart);
+                const endDate = new Date(semesterEnd);
+
+                // Determine interval
+                const isWeekly =
+                  /weekly/i.test(task.due_date) && !/bi/i.test(task.due_date);
+                const isBiWeekly =
+                  /bi-weekly|every other week|fortnightly/i.test(task.due_date);
+                const isMonthly = /monthly/i.test(task.due_date);
+
+                // Expand tasks based on interval
+                let currentDate = firstDate;
+                let index = 1;
+                const maxTasks = 50; // Safety limit
+
+                while (
+                  currentDate <= endDate &&
+                  expandedTasks.length < maxTasks
+                ) {
+                  if (currentDate >= startDate) {
+                    expandedTasks.push({
+                      ...task,
+                      title: `${task.title} #${index}`,
+                      due_date: currentDate.toISOString().split("T")[0],
+                    });
+                    index++;
+                  }
+
+                  // Move to next occurrence
+                  if (isMonthly) {
+                    currentDate.setMonth(currentDate.getMonth() + 1);
+                  } else if (isBiWeekly) {
+                    currentDate.setDate(currentDate.getDate() + 14);
+                  } else {
+                    // Weekly
+                    currentDate.setDate(currentDate.getDate() + 7);
+                  }
+                }
+              } else {
+                // No date found, add as-is
+                expandedTasks.push(task);
+              }
+            } else {
+              // Not a recurring task, add as-is
+              expandedTasks.push(task);
+            }
+          }
+
+          // Update parsed with expanded tasks
+          parsed.tasks = expandedTasks;
+
+          // Update parsed with expanded tasks
+          parsed.tasks = expandedTasks;
+
+          console.log(
+            "[parse_syllabus] After expansion:",
+            expandedTasks.length,
+            "tasks total",
+          );
 
           // Generate UI metadata directly (no extra LLM call needed)
           const validTaskCount = parsed.tasks.filter(
             (t) => t.due_date && /^\d{4}-\d{2}-\d{2}/.test(t.due_date),
           ).length;
           const invalidCount = parsed.tasks.length - validTaskCount;
+
+          const totalTime = Date.now() - startTime;
+          console.log(`[parse_syllabus] Total time: ${totalTime}ms`);
 
           // Return composite result with both data and UI metadata
           return {
@@ -495,7 +605,7 @@ ${raw_text}`,
             if (allTasks.length > 0) {
               const { output: match } = await generateText({
                 // @ts-expect-error OpenRouter provider types are incompatible with AI SDK beta
-                model: glm,
+                model: glmFast, // Use faster model for simple matching
                 output: Output.object({
                   schema: z.object({ taskId: z.string().nullable() }),
                 }),
@@ -535,7 +645,7 @@ ${raw_text}`,
         execute: async ({ request }) => {
           const { output: object } = await generateText({
             // @ts-expect-error OpenRouter provider types are incompatible with AI SDK beta
-            model: glm,
+            model: glmFast, // Use faster model for structured extraction
             output: Output.object({
               schema: z.object({
                 tasks: z.array(
