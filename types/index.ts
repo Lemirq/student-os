@@ -468,3 +468,47 @@ export type CourseWithSchedule = {
     name: string;
   } | null;
 };
+
+export type GoogleCalendarIntegration = {
+  id: string;
+  userId: string;
+  accessToken: string;
+  refreshToken: string;
+  expiresAt: Date;
+  googleEmail: string;
+  lastSyncAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+export type GoogleCalendar = {
+  id: string;
+  integrationId: string;
+  googleCalendarId: string;
+  name: string;
+  description: string | null;
+  backgroundColor: string;
+  foregroundColor: string;
+  primary: boolean;
+  timezone: string | null;
+  isVisible: boolean;
+  lastSyncedAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+export type GoogleCalendarEvent = {
+  id: string;
+  calendarId: string;
+  googleEventId: string;
+  summary: string | null;
+  description: string | null;
+  location: string | null;
+  htmlLink: string | null;
+  startDateTime: Date;
+  endDateTime: Date;
+  isAllDay: boolean;
+  lastUpdated: Date;
+  createdAt: Date;
+  calendar?: GoogleCalendar;
+};

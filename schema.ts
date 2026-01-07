@@ -30,6 +30,7 @@ export const usersRelations = relations(users, ({ many }) => ({
   chats: many(chats),
   pushSubscriptions: many(pushSubscriptions),
   documents: many(documents),
+  googleCalendarIntegrations: many(googleCalendarIntegrations),
 }));
 
 /* SEMESTERS */
@@ -291,3 +292,100 @@ export const documentsRelations = relations(documents, ({ one }) => ({
     references: [courses.id],
   }),
 }));
+
+/* GOOGLE CALENDAR INTEGRATIONS */
+export const googleCalendarIntegrations = pgTable(
+  "google_calendar_integrations",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    accessToken: text("access_token").notNull(),
+    refreshToken: text("refresh_token").notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    googleEmail: text("google_email").notNull(),
+    lastSyncAt: timestamp("last_synced_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+  },
+);
+
+export const googleCalendarIntegrationsRelations = relations(
+  googleCalendarIntegrations,
+  ({ one, many }) => ({
+    user: one(users, {
+      fields: [googleCalendarIntegrations.userId],
+      references: [users.id],
+    }),
+    googleCalendars: many(googleCalendars),
+  }),
+);
+
+/* GOOGLE CALENDARS */
+export const googleCalendars = pgTable(
+  "google_calendars",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    integrationId: uuid("integration_id")
+      .notNull()
+      .references(() => googleCalendarIntegrations.id, {
+        onDelete: "cascade",
+      }),
+    googleCalendarId: text("google_calendar_id").notNull(),
+    name: text("name").notNull(),
+    description: text("description"),
+    backgroundColor: text("background_color"),
+    foregroundColor: text("foreground_color"),
+    primary: boolean("primary").default(false),
+    timezone: text("timezone"),
+    isVisible: boolean("is_visible").default(true),
+    lastSyncedAt: timestamp("last_synced_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+  },
+  (table) => ({
+    uniqueGoogleCalendarId: table.googleCalendarId,
+  }),
+);
+
+export const googleCalendarsRelations = relations(
+  googleCalendars,
+  ({ one, many }) => ({
+    integration: one(googleCalendarIntegrations, {
+      fields: [googleCalendars.integrationId],
+      references: [googleCalendarIntegrations.id],
+    }),
+    googleCalendarEvents: many(googleCalendarEvents),
+  }),
+);
+
+/* GOOGLE CALENDAR EVENTS */
+export const googleCalendarEvents = pgTable("google_calendar_events", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  calendarId: uuid("calendar_id")
+    .notNull()
+    .references(() => googleCalendars.id, {
+      onDelete: "cascade",
+    }),
+  googleEventId: text("google_event_id").notNull(),
+  summary: text("summary"),
+  description: text("description"),
+  location: text("location"),
+  htmlLink: text("html_link"),
+  startDateTime: timestamp("start_date_time", { withTimezone: true }),
+  endDateTime: timestamp("end_date_time", { withTimezone: true }),
+  isAllDay: boolean("is_all_day").default(false),
+  lastUpdated: timestamp("last_updated", { withTimezone: true }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+});
+
+export const googleCalendarEventsRelations = relations(
+  googleCalendarEvents,
+  ({ one }) => ({
+    calendar: one(googleCalendars, {
+      fields: [googleCalendarEvents.calendarId],
+      references: [googleCalendars.id],
+    }),
+  }),
+);

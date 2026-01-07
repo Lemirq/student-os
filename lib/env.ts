@@ -10,6 +10,11 @@ export const openaiApiKey = process.env.OPENAI_API_KEY ?? "";
 export const UPSTASH_REDIS_REST_URL = process.env.UPSTASH_REDIS_REST_URL ?? "";
 export const UPSTASH_REDIS_REST_TOKEN =
   process.env.UPSTASH_REDIS_REST_TOKEN ?? "";
+export const googleClientId = process.env.GOOGLE_CLIENT_ID ?? "";
+export const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET ?? "";
+export const googleOAuthRedirectUri =
+  process.env.GOOGLE_OAUTH_REDIRECT_URI ??
+  `${process.env.NEXT_PUBLIC_APP_URL}/api/google-calendar/callback`;
 
 // Local Redis configuration
 export const REDIS_URL = process.env.REDIS_URL ?? "";

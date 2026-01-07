@@ -98,7 +98,9 @@ export async function getDashboardMetrics(
 
   // Initialize heatmap
   next7Days.forEach((d) => {
-    workloadMap.set(d.toISOString().split("T")[0], { count: 0, weight: 0 });
+    const dateKey = d.toISOString().split("T")[0];
+    workloadMap.set(dateKey, { count: 0, weight: 0 });
+    console.log(`[WorkloadHeatmap] Initialized day: ${dateKey}`);
   });
 
   // Process Courses
@@ -165,6 +167,13 @@ export async function getDashboardMetrics(
             entry.count += 1;
             entry.weight += weightPerTask;
             workloadMap.set(dateKey, entry);
+            console.log(
+              `[WorkloadHeatmap] Added task to ${dateKey}:`,
+              `Course: ${course.code}`,
+              `Task: ${task.title}`,
+              `Weight: ${weightPerTask.toFixed(2)}%`,
+              `Due: ${task.dueDate?.toISOString()}`,
+            );
           }
         }
       });
@@ -239,12 +248,24 @@ export async function getDashboardMetrics(
     differenceInCalendarWeeks(end, start, { weekStartsOn: 1 }) + 1;
 
   const workloadHeatmap = Array.from(workloadMap.entries())
-    .map(([date, data]) => ({
-      date,
-      taskCount: data.count,
-      totalWeight: data.weight,
-    }))
+    .map(([date, data]) => {
+      console.log(
+        `[WorkloadHeatmap] Final data for ${date}:`,
+        `count=${data.count}`,
+        `weight=${data.weight.toFixed(2)}%`,
+      );
+      return {
+        date,
+        taskCount: data.count,
+        totalWeight: data.weight,
+      };
+    })
     .sort((a, b) => a.date.localeCompare(b.date));
+
+  console.log(
+    "[WorkloadHeatmap] Final heatmap data:",
+    JSON.stringify(workloadHeatmap, null, 2),
+  );
 
   return {
     gradeGap,

@@ -421,6 +421,15 @@ export const columns: ColumnDef<TaskWithDetails>[] = [
         const date = startOfDay(new Date(rowValue));
         const { from, to } = filterValue as { from?: Date; to?: Date };
 
+        console.log(
+          `[Filter:dueDate] Processing row:`,
+          `rowValue="${rowValue}"`,
+          `parsedDate=${date.toISOString()}`,
+          `localDate=${date.toDateString()}`,
+          `filter.from=${from?.toISOString() || "undefined"}`,
+          `filter.to=${to?.toISOString() || "undefined"}`,
+        );
+
         let result = true;
         if (from && to) {
           result = isWithinInterval(date, {

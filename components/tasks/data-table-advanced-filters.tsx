@@ -85,13 +85,18 @@ export function DataTableAdvancedFilters<TData>({
     console.log("[AdvancedFilters] Date range changed:", dateRange);
 
     if (dateRange.from || dateRange.to) {
-      // Store the date range object as the filter value
+      // Store date range object as filter value
       // The filterFn in columns.tsx will use this to filter
       const filterValue = {
         from: dateRange.from,
         to: dateRange.to,
       };
-      console.log("[AdvancedFilters] Setting date filter value:", filterValue);
+      console.log("[AdvancedFilters] Setting date filter value:", {
+        from: filterValue.from?.toISOString(),
+        to: filterValue.to?.toISOString(),
+        fromLocal: filterValue.from?.toString(),
+        toLocal: filterValue.to?.toString(),
+      });
       dueDateColumn?.setFilterValue(filterValue);
     } else {
       console.log("[AdvancedFilters] Clearing date filter");

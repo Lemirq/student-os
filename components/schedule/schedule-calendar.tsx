@@ -24,7 +24,26 @@ import {
 } from "@/components/ui/select";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { scheduleToCalendarEvents } from "@/lib/schedule-utils";
-import type { ScheduleData } from "@/types";
+import type {
+  ScheduleData,
+  GoogleCalendarEvent as GoogleCalendarEventType,
+} from "@/types";
+import GoogleCalendarEventDetails from "./google-calendar-event-details";
+
+type GoogleCalendarEvent = {
+  summary?: string;
+  location?: string | null;
+  description?: string | null;
+  htmlLink?: string | null;
+  start?: {
+    date?: string;
+    dateTime?: string;
+  };
+  end?: {
+    date?: string;
+    dateTime?: string;
+  };
+};
 
 // Setup the localizer for react-big-calendar
 const locales = {
@@ -47,6 +66,7 @@ interface ScheduleCalendarProps {
     color: string | null;
     schedule: ScheduleData | null;
   }>;
+  googleEvents?: GoogleCalendarEventType[];
   onEventClick?: (event: CalendarEvent) => void;
 }
 
@@ -56,19 +76,23 @@ interface CalendarEvent {
   start: Date;
   end: Date;
   resource: {
-    courseId: string;
-    courseCode: string;
+    courseId?: string;
+    courseCode?: string;
     type: string;
-    section: string;
+    section?: string;
     location?: string;
     building?: string;
     isExamSlot?: boolean;
+    googleEventId?: string;
+    calendar?: { name: string; color: string };
+    htmlLink?: string;
   };
   color: string;
 }
 
 export function ScheduleCalendar({
   courses,
+  googleEvents = [],
   onEventClick,
 }: ScheduleCalendarProps) {
   const [view, setView] = useState<View>(Views.WEEK);
@@ -76,32 +100,72 @@ export function ScheduleCalendar({
   const [eventTypeFilters, setEventTypeFilters] = useState<Set<string>>(
     new Set(["LEC", "TUT", "PRA", "LAB"]),
   );
+  const [googleEventDialogOpen, setGoogleEventDialogOpen] = useState(false);
+  const [selectedGoogleEvent, setSelectedGoogleEvent] =
+    useState<GoogleCalendarEvent | null>(null);
 
   // Get user's timezone
   const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
   // Convert all courses to calendar events
-  const allEvents = courses.flatMap((course) =>
+  const courseEvents = courses.flatMap((course) =>
     scheduleToCalendarEvents(course, userTimezone),
   );
 
-  // Filter events by type
-  const filteredEvents = allEvents.filter((event) =>
-    eventTypeFilters.has(event.resource.type),
+  // Convert Google events to calendar format
+  const googleCalendarEvents = googleEvents.map((event) => ({
+    id: event.id,
+    title: event.summary || "No title",
+    start: new Date(event.startDateTime || 0),
+    end: new Date(event.endDateTime || 0),
+    resource: {
+      type: "google",
+      googleEventId: event.googleEventId,
+      calendar: {
+        name: event.calendar?.name || "Google Calendar",
+        color: event.calendar?.backgroundColor || "#4285f4",
+      },
+      htmlLink: event.htmlLink || "",
+      location: event.location || undefined,
+    },
+    color: event.calendar?.backgroundColor || "#4285f4",
+  }));
+
+  // Merge course events with Google events
+  const allEvents = [...courseEvents, ...googleCalendarEvents];
+
+  // Filter events by type (Google events are always shown)
+  const filteredEvents = allEvents.filter(
+    (event) =>
+      event.resource.type === "google" ||
+      eventTypeFilters.has(event.resource.type),
   );
 
   const handleSelectEvent = (event: CalendarEvent) => {
-    onEventClick?.(event);
+    if (event.resource.type === "google") {
+      setSelectedGoogleEvent({
+        summary: event.title,
+        start: { dateTime: event.start.toISOString() },
+        end: { dateTime: event.end.toISOString() },
+        htmlLink: event.resource.htmlLink || null,
+        location: event.resource.location || null,
+        description: "",
+      });
+      setGoogleEventDialogOpen(true);
+    } else {
+      onEventClick?.(event);
+    }
   };
 
   const eventPropGetter = (event: CalendarEvent) => {
+    const isGoogleEvent = event.resource.type === "google";
     return {
       style: {
         backgroundColor: event.color,
         borderRadius: "4px",
-        opacity: 1,
+        opacity: isGoogleEvent ? 0.7 : 1,
         color: "#fff",
-        border: "0px",
+        border: isGoogleEvent ? "2px dashed #fff" : "0px",
         display: "block",
         padding: "2px 4px",
         overflow: "hidden",
@@ -191,14 +255,22 @@ export function ScheduleCalendar({
   };
 
   const CustomEvent = ({ event }: { event: CalendarEvent }) => {
+    const isGoogleEvent = event.resource.type === "google";
     const isExamSlot = event.resource.isExamSlot;
 
     return (
       <div className="flex flex-col gap-0.5 text-xs font-medium w-full h-full overflow-hidden">
         <span className="font-bold text-[10px] uppercase tracking-wider">
-          {event.resource.courseCode} {event.resource.type}
+          {isGoogleEvent
+            ? `${event.resource.calendar?.name || "Google Calendar"}`
+            : `${event.resource.courseCode} ${event.resource.type}`}
         </span>
-        {event.resource.location && (
+        {isGoogleEvent && (
+          <span className="text-[9px] opacity-90 truncate">
+            Google Calendar
+          </span>
+        )}
+        {!isGoogleEvent && event.resource.location && (
           <span className="text-[9px] opacity-90 truncate">
             {isExamSlot ? "Test/Exam Slot" : event.resource.location}
           </span>
@@ -256,6 +328,14 @@ export function ScheduleCalendar({
           />
         </div>
       </div>
+      {selectedGoogleEvent && (
+        <GoogleCalendarEventDetails
+          open={googleEventDialogOpen}
+          onOpenChange={setGoogleEventDialogOpen}
+          event={selectedGoogleEvent}
+          calendar={{ name: "Google Calendar", color: "#4285f4" }}
+        />
+      )}
     </div>
   );
 }

@@ -32,6 +32,8 @@ export function WorkloadHeatmap({ data, onDaySelect }: WorkloadHeatmapProps) {
     formattedDate: format(parseISO(d.date), "MMM d"),
   }));
 
+  console.log(chartData);
+
   const defaultBarColor = "var(--chart-1)";
   const warningBarColor = "var(--destructive)";
 

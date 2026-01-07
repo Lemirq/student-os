@@ -65,8 +65,14 @@ export function SemesterContent({ semesterId }: SemesterContentProps) {
           <WorkloadHeatmap
             data={metrics.workloadHeatmap}
             onDaySelect={(date) => {
+              console.log("[WorkloadHeatmap] Day selected:", date);
               const parsedDate = parseISO(date);
+              console.log("[WorkloadHeatmap] Parsed date:", parsedDate);
               setDateFilter({ from: parsedDate, to: parsedDate });
+              console.log("[WorkloadHeatmap] Set date filter:", {
+                from: parsedDate,
+                to: parsedDate,
+              });
             }}
           />
         </div>

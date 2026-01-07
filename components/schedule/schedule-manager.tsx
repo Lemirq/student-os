@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Calendar, Plus, Upload } from "lucide-react";
 import { ScheduleCalendar } from "./schedule-calendar";
@@ -8,7 +8,13 @@ import { ScheduleUploadDialog } from "./schedule-upload-dialog";
 import { AddScheduleEventDialog } from "./add-schedule-event-dialog";
 import { ScheduleEventCard } from "./schedule-event-card";
 import { ScheduleStats } from "./schedule-stats";
-import type { ScheduleData, ScheduleEvent } from "@/types";
+import GoogleCalendarPanel from "./google-calendar-panel";
+import GoogleCalendarEventDetails from "./google-calendar-event-details";
+import type {
+  ScheduleData,
+  ScheduleEvent,
+  GoogleCalendarEvent as GoogleCalendarEventType,
+} from "@/types";
 import { deleteScheduleEvent } from "@/actions/schedule";
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -21,6 +27,14 @@ interface CourseWithSchedule {
   color: string | null;
   schedule: ScheduleData | null;
 }
+
+type CalendarEventResource = {
+  isGoogleEvent?: boolean;
+  courseId?: string;
+  type?: string;
+  section?: string;
+  googleEventId?: string;
+};
 
 interface ScheduleManagerProps {
   initialCourses: CourseWithSchedule[];
@@ -37,16 +51,80 @@ export function ScheduleManager({
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
   const [addEventDialogOpen, setAddEventDialogOpen] = useState(false);
   const [eventCardOpen, setEventCardOpen] = useState(false);
+  const [googleEventDetailsOpen, setGoogleEventDetailsOpen] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState<{
     event: ScheduleEvent;
     course: CourseWithSchedule;
     eventIndex: number;
+  } | null>(null);
+  const [selectedGoogleEvent, setSelectedGoogleEvent] = useState<{
+    event: {
+      summary?: string;
+      location?: string;
+      description?: string;
+      htmlLink?: string;
+      start?: { dateTime?: string; date?: string };
+      end?: { dateTime?: string; date?: string };
+    };
+    calendar: { name: string; color: string };
   } | null>(null);
   const [editingEvent, setEditingEvent] = useState<{
     event: ScheduleEvent;
     courseId: string;
     eventIndex: number;
   } | null>(null);
+  const [googleCalendarEvents, setGoogleCalendarEvents] = useState<
+    GoogleCalendarEventType[]
+  >([]);
+  const [googleCalendarStatus, setGoogleCalendarStatus] = useState<{
+    isConnected: boolean;
+    googleEmail: string | null;
+    lastSync: Date | null;
+    calendars: Array<{
+      id: string;
+      name: string;
+      isVisible: boolean | null;
+      backgroundColor: string | null;
+      lastSyncedAt: Date | null;
+    }>;
+  }>({
+    isConnected: false,
+    googleEmail: null,
+    lastSync: null,
+    calendars: [],
+  });
+  const [isLoadingGoogleEvents, setIsLoadingGoogleEvents] = useState(false);
+
+  useEffect(() => {
+    fetchGoogleCalendarEvents();
+  }, []);
+
+  const fetchGoogleCalendarEvents = async () => {
+    setIsLoadingGoogleEvents(true);
+    try {
+      const [eventsResponse, statusResponse] = await Promise.all([
+        fetch("/api/google-calendar/events"),
+        fetch("/api/google-calendar/calendars"),
+      ]);
+
+      let googleEventsFormatted: GoogleCalendarEventType[] = [];
+      if (eventsResponse.ok) {
+        const eventsData = await eventsResponse.json();
+        googleEventsFormatted = eventsData || [];
+      }
+
+      if (statusResponse.ok) {
+        const statusData = await statusResponse.json();
+        setGoogleCalendarStatus(statusData);
+      }
+
+      setGoogleCalendarEvents(googleEventsFormatted);
+    } catch (error) {
+      console.error("Error fetching Google Calendar events:", error);
+    } finally {
+      setIsLoadingGoogleEvents(false);
+    }
+  };
 
   const coursesWithSchedule = initialCourses.filter(
     (course) => course.schedule && course.schedule.events.length > 0,
@@ -55,34 +133,56 @@ export function ScheduleManager({
   const hasSchedules = coursesWithSchedule.length > 0;
 
   const handleEventClick = (calendarEvent: {
-    resource: {
-      courseId: string;
-      type: string;
-      section: string;
-    };
+    resource: CalendarEventResource;
+    color: string;
   }) => {
-    const course = initialCourses.find(
-      (c) => c.id === calendarEvent.resource.courseId,
-    );
+    if (calendarEvent.resource?.isGoogleEvent) {
+      const googleEvent = googleCalendarEvents.find(
+        (e) => e.id === calendarEvent.resource.googleEventId,
+      );
 
-    if (!course || !course.schedule) return;
+      if (googleEvent) {
+        setSelectedGoogleEvent({
+          event: {
+            summary: googleEvent.summary || undefined,
+            location: googleEvent.location || undefined,
+            description: googleEvent.description || undefined,
+            htmlLink: googleEvent.htmlLink || undefined,
+            start: googleEvent.startDateTime
+              ? { dateTime: googleEvent.startDateTime.toISOString() }
+              : undefined,
+            end: googleEvent.endDateTime
+              ? { dateTime: googleEvent.endDateTime.toISOString() }
+              : undefined,
+          },
+          calendar: { name: "Google Calendar", color: calendarEvent.color },
+        });
+        setGoogleEventDetailsOpen(true);
+      }
+    } else {
+      const course = initialCourses.find(
+        (c) => c.id === calendarEvent.resource.courseId,
+      );
 
-    const eventIndex = course.schedule.events.findIndex(
-      (e) =>
-        e.type === calendarEvent.resource.type &&
-        e.section === calendarEvent.resource.section,
-    );
+      if (!course || !course.schedule) return;
 
-    if (eventIndex === -1) return;
+      const eventIndex = course.schedule.events.findIndex(
+        (e) =>
+          e.type === calendarEvent.resource.type &&
+          e.section === calendarEvent.resource.section,
+      );
 
-    const event = course.schedule.events[eventIndex];
+      if (eventIndex === -1) return;
 
-    setSelectedEvent({
-      event,
-      course,
-      eventIndex,
-    });
-    setEventCardOpen(true);
+      const event = course.schedule.events[eventIndex];
+
+      setSelectedEvent({
+        event,
+        course,
+        eventIndex,
+      });
+      setEventCardOpen(true);
+    }
   };
 
   const handleEditEvent = () => {
@@ -240,14 +340,27 @@ export function ScheduleManager({
         </div>
       </div>
 
-      {/* Stats */}
-      <ScheduleStats courses={initialCourses} />
+      <div className="grid gap-6 lg:grid-cols-[1fr,320px]">
+        {/* Main Calendar Section */}
+        <div className="space-y-6">
+          {/* Stats */}
+          <ScheduleStats courses={initialCourses} />
 
-      {/* Calendar */}
-      <ScheduleCalendar
-        courses={coursesWithSchedule}
-        onEventClick={handleEventClick}
-      />
+          {/* Calendar */}
+          <ScheduleCalendar
+            courses={coursesWithSchedule}
+            googleEvents={googleCalendarEvents}
+            onEventClick={handleEventClick}
+          />
+        </div>
+
+        {/* Sidebar - Google Calendar Panel */}
+        <div className="space-y-6">
+          <div className="border rounded-lg bg-card p-4">
+            <GoogleCalendarPanel onSync={fetchGoogleCalendarEvents} />
+          </div>
+        </div>
+      </div>
 
       {/* Dialogs */}
       <ScheduleUploadDialog
@@ -273,6 +386,14 @@ export function ScheduleManager({
           courseId={selectedEvent.course.id}
           onEdit={handleEditEvent}
           onDelete={handleDeleteEvent}
+        />
+      )}
+      {selectedGoogleEvent && (
+        <GoogleCalendarEventDetails
+          open={googleEventDetailsOpen}
+          onOpenChange={setGoogleEventDetailsOpen}
+          event={selectedGoogleEvent.event}
+          calendar={selectedGoogleEvent.calendar}
         />
       )}
     </div>
