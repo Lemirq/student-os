@@ -19,6 +19,7 @@ import {
 // import { searchDocuments } from "@/actions/documents/search-documents";
 import { saveTextDocument } from "@/actions/documents/save-text-document";
 import { searchDocumentsWithRRF } from "@/actions/documents/search-documents-rrf";
+import { generateQuiz } from "@/actions/quiz/generate-quiz";
 import * as chrono from "chrono-node";
 import { documents } from "@/schema";
 
@@ -176,7 +177,8 @@ export async function POST(req: Request) {
     - For grades: 'calculate_grade_requirements', 'manage_grade_weights'
     - For schedule: 'query_schedule', 'auto_schedule_tasks'
     - For research: 'web_search', 'extract_content', 'crawl_website'
-    - For memory: 'save_to_memory' to store info
+    - For memory: 'save_to_memory' ONLY when user explicitly requests it - do NOT auto-save AI content
+    - For quizzes: 'generate_quiz' to create quizzes from course materials. IMPORTANT: Do NOT include or reveal quiz questions or answers in your chat response after calling this tool - the quiz will be displayed in the UI separately.
     - DO NOT chain tools. Do NOT display raw JSON.
 
     IMPORTANT: Be proactive about retrieving context from documents when viewing a course page.`;
@@ -2281,11 +2283,88 @@ Extract tasks from: "${request}"
       }),
 
       // -----------------------------------------------------------------------
+      // 8. QUIZ GENERATION TOOL
+      // -----------------------------------------------------------------------
+      generate_quiz: tool({
+        description:
+          "Generate a quiz based on course materials using AI. Can be chained with retrieve_course_context.",
+        inputSchema: z.object({
+          courseId: z
+            .string()
+            .optional()
+            .describe("Course ID - inferred from page context if not provided"),
+          difficulty: z
+            .enum(["beginner", "intermediate", "advanced"])
+            .default("intermediate")
+            .describe("Quiz difficulty level"),
+          questionCount: z
+            .number()
+            .default(10)
+            .describe("Number of questions to generate"),
+          topic: z
+            .string()
+            .optional()
+            .describe(
+              "Specific topic for the quiz - auto-generated if not provided",
+            ),
+        }),
+        execute: async ({ courseId, difficulty, questionCount, topic }) => {
+          console.log("[generate_quiz] Starting quiz generation...");
+
+          // Get user from auth
+          const supabase = await createClient();
+          const {
+            data: { user },
+          } = await supabase.auth.getUser();
+
+          if (!user) {
+            return { error: "Unauthorized" };
+          }
+
+          // Infer courseId from page context if not provided
+          let finalCourseId = courseId;
+          if (!finalCourseId && pageContext?.type === "course") {
+            finalCourseId = pageContext.id;
+          }
+
+          if (!finalCourseId) {
+            return {
+              error:
+                "Course ID is required. Please provide a course ID or navigate to a course page.",
+            };
+          }
+
+          // Call generateQuiz action
+          const result = await generateQuiz({
+            courseId: finalCourseId,
+            difficulty: difficulty || "intermediate",
+            questionCount: questionCount || 10,
+            topic,
+          });
+
+          console.log(
+            "[generate_quiz] Quiz generated successfully:",
+            result.id,
+          );
+
+          return {
+            success: true,
+            quiz: result,
+            ui: {
+              type: "success",
+              title: "Quiz Generated",
+              icon: "quiz",
+            },
+          };
+        },
+      }),
+
+      // -----------------------------------------------------------------------
       // 6b. SAVE TO MEMORY TOOL (Document Storage)
       // -----------------------------------------------------------------------
       save_to_memory: tool({
         description:
-          "Saves text content to the knowledge base for future retrieval. Use this when the user wants to remember any text information - course materials, reference documents, important notes, research findings, etc. The saved text will be chunked, embedded, and searchable later via 'retrieve_course_context'. This builds a persistent memory database.",
+          "Saves text content to the knowledge base for future retrieval. IMPORTANT: ONLY use this tool when the USER explicitly asks to save something or provides content they want stored. DO NOT automatically save AI-generated content, quiz questions, explanations, or responses - even if they might be useful later. The saved text will be chunked, embedded, and searchable later via 'retrieve_course_context'.",
         inputSchema: z.object({
           text: z
             .string()

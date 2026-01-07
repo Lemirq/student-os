@@ -31,6 +31,7 @@ export const usersRelations = relations(users, ({ many }) => ({
   pushSubscriptions: many(pushSubscriptions),
   documents: many(documents),
   googleCalendarIntegrations: many(googleCalendarIntegrations),
+  quizzes: many(quizzes),
 }));
 
 /* SEMESTERS */
@@ -290,6 +291,90 @@ export const documentsRelations = relations(documents, ({ one }) => ({
   course: one(courses, {
     fields: [documents.courseId],
     references: [courses.id],
+  }),
+}));
+
+/* QUIZZES */
+export const quizzes = pgTable(
+  "quizzes",
+  () => ({
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id),
+    courseId: uuid("course_id").references(() => courses.id, {
+      onDelete: "cascade",
+    }),
+    title: text("title").notNull(),
+    description: text("description"),
+    topic: text("topic"),
+    difficulty: text("difficulty").notNull(),
+    questionCount: integer("question_count").notNull(),
+    questions: jsonb("questions").$type<
+      Array<{
+        id: string;
+        type: string;
+        question: string;
+        options?: string[];
+        correctAnswer: string;
+        explanation?: string;
+      }>
+    >(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+  }),
+  (table) => ({
+    difficultyCheck: check(
+      "quizzes_difficulty_check",
+      sql`${table.difficulty} = any (array['beginner','intermediate','advanced'])`,
+    ),
+  }),
+);
+
+export const quizzesRelations = relations(quizzes, ({ one, many }) => ({
+  user: one(users, {
+    fields: [quizzes.userId],
+    references: [users.id],
+  }),
+  course: one(courses, {
+    fields: [quizzes.courseId],
+    references: [courses.id],
+  }),
+  quizAttempts: many(quizAttempts),
+}));
+
+/* QUIZ ATTEMPTS */
+export const quizAttempts = pgTable("quiz_attempts", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: uuid("user_id")
+    .notNull()
+    .references(() => users.id),
+  quizId: uuid("quiz_id")
+    .notNull()
+    .references(() => quizzes.id, {
+      onDelete: "cascade",
+    }),
+  answers: jsonb("answers").$type<
+    Array<{
+      questionId: string;
+      userAnswer: string;
+      isCorrect: boolean;
+      similarityScore?: number;
+    }>
+  >(),
+  score: decimal("score", { precision: 5, scale: 2 }).notNull(),
+  maxScore: decimal("max_score", { precision: 5, scale: 2 }).default("100.00"),
+  completedAt: timestamp("completed_at", { withTimezone: true }),
+});
+
+export const quizAttemptsRelations = relations(quizAttempts, ({ one }) => ({
+  user: one(users, {
+    fields: [quizAttempts.userId],
+    references: [users.id],
+  }),
+  quiz: one(quizzes, {
+    fields: [quizAttempts.quizId],
+    references: [quizzes.id],
   }),
 }));
 

@@ -411,6 +411,42 @@ export type StudentOSTools = {
       };
     };
   };
+  generate_quiz: {
+    input: {
+      courseId?: string;
+      difficulty?: "beginner" | "intermediate" | "advanced";
+      questionCount?: number;
+      topic?: string;
+    };
+    output: {
+      success: boolean;
+      quiz?: {
+        id: string;
+        title: string;
+        description: string;
+        topic: string;
+        difficulty: "beginner" | "intermediate" | "advanced";
+        questionCount: number;
+        questions: Array<{
+          id: string;
+          type:
+            | "multiple_choice"
+            | "true_false"
+            | "short_answer"
+            | "fill_in_the_blank";
+          question: string;
+          options?: string[];
+          correctAnswer: string;
+          explanation: string;
+        }>;
+      };
+      ui: {
+        type: "success";
+        title: string;
+        icon: string;
+      };
+    };
+  };
 };
 
 export type StudentOSDataTypes = Record<string, never>;

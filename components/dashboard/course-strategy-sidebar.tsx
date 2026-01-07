@@ -29,6 +29,7 @@ import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/query-keys";
 import { DocumentsSection } from "@/components/documents/documents-section";
+import { QuizzesSection } from "@/components/quiz/quizzes-section";
 
 interface CourseStrategySidebarProps {
   course: CourseData;
@@ -263,6 +264,9 @@ export function CourseStrategySidebar({ course }: CourseStrategySidebarProps) {
 
       {/* Documents Section */}
       <DocumentsSection courseId={course.id} initialDocuments={[]} />
+
+      {/* Quizzes Section */}
+      <QuizzesSection courseId={course.id} />
 
       {/* Widget A: Grade Weights */}
       <Card>

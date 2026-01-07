@@ -44,6 +44,10 @@ import { ChatHistory } from "./chat-history";
 import { saveChat } from "@/actions/chats";
 import { cn, stripSystemReminders } from "@/lib/utils";
 import { ReasoningAccordion } from "./reasoning-accordion";
+import {
+  QuizPreviewCard,
+  type QuizQuestion,
+} from "@/components/quiz/quiz-preview-card";
 
 export function AICopilotSidebar({ aiEnabled }: { aiEnabled: boolean }) {
   const [chatId, setChatId] = React.useState<string>("");
@@ -2015,6 +2019,90 @@ export function AICopilotSidebar({ aiEnabled }: { aiEnabled: boolean }) {
                                       </div>
                                     </div>
                                   </div>
+                                );
+                              }
+                              default:
+                                return null;
+                            }
+                          }
+
+                          // -----------------------------------------------------------------------
+                          // TOOL: generate_quiz (Quiz generation)
+                          // -----------------------------------------------------------------------
+                          case "tool-generate_quiz": {
+                            const callId = p.toolCallId;
+                            switch (p.state) {
+                              case "input-streaming":
+                              case "input-available":
+                                return (
+                                  <div
+                                    key={callId}
+                                    className="bg-muted p-3 rounded-lg text-sm w-full animate-pulse"
+                                  >
+                                    <div className="flex items-center gap-2">
+                                      <Sparkles className="size-3.5 animate-pulse" />
+                                      <span>Generating quiz...</span>
+                                    </div>
+                                  </div>
+                                );
+                              case "output-available": {
+                                const output = p.output;
+                                const quiz = output?.quiz;
+
+                                if (!quiz) {
+                                  return (
+                                    <div
+                                      key={callId}
+                                      className="bg-destructive/10 border border-destructive/20 p-3 rounded-lg my-2 text-sm w-full"
+                                    >
+                                      <div className="text-destructive font-medium">
+                                        ❌ Failed to generate quiz
+                                      </div>
+                                    </div>
+                                  );
+                                }
+
+                                const questions: QuizQuestion[] =
+                                  quiz.questions?.map((q): QuizQuestion => {
+                                    let mappedType: QuizQuestion["type"];
+
+                                    switch (q.type) {
+                                      case "multiple_choice":
+                                        mappedType = "multiple-choice";
+                                        break;
+                                      case "true_false":
+                                        mappedType = "true-false";
+                                        break;
+                                      case "short_answer":
+                                        mappedType = "short-answer";
+                                        break;
+                                      case "fill_in_the_blank":
+                                        mappedType = "fill-blank";
+                                        break;
+                                      default:
+                                        // Fallback: assume backend already used correct format
+                                        mappedType = q.type;
+                                    }
+
+                                    return {
+                                      ...q,
+                                      type: mappedType,
+                                    };
+                                  }) ?? [];
+
+                                return (
+                                  <QuizPreviewCard
+                                    key={callId}
+                                    quiz={{
+                                      id: quiz.id,
+                                      title: quiz.title,
+                                      topic: quiz.topic || "",
+                                      difficulty: quiz.difficulty,
+                                      questionCount: quiz.questionCount,
+                                      description: quiz.description,
+                                      questions,
+                                    }}
+                                  />
                                 );
                               }
                               default:
