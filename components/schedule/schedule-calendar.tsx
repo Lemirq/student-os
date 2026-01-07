@@ -260,14 +260,17 @@ export function ScheduleCalendar({
 
     return (
       <div className="flex flex-col gap-0.5 text-xs font-medium w-full h-full overflow-hidden">
-        <span className="font-bold text-[10px] uppercase tracking-wider">
-          {isGoogleEvent
-            ? `${event.resource.calendar?.name || "Google Calendar"}`
-            : `${event.resource.courseCode} ${event.resource.type}`}
+        <span className="font-bold text-[10px] uppercase tracking-wider truncate">
+          {event.title}
         </span>
+        {isGoogleEvent && event.resource.location && (
+          <span className="text-[9px] opacity-90 truncate">
+            {event.resource.location}
+          </span>
+        )}
         {isGoogleEvent && (
           <span className="text-[9px] opacity-90 truncate">
-            Google Calendar
+            {event.resource.calendar?.name}
           </span>
         )}
         {!isGoogleEvent && event.resource.location && (
