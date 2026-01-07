@@ -32,7 +32,7 @@ export function extractEventType(summary: string): string {
  * @returns The extracted section number
  */
 export function extractSection(summary: string): string {
-  const match = summary.match(/[A-Z]{3}(\d+)/);
+  const match = summary.match(/\s[A-Z]{3}(\d+)/);
   return match ? match[1] : "0000";
 }
 
@@ -60,16 +60,24 @@ export function extractBuilding(
  * Converts an ICS event with RRULE to a ScheduleEvent object.
  * Handles recurring weekly events, EXDATE exceptions, and timezone conversion.
  * @param event - The parsed ICS event object
+ * @param timezone - IANA timezone string (e.g., "America/Toronto")
  * @returns A ScheduleEvent object representing recurring event
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function rruleToSchedule(event: any): ScheduleEvent | null {
+export function rruleToSchedule(
+  event: Record<string, unknown>,
+  timezone = "America/Toronto",
+): ScheduleEvent | null {
   try {
-    if (!event.start || !event.end || !event.summary) {
+    if (
+      !event.start ||
+      !event.end ||
+      !event.summary ||
+      typeof event.summary !== "string"
+    ) {
       return null;
     }
 
-    const summary: string = event.summary;
+    const summary = event.summary;
     const startDate = event.start as Date;
     const endDate = event.end as Date;
 
@@ -77,24 +85,22 @@ export function rruleToSchedule(event: any): ScheduleEvent | null {
     const type = extractEventType(summary);
     const section = extractSection(summary);
     const dayOfWeek = startDate.getDay();
-    const startTime = format(startDate, "HH:mm", {
-      timeZone: "America/Toronto",
-    });
-    const endTimeStr = format(endDate, "HH:mm", {
-      timeZone: "America/Toronto",
-    });
-    const location = event.location || undefined;
-    const building = extractBuilding(event.description);
+    const startTime = format(startDate, "HH:mm", { timeZone: timezone });
+    const endTimeStr = format(endDate, "HH:mm", { timeZone: timezone });
+    const location =
+      typeof event.location === "string" ? event.location : undefined;
+    const building =
+      typeof event.description === "string"
+        ? extractBuilding(event.description)
+        : undefined;
 
     // Determine end date from RRULE
-    let finalEndDate = format(startDate, "yyyy-MM-dd", {
-      timeZone: "America/Toronto",
-    });
-    if (event.rrule) {
-      const rruleOptions = event.rrule.options;
-      if (rruleOptions && rruleOptions.until) {
+    let finalEndDate = format(startDate, "yyyy-MM-dd", { timeZone: timezone });
+    if (event.rrule && typeof event.rrule === "object") {
+      const rruleOptions = event.rrule as Record<string, unknown>;
+      if (rruleOptions.until && rruleOptions.until instanceof Date) {
         finalEndDate = format(rruleOptions.until, "yyyy-MM-dd", {
-          timeZone: "America/Toronto",
+          timeZone: timezone,
         });
       }
     }
@@ -105,13 +111,13 @@ export function rruleToSchedule(event: any): ScheduleEvent | null {
       const exdates = Array.isArray(event.exdate)
         ? event.exdate
         : Object.values(event.exdate);
-      exceptionDates = exdates.map((exdate: unknown) => {
-        const date =
-          typeof exdate === "string" ? new Date(exdate) : (exdate as Date);
-        return format(date, "yyyy-MM-dd", {
-          timeZone: "America/Toronto",
-        });
-      });
+      exceptionDates = exdates
+        .map((exdate: unknown) => {
+          const date =
+            typeof exdate === "string" ? new Date(exdate) : (exdate as Date);
+          return format(date, "yyyy-MM-dd", { timeZone: timezone });
+        })
+        .filter((d): d is string => typeof d === "string");
     }
 
     // Check if location is ZZ TBA (exam/test slot)
@@ -125,9 +131,7 @@ export function rruleToSchedule(event: any): ScheduleEvent | null {
       endTime: endTimeStr,
       location,
       building,
-      startDate: format(startDate, "yyyy-MM-dd", {
-        timeZone: "America/Toronto",
-      }),
+      startDate: format(startDate, "yyyy-MM-dd", { timeZone: timezone }),
       endDate: finalEndDate,
       exceptionDates,
       isExamSlot,
@@ -142,9 +146,13 @@ export function rruleToSchedule(event: any): ScheduleEvent | null {
  * Parses an ICS calendar file and extracts course schedules.
  * Groups events by course code and returns an array of ParsedICSCourse objects.
  * @param fileContent - The raw ICS file content as a string
+ * @param timezone - IANA timezone string (e.g., "America/Toronto")
  * @returns An array of ParsedICSCourse objects, each containing course code, name, and events
  */
-export function parseICSFile(fileContent: string): ParsedICSCourse[] {
+export function parseICSFile(
+  fileContent: string,
+  timezone = "America/Toronto",
+): ParsedICSCourse[] {
   try {
     const events = ical.sync.parseICS(fileContent);
     const courseMap = new Map<
@@ -154,14 +162,25 @@ export function parseICSFile(fileContent: string): ParsedICSCourse[] {
 
     for (const event of Object.values(events)) {
       // Only process VEVENT types
-      if (event.type !== "VEVENT") continue;
+      if (
+        !event ||
+        typeof event !== "object" ||
+        event.type !== "VEVENT" ||
+        !event.summary ||
+        typeof event.summary !== "string"
+      ) {
+        continue;
+      }
 
-      const scheduleEvent = rruleToSchedule(event);
+      const scheduleEvent = rruleToSchedule(event, timezone);
       if (!scheduleEvent) continue;
 
       const courseCode = extractCourseCode(event.summary);
       // Extract course name from description (first line)
-      const courseName = event.description?.split("\n")[0] || courseCode;
+      const courseName =
+        typeof event.description === "string"
+          ? event.description.split("\n")[0]
+          : courseCode;
 
       if (!courseMap.has(courseCode)) {
         courseMap.set(courseCode, { courseName, events: [] });

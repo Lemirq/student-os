@@ -53,6 +53,7 @@ export const scheduleDataSchema = z.object({
 
 export const importScheduleSchema = z.object({
   fileContent: z.string(),
+  timezone: z.string().default("America/Toronto"),
 });
 
 export const saveScheduleMatchSchema = z.object({

@@ -25,9 +25,13 @@ import type {
  * Import schedule from ICS file and return course matches for user review
  *
  * @param fileContent - Raw ICS file content as string
+ * @param timezone - User's IANA timezone string (e.g., "America/New_York")
  * @returns Object with success status, course matches, and any errors
  */
-export async function importScheduleFromICS(fileContent: string): Promise<{
+export async function importScheduleFromICS(
+  fileContent: string,
+  timezone?: string,
+): Promise<{
   success: boolean;
   matches?: CourseMatch[];
   errors?: string[];
@@ -41,10 +45,13 @@ export async function importScheduleFromICS(fileContent: string): Promise<{
     if (!user) throw new Error("Unauthorized");
 
     // Validate input
-    const validated = importScheduleSchema.parse({ fileContent });
+    const validated = importScheduleSchema.parse({ fileContent, timezone });
 
     // Parse ICS file
-    const parsedCourses = parseICSFile(validated.fileContent);
+    const parsedCourses = parseICSFile(
+      validated.fileContent,
+      validated.timezone,
+    );
     const parseErrors: string[] = [];
 
     // Fetch user's courses with semesters

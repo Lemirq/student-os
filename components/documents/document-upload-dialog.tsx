@@ -44,7 +44,7 @@ export function DocumentUploadDialog({
 
   useEffect(() => {
     const getUserEmail = async () => {
-      const supabase = await createClient();
+      const supabase = createClient();
       const {
         data: { user },
       } = await supabase.auth.getUser();

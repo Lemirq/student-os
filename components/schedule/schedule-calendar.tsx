@@ -77,9 +77,12 @@ export function ScheduleCalendar({
     new Set(["LEC", "TUT", "PRA", "LAB"]),
   );
 
+  // Get user's timezone
+  const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+
   // Convert all courses to calendar events
   const allEvents = courses.flatMap((course) =>
-    scheduleToCalendarEvents(course),
+    scheduleToCalendarEvents(course, userTimezone),
   );
 
   // Filter events by type
@@ -171,7 +174,7 @@ export function ScheduleCalendar({
           <span className="text-sm text-muted-foreground mr-2">
             Show types:
           </span>
-          {["LEC", "TUT", "PRA", "LAB"].map((type) => (
+          {["LEC", "TUT", "PRA"].map((type) => (
             <Button
               key={type}
               variant={eventTypeFilters.has(type) ? "default" : "outline"}

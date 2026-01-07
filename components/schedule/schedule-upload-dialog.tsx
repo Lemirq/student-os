@@ -86,7 +86,8 @@ export function ScheduleUploadDialog({
     startParsing(async () => {
       try {
         const text = await file.text();
-        const result = await importScheduleFromICS(text);
+        const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+        const result = await importScheduleFromICS(text, userTimezone);
 
         if (!result.success) {
           toast.error(result.errors?.[0] || "Failed to parse ICS file");
