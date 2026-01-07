@@ -138,9 +138,15 @@ export function useTaskMutations() {
       console.error("Task update failed:", err);
     },
 
-    onSettled: () => {
+    onSettled: (data, error, variables) => {
       // Invalidate queries to refetch and ensure consistency
       queryClient.invalidateQueries({ queryKey: queryKeys.tasks.all });
+      // Also invalidate the specific task detail query
+      if (variables.taskId) {
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.tasks.detail(variables.taskId),
+        });
+      }
       queryClient.invalidateQueries({ queryKey: queryKeys.semesters.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.courses.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.all });

@@ -129,7 +129,6 @@ export async function updateTask(id: string, data: Partial<Task>) {
       revalidatePath(`/courses/${data.courseId}`);
     }
     // Revalidate the task detail page itself
-    revalidatePath(`/tasks/${id}`);
   } catch (error) {
     console.error("Failed to update task:", error);
     throw error;

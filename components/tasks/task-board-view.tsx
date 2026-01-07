@@ -31,7 +31,7 @@ import { hasTime } from "@/lib/date-parser";
 import { TaskStatus } from "@/types";
 import { useTaskMutations } from "@/hooks/use-task-mutations";
 import { cn } from "@/lib/utils";
-import { useRouter } from "next/navigation";
+import { useTaskSheet } from "@/components/tasks/task-sheet-provider";
 
 interface TaskBoardViewProps {
   tasks: TaskWithDetails[];
@@ -302,7 +302,7 @@ interface TaskCardProps {
 }
 
 function TaskCard({ task, context, isOverlay }: TaskCardProps) {
-  const router = useRouter();
+  const { openTaskSheet } = useTaskSheet();
 
   const dueDate = task.dueDate ? new Date(task.dueDate) : null;
 
@@ -325,7 +325,7 @@ function TaskCard({ task, context, isOverlay }: TaskCardProps) {
 
   const handleDoubleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    router.push(`/tasks/${task.id}`);
+    openTaskSheet(task.id);
   };
 
   return (

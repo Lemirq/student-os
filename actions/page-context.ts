@@ -67,7 +67,7 @@ export async function getPageContext(
     }
   }
 
-  // Task page: /tasks/[id]
+  // Task sheet (no longer a dedicated page, but keep context for AI awareness)
   if (pathname.startsWith("/tasks/") && params.id) {
     const taskResult = await db
       .select({

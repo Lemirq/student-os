@@ -1,7 +1,12 @@
 "use client";
 
 import * as React from "react";
-import { usePathname, useParams } from "next/navigation";
+import {
+  usePathname,
+  useParams,
+  useSearchParams,
+  useRouter,
+} from "next/navigation";
 import {
   Sparkles,
   Trash2,
@@ -41,7 +46,7 @@ import { useAIContext } from "@/hooks/use-ai-context";
 import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
 import { ChatHistory } from "./chat-history";
-import { saveChat } from "@/actions/chats";
+import { saveChat, getChat } from "@/actions/chats";
 import { cn, stripSystemReminders } from "@/lib/utils";
 import { ReasoningAccordion } from "./reasoning-accordion";
 import {
@@ -58,22 +63,161 @@ export function AICopilotSidebar({ aiEnabled }: { aiEnabled: boolean }) {
   const [pageContext, setPageContext] = React.useState<PageContext>({
     type: "unknown",
   });
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [pendingMessages, setPendingMessages] = React.useState<any[] | null>(
-    null,
-  );
+  // Store messages by chatId to avoid flashing
+  const messagesByChatId = React.useRef<
+    Map<string, StudentOSToolCallsMessage[]>
+  >(new Map());
+  // Track if we're loading a chat to prevent clearing messages
+  const isLoadingChat = React.useRef(false);
 
   // Route hooks for page context awareness
   const pathname = usePathname();
   const params = useParams();
+  const searchParams = useSearchParams();
+  const router = useRouter();
 
   // Fetch AI context (courses + grade weights) with caching
   const { data: aiContext } = useAIContext();
 
+  // Track the chatId that pendingMessages are for - declared early so mount effect can use it
+  const pendingChatIdRef = React.useRef<string>("");
+
+  // Update URL search param when chatId changes
+  const updateChatParam = React.useCallback(
+    (id: string) => {
+      const params = new URLSearchParams(searchParams.toString());
+      params.set("chat", id);
+      router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+    },
+    [searchParams, router, pathname],
+  );
+
+  // Initialize chat from search params or create new one
   React.useEffect(() => {
     setMounted(true);
-    setChatId(crypto.randomUUID());
-  }, []);
+
+    const chatParam = searchParams.get("chat");
+    if (chatParam) {
+      // Load chat from URL param
+      const loadChatFromParam = async () => {
+        try {
+          isLoadingChat.current = true;
+          const chat = await getChat(chatParam);
+          if (chat) {
+            // Store messages in the map
+            messagesByChatId.current.set(
+              chatParam,
+              (chat.messages as unknown as StudentOSToolCallsMessage[]) || [],
+            );
+            pendingChatIdRef.current = chatParam;
+            setChatId(chatParam);
+            // Set messages after a brief delay to ensure useChat has processed the id change
+            setTimeout(() => {
+              setMessages(
+                chat.messages as unknown as StudentOSToolCallsMessage[],
+              );
+            }, 50);
+          } else {
+            // Chat not found, create new one
+            const newId = crypto.randomUUID();
+            messagesByChatId.current.set(newId, []);
+            setChatId(newId);
+            updateChatParam(newId);
+          }
+        } catch (error) {
+          console.error("Failed to load chat from param", error);
+          const newId = crypto.randomUUID();
+          messagesByChatId.current.set(newId, []);
+          setChatId(newId);
+          updateChatParam(newId);
+        } finally {
+          isLoadingChat.current = false;
+        }
+      };
+      loadChatFromParam();
+    } else {
+      // No chat param, create new one
+      const newId = crypto.randomUUID();
+      messagesByChatId.current.set(newId, []);
+      setChatId(newId);
+      updateChatParam(newId);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Only run on mount
+
+  // Watch for search param changes (e.g., browser back/forward)
+  // Use a ref to track if we're updating from URL to prevent loops
+  const isUpdatingFromUrl = React.useRef(false);
+  const handledMissingChats = React.useRef<Set<string>>(new Set());
+  const lastProcessedChatParam = React.useRef<string>("");
+
+  React.useEffect(() => {
+    if (!mounted) return;
+
+    const chatParam = searchParams.get("chat");
+
+    // Skip if we just processed this chat param (prevents infinite loop)
+    if (chatParam === lastProcessedChatParam.current) {
+      return;
+    }
+
+    if (chatParam && chatParam !== chatId) {
+      // Prevent infinite loop if we've already handled this missing chat
+      if (handledMissingChats.current.has(chatParam)) {
+        // Still update lastProcessed to prevent retries
+        lastProcessedChatParam.current = chatParam;
+        return;
+      }
+
+      isUpdatingFromUrl.current = true;
+      lastProcessedChatParam.current = chatParam;
+
+      // Load chat from URL param
+      const loadChatFromParam = async () => {
+        try {
+          isLoadingChat.current = true;
+          const chat = await getChat(chatParam);
+          if (chat) {
+            // Chat found, clear from handled set in case it was there
+            handledMissingChats.current.delete(chatParam);
+            // Store messages in the map
+            messagesByChatId.current.set(
+              chatParam,
+              (chat.messages as unknown as StudentOSToolCallsMessage[]) || [],
+            );
+            pendingChatIdRef.current = chatParam;
+            setChatId(chatParam);
+            // Set messages after a brief delay to ensure useChat has processed the id change
+            setTimeout(() => {
+              setMessages(
+                chat.messages as unknown as StudentOSToolCallsMessage[],
+              );
+            }, 50);
+          } else {
+            // Chat not found - create empty chat with that ID (don't create new random ID)
+            // This way the URL stays consistent
+            handledMissingChats.current.add(chatParam);
+            messagesByChatId.current.set(chatParam, []);
+            setChatId(chatParam);
+            // DON'T update URL - it already has the correct ID
+          }
+        } catch (error) {
+          console.error("Failed to load chat from param", error);
+          // Mark as handled to prevent retry loop
+          handledMissingChats.current.add(chatParam);
+          // Create empty chat with the same ID from URL
+          messagesByChatId.current.set(chatParam, []);
+          setChatId(chatParam);
+          // DON'T update URL
+        } finally {
+          isLoadingChat.current = false;
+          isUpdatingFromUrl.current = false;
+        }
+      };
+      loadChatFromParam();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, mounted, chatId, updateChatParam]);
 
   // Fetch page context when route changes
   React.useEffect(() => {
@@ -123,13 +267,52 @@ export function AICopilotSidebar({ aiEnabled }: { aiEnabled: boolean }) {
     },
   });
 
-  // Apply pending messages after chatId changes
+  // Sync messages with our store when they change (for autosave)
+  // Also restore messages if useChat cleared them after id change
+  const prevChatIdRef = React.useRef<string>("");
+  const isRestoringRef = React.useRef(false);
+
   React.useEffect(() => {
-    if (pendingMessages !== null) {
-      setMessages(pendingMessages as unknown as StudentOSToolCallsMessage[]);
-      setPendingMessages(null);
+    // Skip if we're in the middle of loading or restoring
+    if (isLoadingChat.current || isRestoringRef.current) {
+      return;
     }
-  }, [chatId, pendingMessages, setMessages]);
+
+    if (!chatId) {
+      prevChatIdRef.current = "";
+      return;
+    }
+
+    // If chatId changed, useChat might have reset messages
+    // Restore from store if messages are empty but we have stored messages
+    if (chatId !== prevChatIdRef.current) {
+      prevChatIdRef.current = chatId;
+      const storedMessages = messagesByChatId.current.get(chatId);
+
+      // If we have stored messages but current messages are empty, restore them
+      if (
+        storedMessages &&
+        storedMessages.length > 0 &&
+        messages.length === 0
+      ) {
+        isRestoringRef.current = true;
+        // Small delay to ensure useChat has processed
+        const timer = setTimeout(() => {
+          if (chatId === prevChatIdRef.current) {
+            const msgs = messagesByChatId.current.get(chatId);
+            if (msgs && messages.length === 0) {
+              setMessages(msgs as unknown as StudentOSToolCallsMessage[]);
+            }
+          }
+          isRestoringRef.current = false;
+        }, 50);
+        return () => {
+          clearTimeout(timer);
+          isRestoringRef.current = false;
+        };
+      }
+    }
+  }, [chatId, messages, setMessages]);
 
   const messagesContainerRef = React.useRef<HTMLDivElement>(null);
   const [isAtBottom, setIsAtBottom] = React.useState(true);
@@ -207,35 +390,58 @@ export function AICopilotSidebar({ aiEnabled }: { aiEnabled: boolean }) {
     }
   }, [status, isAtBottom, scrollToBottom]);
 
-  // Autosave chat
+  // Autosave chat and update stored messages
   React.useEffect(() => {
-    if (messages.length > 0 && chatId && mounted) {
-      const timer = setTimeout(async () => {
-        try {
-          await saveChat({
-            id: chatId,
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            messages: messages as any[],
-          });
-        } catch (e) {
-          console.error("Failed to save chat", e);
-        }
-      }, 2000);
-      return () => clearTimeout(timer);
+    if (chatId && mounted) {
+      // Update stored messages whenever they change
+      messagesByChatId.current.set(chatId, messages);
+
+      // Autosave if there are messages
+      if (messages.length > 0) {
+        const timer = setTimeout(async () => {
+          try {
+            await saveChat({
+              id: chatId,
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              messages: messages as any[],
+            });
+          } catch (e) {
+            console.error("Failed to save chat", e);
+          }
+        }, 2000);
+        return () => clearTimeout(timer);
+      }
     }
   }, [messages, chatId, mounted]);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const handleSelectChat = (id: string, loadedMessages: any[]) => {
-    setPendingMessages(loadedMessages);
+    isUpdatingFromUrl.current = false;
+    isLoadingChat.current = true;
+    // Store messages in the map before changing chatId
+    messagesByChatId.current.set(id, loadedMessages);
+    pendingChatIdRef.current = id;
+    // Set chatId first (useChat will reset messages)
     setChatId(id);
+    updateChatParam(id);
+    // Set messages after useChat has processed the id change
+    setTimeout(() => {
+      setMessages(loadedMessages as unknown as StudentOSToolCallsMessage[]);
+      isLoadingChat.current = false;
+    }, 50);
   };
 
   const handleNewChat = () => {
+    isUpdatingFromUrl.current = false;
+    isLoadingChat.current = true;
     const newId = crypto.randomUUID();
-    setPendingMessages([]);
+    messagesByChatId.current.set(newId, []);
     setChatId(newId);
     setFiles([]);
+    updateChatParam(newId);
+    setTimeout(() => {
+      isLoadingChat.current = false;
+    }, 100);
   };
 
   const handleSubmit = async (text: string, submittedFiles?: File[]) => {

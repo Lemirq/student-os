@@ -175,6 +175,11 @@ export async function checkAndNotifyDeadlines(): Promise<DeadlineCheckStats> {
         const title = `${window.emoji} ${window.label}: ${task.title}`;
 
         // Send push notification
+        // Navigate to course page if task has a course, otherwise dashboard
+        const notificationUrl = task.courseId
+          ? `/courses/${task.courseId}`
+          : "/dashboard";
+
         const result = await sendPushToUser(task.userId, {
           title,
           body,
@@ -182,7 +187,7 @@ export async function checkAndNotifyDeadlines(): Promise<DeadlineCheckStats> {
           badge: "/icon-192.png",
           data: {
             taskId: task.id,
-            url: `/tasks?task=${task.id}`,
+            url: notificationUrl,
             type: "deadline_reminder",
             notificationType: window.type,
             urgent: window.type === "1h",

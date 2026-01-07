@@ -14,7 +14,7 @@ import { startOfWeek } from "date-fns/startOfWeek";
 import { getDay } from "date-fns/getDay";
 import { enUS } from "date-fns/locale/en-US";
 import { TaskWithDetails } from "./columns";
-import { useRouter } from "next/navigation";
+import { useTaskSheet } from "@/components/tasks/task-sheet-provider";
 import { useState, useMemo } from "react";
 import "react-big-calendar/lib/css/react-big-calendar.css";
 import "react-big-calendar/lib/addons/dragAndDrop/styles.css";
@@ -63,7 +63,7 @@ interface CalendarEvent {
 }
 
 export function TaskCalendarView({ tasks }: TaskCalendarViewProps) {
-  const router = useRouter();
+  const { openTaskSheet } = useTaskSheet();
   const [view, setView] = useState<View>(Views.MONTH);
   const [date, setDate] = useState(new Date());
   const [optimisticUpdates, setOptimisticUpdates] = useState<
@@ -95,7 +95,7 @@ export function TaskCalendarView({ tasks }: TaskCalendarViewProps) {
   );
 
   const handleSelectEvent = (event: CalendarEvent) => {
-    router.push(`/tasks/${event.id}`);
+    openTaskSheet(event.id);
   };
 
   const handleEventDrop = async ({

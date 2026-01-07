@@ -25,17 +25,7 @@ import { documents } from "@/schema";
 
 export type StudentOSToolCallsMessage = UIMessage;
 import { tasks, courses, gradeWeights, semesters } from "@/schema";
-import {
-  eq,
-  and,
-  ilike,
-  isNull,
-  gte,
-  lte,
-  inArray,
-  sql,
-  SQL,
-} from "drizzle-orm";
+import { eq, and, ilike, isNull, gte, lte, inArray, sql } from "drizzle-orm";
 import { createClient } from "@/utils/supabase/server";
 import { openRouterApiKey, tavilyApiKey } from "@/lib/env";
 import { PageContext } from "@/actions/page-context";
@@ -174,6 +164,7 @@ export async function POST(req: Request) {
     - For course questions: Proactively use 'retrieve_course_context' when on course page
     - For syllabi: 'parse_syllabus' (fast extraction)
     - For tasks: 'create_tasks_natural_language', 'search_tasks', 'update_task_score', 'bulk_update_tasks'
+    - IMPORTANT: For updating tasks, ALWAYS call 'search_tasks' FIRST to find tasks, then use the task_ids from results with 'update_task_score' or 'bulk_update_tasks'. Do NOT search within update tools.
     - For grades: 'calculate_grade_requirements', 'manage_grade_weights'
     - For schedule: 'query_schedule', 'auto_schedule_tasks'
     - For research: 'web_search', 'extract_content', 'crawl_website'
@@ -312,9 +303,18 @@ SEMESTER DATE RANGE: ${semesterStart} to ${semesterEnd}
 RULES:
 1. COURSE CODE: Use exact code if it matches existing courses.
 2. due_date format: YYYY-MM-DD (e.g., "2025-02-15")
-3. For recurring events (weekly, bi-weekly, monthly), just extract pattern with first date (e.g., "Weekly on Sundays starting 2025-01-12") - system will expand.
-4. If no date, use empty string "".
-5. Extract title, weight percentage, due date, and type accurately.
+3. For date ranges (e.g., "Jan 27 - 29"), use the FIRST date in the range.
+4. For recurring events (ONLY if explicitly stated as "weekly", "bi-weekly", "monthly"), extract pattern with first date (e.g., "Weekly on Sundays starting 2025-01-12") - system will expand.
+5. IMPORTANT: Tutorial quizzes, assignments, tests, and exams are ONE-TIME events. Extract each one individually with its specific date. Do NOT mark them as recurring.
+6. Extract ALL evaluation components mentioned in the syllabus:
+   - Individual assignments, quizzes, tests, exams (extract each one separately)
+   - Participation-based components (extract if they have a specific weight percentage)
+   - Any other graded assessments or evaluations
+7. For date ranges (e.g., "Jan 27 - 29", "Week 4"), use the FIRST date in the range as the due_date.
+8. For participation-based or ongoing components without specific dates, use empty string "" for due_date.
+9. If no date is available, use empty string "".
+10. Extract title, weight percentage, due date, and type accurately.
+11. IMPORTANT: If multiple items of the same type are listed (e.g., "Quiz 1", "Quiz 2", "Quiz 3" with different dates), create separate entries for each one with their respective dates.
 
 Today's date: ${new Date().toISOString().split("T")[0]}
 
@@ -345,7 +345,26 @@ ${syllabusText}`,
           const expandedTasks: typeof parsed.tasks = [];
 
           for (const task of parsed.tasks) {
-            // Check if this is a recurring task
+            // Skip expansion for clearly one-time events
+            // These patterns indicate specific, numbered events (Quiz 1, Test 2, Assignment 3, etc.)
+            const oneTimeEventPatterns = [
+              /^(quiz|test|assignment|exam|midterm|final)\s*\d+/i,
+              /^assignment\s*\d+/i,
+              /^test\s*\d+/i,
+              /^quiz\s*\d+/i,
+              /^midterm\s*\d+/i,
+              /final\s*(exam|examination)/i,
+            ];
+
+            const isOneTimeEvent = oneTimeEventPatterns.some((pattern) =>
+              pattern.test(task.title),
+            );
+
+            // Only expand if:
+            // 1. NOT a one-time event (numbered quiz/test/assignment)
+            // 2. due_date contains explicit recurring pattern keywords
+            // 3. due_date doesn't look like a simple date (YYYY-MM-DD)
+            const isSimpleDate = /^\d{4}-\d{2}-\d{2}$/.test(task.due_date);
             const recurringPatterns = [
               /weekly/i,
               /bi-weekly/i,
@@ -354,11 +373,17 @@ ${syllabusText}`,
               /fortnightly/i,
             ];
 
-            const isRecurring = recurringPatterns.some((pattern) =>
+            const hasRecurringPattern = recurringPatterns.some((pattern) =>
               pattern.test(task.due_date),
             );
 
-            if (isRecurring && task.due_date) {
+            const shouldExpand =
+              !isOneTimeEvent &&
+              !isSimpleDate &&
+              hasRecurringPattern &&
+              task.due_date;
+
+            if (shouldExpand) {
               // Extract the first date mentioned in the due_date field
               const dateMatch = task.due_date.match(/\d{4}-\d{2}-\d{2}/);
 
@@ -368,14 +393,12 @@ ${syllabusText}`,
                 const endDate = new Date(semesterEnd);
 
                 // Determine interval
-                const isWeekly =
-                  /weekly/i.test(task.due_date) && !/bi/i.test(task.due_date);
                 const isBiWeekly =
                   /bi-weekly|every other week|fortnightly/i.test(task.due_date);
                 const isMonthly = /monthly/i.test(task.due_date);
 
                 // Expand tasks based on interval
-                let currentDate = firstDate;
+                const currentDate = new Date(firstDate);
                 let index = 1;
                 const maxTasks = 50; // Safety limit
 
@@ -407,7 +430,7 @@ ${syllabusText}`,
                 expandedTasks.push(task);
               }
             } else {
-              // Not a recurring task, add as-is
+              // Not a recurring task, add as-is (including one-time events)
               expandedTasks.push(task);
             }
           }
@@ -527,112 +550,41 @@ ${syllabusText}`,
       // 3. TASK MANAGER TOOLS
       // -----------------------------------------------------------------------
       update_task_score: tool({
-        description: "Updates score for a specific task using fuzzy search.",
+        description:
+          "Updates score for a specific task. IMPORTANT: You MUST call 'search_tasks' first to find the task, then pass the task_id from the search results. Do NOT search for tasks within this tool - use search_tasks instead.",
         inputSchema: z.object({
-          task_name: z.string(),
-          score: z.number(),
+          task_id: z
+            .string()
+            .describe(
+              "The task ID from search_tasks results. Call search_tasks first to get the task_id.",
+            ),
+          score: z.number().describe("The score to set (e.g., 85 for 85%)"),
         }),
-        execute: async ({ task_name, score }) => {
-          // 1. Try Simple Match
-          let foundTasks: (typeof tasks.$inferSelect)[];
-          if (currentSemesterId) {
-            const semesterCourses = await db
-              .select({ id: courses.id })
-              .from(courses)
-              .where(
-                and(
-                  eq(courses.userId, user.id),
-                  eq(courses.semesterId, currentSemesterId),
-                ),
-              );
-            const courseIds = semesterCourses.map((c) => c.id);
-            foundTasks = await db
-              .select()
-              .from(tasks)
-              .where(
-                and(
-                  eq(tasks.userId, user.id),
-                  inArray(
-                    tasks.courseId,
-                    courseIds.length > 0 ? courseIds : [""],
-                  ),
-                  ilike(tasks.title, `%${task_name}%`),
-                ),
-              );
-          } else {
-            foundTasks = await db
-              .select()
-              .from(tasks)
-              .where(
-                and(
-                  eq(tasks.userId, user.id),
-                  ilike(tasks.title, `%${task_name}%`),
-                ),
-              );
+        execute: async ({ task_id, score }) => {
+          // Verify task exists and belongs to user
+          const foundTask = await db
+            .select()
+            .from(tasks)
+            .where(and(eq(tasks.id, task_id), eq(tasks.userId, user.id)))
+            .limit(1);
+
+          if (foundTask.length === 0) {
+            return {
+              success: false,
+              message: "Task not found or unauthorized.",
+            };
           }
 
-          // 2. Fallback: LLM Fuzzy Match
-          if (foundTasks.length === 0) {
-            let allTasks: { id: string; title: string }[];
-            if (currentSemesterId) {
-              const semesterCourses = await db
-                .select({ id: courses.id })
-                .from(courses)
-                .where(
-                  and(
-                    eq(courses.userId, user.id),
-                    eq(courses.semesterId, currentSemesterId),
-                  ),
-                );
-              const courseIds = semesterCourses.map((c) => c.id);
-              allTasks = await db
-                .select({ id: tasks.id, title: tasks.title })
-                .from(tasks)
-                .where(
-                  and(
-                    eq(tasks.userId, user.id),
-                    inArray(
-                      tasks.courseId,
-                      courseIds.length > 0 ? courseIds : [""],
-                    ),
-                  ),
-                );
-            } else {
-              allTasks = await db
-                .select({ id: tasks.id, title: tasks.title })
-                .from(tasks)
-                .where(eq(tasks.userId, user.id));
-            }
-
-            if (allTasks.length > 0) {
-              const { output: match } = await generateText({
-                // @ts-expect-error OpenRouter provider types are incompatible with AI SDK beta
-                model: glmFast, // Use faster model for simple matching
-                output: Output.object({
-                  schema: z.object({ taskId: z.string().nullable() }),
-                }),
-                prompt: `User wants "${task_name}". Match to one of: ${JSON.stringify(allTasks)}`,
-              });
-              if (match.taskId) {
-                foundTasks = await db
-                  .select()
-                  .from(tasks)
-                  .where(eq(tasks.id, match.taskId));
-              }
-            }
-          }
-
-          if (foundTasks.length === 0)
-            return { success: false, message: "Task not found." };
+          const task = foundTask[0];
 
           await db
             .update(tasks)
             .set({ scoreReceived: String(score), status: "Done" })
-            .where(eq(tasks.id, foundTasks[0].id));
+            .where(eq(tasks.id, task_id));
 
           return {
             success: true,
-            task: foundTasks[0].title,
+            task: task.title,
             score,
             status: "Done",
           };
@@ -1321,27 +1273,14 @@ Extract tasks from: "${request}"
       // -----------------------------------------------------------------------
       bulk_update_tasks: tool({
         description:
-          "Searches for tasks matching criteria and updates them in bulk. Supports renaming with sequential numbering (use {n} placeholder), changing status/priority, modifying dates/times, updating scores, descriptions, and more. Examples: 'rename all online assignments to Assignment {n}', 'set all quizzes to high priority', 'update weekly prep due times to 5pm'.",
+          "Updates multiple tasks in bulk. IMPORTANT: You MUST call 'search_tasks' first to find the tasks, then pass the task_ids from the search results. Do NOT search for tasks within this tool - use search_tasks instead. Supports renaming with sequential numbering (use {n} placeholder), changing status/priority, modifying dates/times, updating scores, descriptions, and more. Examples: 'rename all online assignments to Assignment {n}', 'set all quizzes to high priority', 'update weekly prep due times to 5pm'.",
         inputSchema: z.object({
-          search_query: z
-            .string()
+          task_ids: z
+            .array(z.string())
+            .min(1)
             .describe(
-              "Search term to match task titles (e.g., 'weekly prep', 'assignment', 'quiz')",
+              "Array of task IDs from search_tasks results. Call search_tasks first with appropriate filters, then pass the task IDs from the results. The tasks will be updated in the order provided (important for sequential numbering with {n} placeholder).",
             ),
-          course_code: z
-            .string()
-            .optional()
-            .describe("Filter by course code (e.g., 'CSC148')"),
-          sort_by: z
-            .enum(["due_date", "created_at", "title"])
-            .optional()
-            .describe(
-              "Sort order for tasks before applying updates (important for sequential numbering). Defaults to 'due_date'.",
-            ),
-          sort_order: z
-            .enum(["asc", "desc"])
-            .optional()
-            .describe("Sort direction. Defaults to 'asc'."),
           updates: z.object({
             // Title/rename support with {n} placeholder for sequential numbering
             title_template: z
@@ -1409,102 +1348,49 @@ Extract tasks from: "${request}"
               ),
           }),
         }),
-        execute: async ({
-          search_query,
-          course_code,
-          sort_by = "due_date",
-          sort_order = "asc",
-          updates,
-        }) => {
-          // Build where clause
-          const conditions = [
-            eq(tasks.userId, user.id),
-            ilike(tasks.title, `%${search_query}%`),
-          ];
+        execute: async ({ task_ids, updates }) => {
+          // Fetch tasks by IDs and verify they belong to user
+          const matchingTasks = await db
+            .select()
+            .from(tasks)
+            .where(and(eq(tasks.userId, user.id), inArray(tasks.id, task_ids)));
 
-          // Add current semester filter
-          if (currentSemesterId) {
-            const semesterCourses = await db
-              .select({ id: courses.id })
-              .from(courses)
-              .where(
-                and(
-                  eq(courses.userId, user.id),
-                  eq(courses.semesterId, currentSemesterId),
-                ),
-              );
-            const courseIds = semesterCourses.map((c) => c.id);
-            conditions.push(
-              inArray(tasks.courseId, courseIds.length > 0 ? courseIds : [""]),
-            );
+          if (matchingTasks.length === 0) {
+            return {
+              success: false,
+              error: "No tasks found with the provided IDs or unauthorized.",
+            };
           }
 
-          // If course_code provided, find course first
+          // Sort tasks by the order of task_ids provided (preserves search_tasks sort order)
+          const taskMap = new Map(matchingTasks.map((t) => [t.id, t]));
+          const sortedTasks = task_ids
+            .map((id) => taskMap.get(id))
+            .filter((t): t is typeof tasks.$inferSelect => t !== undefined);
+
+          // Get course info if available
           let courseInfo = null;
-          if (course_code) {
-            const foundCourse = await db
+          if (sortedTasks.length > 0 && sortedTasks[0].courseId) {
+            const course = await db
               .select({
                 id: courses.id,
                 code: courses.code,
                 name: courses.name,
               })
               .from(courses)
-              .where(
-                and(
-                  eq(courses.userId, user.id),
-                  ilike(courses.code, `%${course_code}%`),
-                ),
-              )
+              .where(eq(courses.id, sortedTasks[0].courseId))
               .limit(1);
-
-            if (foundCourse.length === 0) {
-              return {
-                success: false,
-                error: `No course found matching "${course_code}"`,
-              };
+            if (course.length > 0) {
+              courseInfo = course[0];
             }
-            courseInfo = foundCourse[0];
-            conditions.push(eq(tasks.courseId, courseInfo.id));
           }
-
-          // Find matching tasks
-          let matchingTasks = await db
-            .select()
-            .from(tasks)
-            .where(and(...conditions));
-
-          if (matchingTasks.length === 0) {
-            return {
-              success: false,
-              error: `No tasks found matching "${search_query}"${course_code ? ` in ${course_code}` : ""}`,
-              searched_for: search_query,
-              course_filter: course_code || null,
-            };
-          }
-
-          // Sort tasks for sequential numbering
-          matchingTasks = matchingTasks.sort((a, b) => {
-            let comparison = 0;
-            if (sort_by === "due_date") {
-              const aDate = a.dueDate?.getTime() ?? 0;
-              const bDate = b.dueDate?.getTime() ?? 0;
-              comparison = aDate - bDate;
-            } else if (sort_by === "created_at") {
-              const aDate = a.createdAt?.getTime() ?? 0;
-              const bDate = b.createdAt?.getTime() ?? 0;
-              comparison = aDate - bDate;
-            } else if (sort_by === "title") {
-              comparison = (a.title ?? "").localeCompare(b.title ?? "");
-            }
-            return sort_order === "desc" ? -comparison : comparison;
-          });
 
           // Prepare updates for each task
           const updatedTasks = [];
           const errors = [];
 
-          for (let i = 0; i < matchingTasks.length; i++) {
-            const task = matchingTasks[i];
+          for (let i = 0; i < sortedTasks.length; i++) {
+            const task = sortedTasks[i];
             try {
               const taskUpdates: {
                 title?: string;
@@ -1660,11 +1546,10 @@ Extract tasks from: "${request}"
 
           return {
             success: true,
-            summary: `Updated ${updatedTasks.length} of ${matchingTasks.length} tasks`,
+            summary: `Updated ${updatedTasks.length} of ${sortedTasks.length} tasks`,
             course: courseInfo
               ? { code: courseInfo.code, name: courseInfo.name }
               : null,
-            search_query,
             updated_tasks: updatedTasks,
             errors: errors.length > 0 ? errors : undefined,
           };

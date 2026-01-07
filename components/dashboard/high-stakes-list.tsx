@@ -7,7 +7,7 @@ import { AlertTriangle, CheckCircle2 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { format } from "date-fns";
 import { usePrefetchLinks } from "@/hooks/use-prefetch-links";
-import Link from "next/link";
+import { useTaskSheet } from "@/components/tasks/task-sheet-provider";
 
 interface HighStakesListProps {
   tasks: DashboardMetrics["highStakesTasks"];
@@ -15,6 +15,7 @@ interface HighStakesListProps {
 
 export function HighStakesList({ tasks }: HighStakesListProps) {
   const { prefetchTask } = usePrefetchLinks();
+  const { openTaskSheet } = useTaskSheet();
 
   return (
     <Card className="h-full flex flex-col">
@@ -34,11 +35,11 @@ export function HighStakesList({ tasks }: HighStakesListProps) {
           ) : (
             <div className="space-y-4">
               {tasks.map((task) => (
-                <Link
+                <div
                   key={task.id}
-                  href={`/tasks/${task.id}`}
+                  onClick={() => openTaskSheet(task.id)}
                   onMouseEnter={() => prefetchTask(task.id)}
-                  className="flex items-start justify-between border-b pb-3 last:border-0 last:pb-0 hover:bg-muted/50 -mx-2 px-2 rounded-md transition-colors"
+                  className="flex items-start justify-between border-b pb-3 last:border-0 last:pb-0 hover:bg-muted/50 -mx-2 px-2 rounded-md transition-colors cursor-pointer"
                 >
                   <div className="space-y-1">
                     <p className="text-sm font-medium leading-none">
@@ -66,7 +67,7 @@ export function HighStakesList({ tasks }: HighStakesListProps) {
                       </Badge>
                     )}
                   </div>
-                </Link>
+                </div>
               ))}
             </div>
           )}

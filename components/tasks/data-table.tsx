@@ -63,7 +63,7 @@ import {
 import { useTaskMutations } from "@/hooks/use-task-mutations";
 import { useCommandStore } from "@/hooks/use-command-store";
 import { Task } from "@/types";
-import { useRouter } from "next/navigation";
+import { useTaskSheet } from "@/components/tasks/task-sheet-provider";
 import { DataTableViewOptions } from "./data-table-view-options";
 import { DataTableAdvancedFilters } from "./data-table-advanced-filters";
 import { useDebtStore } from "@/hooks/use-debt-store";
@@ -167,7 +167,7 @@ export function DataTable<TData, TValue>({
 
   const { removeTask } = useTaskMutations();
   const { open } = useCommandStore();
-  const router = useRouter();
+  const { openTaskSheet } = useTaskSheet();
   const { prefetchTask } = usePrefetchLinks();
 
   const [hasMounted, setHasMounted] = React.useState(false);
@@ -526,7 +526,7 @@ export function DataTable<TData, TValue>({
         break;
       case "Enter":
         e.preventDefault();
-        router.push(`/tasks/${task.id}`);
+        openTaskSheet(task.id);
         break;
       case "Escape":
         e.preventDefault();
@@ -719,7 +719,7 @@ export function DataTable<TData, TValue>({
                     }}
                     onDoubleClick={(e) => {
                       e.preventDefault();
-                      router.push(`/tasks/${(row.original as Task).id}`);
+                      openTaskSheet((row.original as Task).id);
                     }}
                     onContextMenu={(e) => {
                       e.preventDefault();
