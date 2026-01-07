@@ -39,8 +39,8 @@ export function DocumentUploadDialog({
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [isLoadingUser, setIsLoadingUser] = useState(true);
 
-  const ALLOWED_EMAIL = "sharmavihaan190@gmail.com";
-  const aiEnabled = userEmail === ALLOWED_EMAIL;
+  const ALLOWED_EMAILS = ["sharmavihaan190@gmail.com", "amoghmerudi@gmail.com"];
+  const aiEnabled = userEmail ? ALLOWED_EMAILS.includes(userEmail) : false;
 
   useEffect(() => {
     const getUserEmail = async () => {
@@ -171,7 +171,7 @@ export function DocumentUploadDialog({
               AI features are not available for you.
             </h3>
             <p className="text-sm text-muted-foreground mt-2">
-              Contact {ALLOWED_EMAIL} to get access.
+              Contact {ALLOWED_EMAILS[0]} to get access.
             </p>
           </div>
         ) : (

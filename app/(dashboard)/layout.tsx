@@ -36,7 +36,11 @@ export default async function DashboardLayout({
   const defaultOpen = cookieStore.get("sidebar_state")?.value === "true";
   const supabase = await createClient();
   const { data: user } = await supabase.auth.getUser();
-  const aiEnabled = user?.user?.email === "sharmavihaan190@gmail.com";
+  const aiEnabled = user?.user?.email
+    ? ["sharmavihaan190@gmail.com", "amoghmerudi@gmail.com"].includes(
+        user?.user?.email,
+      )
+    : false;
 
   return (
     <HydrationBoundary state={dehydrateQueryClient(queryClient)}>

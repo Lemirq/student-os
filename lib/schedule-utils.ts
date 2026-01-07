@@ -1,5 +1,6 @@
 import type { ScheduleData, ScheduleEvent } from "@/types";
 import { addDays, addWeeks, format, parse } from "date-fns";
+import { setTimeInTimezone } from "./utils";
 
 type Semester = {
   id: string;
@@ -86,12 +87,21 @@ export function detectSemester(
  * Generates recurring events for each week between startDate and endDate,
  * excluding exception dates (like reading week).
  * @param course - Course object with schedule data
+ * @param timezone - Optional IANA timezone string (e.g., "America/New_York").
+ *                   If not provided, uses the user's browser timezone.
  * @returns Array of calendar events ready for react-big-calendar
  */
-export function scheduleToCalendarEvents(course: Course): CalendarEvent[] {
+export function scheduleToCalendarEvents(
+  course: Course,
+  timezone?: string,
+): CalendarEvent[] {
   if (!course.schedule || !course.schedule.events.length) {
     return [];
   }
+
+  // Use browser timezone if not provided
+  const userTimezone =
+    timezone || Intl.DateTimeFormat().resolvedOptions().timeZone;
 
   const events: CalendarEvent[] = [];
   const defaultColor = course.color || "#3b82f6";
@@ -129,11 +139,19 @@ export function scheduleToCalendarEvents(course: Course): CalendarEvent[] {
           scheduleEvent.exceptionDates?.includes(eventDateStr) || false;
 
         if (!isException) {
-          const eventStart = new Date(currentDate);
-          eventStart.setHours(startHour, startMinute, 0, 0);
+          const eventStart = setTimeInTimezone(
+            new Date(currentDate),
+            startHour,
+            startMinute,
+            userTimezone,
+          );
 
-          const eventEnd = new Date(currentDate);
-          eventEnd.setHours(endHour, endMinute, 0, 0);
+          const eventEnd = setTimeInTimezone(
+            new Date(currentDate),
+            endHour,
+            endMinute,
+            userTimezone,
+          );
 
           events.push({
             id: `${course.id}-${scheduleEvent.type}-${scheduleEvent.section}-${eventDateStr}-${scheduleEvent.startTime}`,
