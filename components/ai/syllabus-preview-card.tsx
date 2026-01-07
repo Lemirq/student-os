@@ -30,7 +30,7 @@ import { Badge } from "@/components/ui/badge";
 interface SyllabusTask {
   title: string;
   weight: number;
-  due_date: string;
+  due_date: string | null | undefined;
   type: string;
 }
 
@@ -48,15 +48,13 @@ export function SyllabusPreviewCard({ data }: SyllabusPreviewCardProps) {
   const [isOpen, setIsOpen] = useState(false);
 
   const taskCount = data.tasks?.length || 0;
-  const validTaskCount =
-    data.tasks?.filter(
-      (t) => t.due_date && /^\d{4}-\d{2}-\d{2}/.test(t.due_date),
-    ).length || 0;
-  const invalidCount = taskCount - validTaskCount;
+  const tasksWithoutDates =
+    data.tasks?.filter((t) => !t.due_date || t.due_date.trim() === "").length ||
+    0;
 
   const summary =
-    invalidCount > 0
-      ? `Found ${taskCount} task${taskCount !== 1 ? "s" : ""} (${invalidCount} missing dates)`
+    tasksWithoutDates > 0
+      ? `Found ${taskCount} task${taskCount !== 1 ? "s" : ""} (${tasksWithoutDates} missing dates)`
       : `Found ${taskCount} task${taskCount !== 1 ? "s" : ""}`;
 
   const handleImport = async () => {
@@ -73,26 +71,19 @@ export function SyllabusPreviewCard({ data }: SyllabusPreviewCardProps) {
 
       if (!result.success) {
         toast.error("Import Failed", {
-          description:
-            result.skippedCount > 0
-              ? `All ${result.skippedCount} tasks had invalid or missing dates`
-              : "No tasks could be imported",
+          description: "No tasks could be imported",
         });
         return;
       }
 
       setIsImported(true);
 
-      // Build description with skipped tasks info
+      // Build description
       let description = "";
       if (result.courseCreated) {
         description = `Created course ${result.courseCode} and imported ${result.count} task${result.count !== 1 ? "s" : ""}`;
       } else {
         description = `Imported ${result.count} task${result.count !== 1 ? "s" : ""} to ${result.courseCode}`;
-      }
-
-      if (result.skippedCount > 0) {
-        description += `. Skipped ${result.skippedCount} task${result.skippedCount !== 1 ? "s" : ""} with invalid dates`;
       }
 
       toast.success("Import Complete", { description });
@@ -141,30 +132,27 @@ export function SyllabusPreviewCard({ data }: SyllabusPreviewCardProps) {
           </CollapsibleTrigger>
           <CollapsibleContent className="mt-2 space-y-2">
             {data.tasks?.map((task, idx) => {
-              const hasValidDate =
-                task.due_date && /^\d{4}-\d{2}-\d{2}/.test(task.due_date);
+              const hasDate = task.due_date && task.due_date.trim() !== "";
               return (
                 <div
                   key={idx}
                   className={`flex items-center justify-between text-xs p-2 rounded ${
-                    hasValidDate
+                    hasDate
                       ? "bg-muted/50"
                       : "bg-destructive/10 border border-destructive/20"
                   }`}
                 >
                   <div className="flex flex-col">
                     <div className="flex items-center gap-1">
-                      {!hasValidDate && (
+                      {!hasDate && (
                         <AlertCircle className="size-3 text-destructive" />
                       )}
                       <span className="font-medium">{task.title}</span>
                     </div>
                     <span
-                      className={`text-[10px] ${hasValidDate ? "text-muted-foreground" : "text-destructive"}`}
+                      className={`text-[10px] ${hasDate ? "text-muted-foreground" : "text-destructive"}`}
                     >
-                      {hasValidDate
-                        ? task.due_date
-                        : task.due_date || "No date"}
+                      {hasDate ? task.due_date : "No date"}
                     </span>
                   </div>
                   <div className="flex items-center gap-2">
