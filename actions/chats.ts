@@ -64,6 +64,7 @@ export async function saveChat({
 
       chatTitle = text.trim().slice(0, 50);
     } catch (error) {
+      console.error(error);
       const firstMessage = messages[0];
       const firstContent =
         firstMessage?.content ||

@@ -20,6 +20,7 @@ import {
 import { saveTextDocument } from "@/actions/documents/save-text-document";
 import { searchDocumentsWithRRF } from "@/actions/documents/search-documents-rrf";
 import { generateQuiz } from "@/actions/quiz/generate-quiz";
+import { getDocumentChunks } from "@/actions/documents/get-document-chunks";
 import * as chrono from "chrono-node";
 import { documents } from "@/schema";
 
@@ -42,15 +43,17 @@ const glm = openRouterClient.chat("openai/gpt-4o");
 const glmFast = openRouterClient.chat("openai/gpt-4o-mini");
 
 export async function POST(req: Request) {
-  const { messages, pageContext, aiContext, timezone } = (await req.json()) as {
-    messages: UIMessage[];
-    pageContext?: PageContext;
-    aiContext?: {
-      courses: (typeof courses.$inferSelect)[];
-      gradeWeights: (typeof gradeWeights.$inferSelect)[];
+  const { messages, pageContext, aiContext, timezone, taggedDocuments } =
+    (await req.json()) as {
+      messages: UIMessage[];
+      pageContext?: PageContext;
+      aiContext?: {
+        courses: (typeof courses.$inferSelect)[];
+        gradeWeights: (typeof gradeWeights.$inferSelect)[];
+      };
+      timezone?: string; // User's IANA timezone (e.g., "America/New_York")
+      taggedDocuments?: { courseId: string; fileName: string }[];
     };
-    timezone?: string; // User's IANA timezone (e.g., "America/New_York")
-  };
   // Default to UTC if no timezone provided
   const userTimezone = timezone || "UTC";
   const supabase = await createClient();
@@ -61,6 +64,19 @@ export async function POST(req: Request) {
   if (!user) {
     return new Response("Unauthorized", { status: 401 });
   }
+
+  // Validate and sanitize taggedDocuments
+  const validTaggedDocs = taggedDocuments
+    ? taggedDocuments
+        .filter((doc) => doc.courseId && doc.fileName)
+        .filter(
+          (doc, index, arr) =>
+            arr.findIndex(
+              (d) => d.courseId === doc.courseId && d.fileName === doc.fileName,
+            ) === index,
+        )
+        .slice(0, 3)
+    : [];
 
   // Get current semester ID for filtering
   const [currentSemester] = await db
@@ -112,6 +128,133 @@ export async function POST(req: Request) {
         : [];
   }
 
+  let taggedDocsContext = "";
+  let failedDocNames: string[] = [];
+
+  const MAX_CONTEXT_CHARS = 20000;
+  const MAX_CHUNKS_PER_DOC = 20;
+  const MAX_CHARS_PER_DOC = 10000;
+
+  if (validTaggedDocs.length > 0) {
+    console.log(
+      "[chat] Fetching chunks for tagged documents:",
+      validTaggedDocs,
+    );
+
+    const allChunks: Array<{
+      fileName: string;
+      chunkIndex: number;
+      totalChunks: number;
+      content: string;
+    }> = [];
+
+    for (const doc of validTaggedDocs) {
+      try {
+        const result = await getDocumentChunks({
+          fileName: doc.fileName,
+          courseId: doc.courseId,
+        });
+
+        if (result.success && result.chunks.length > 0) {
+          const docChunks = result.chunks.slice(0, MAX_CHUNKS_PER_DOC);
+          let docChars = 0;
+          const truncatedDocChunks: typeof docChunks = [];
+
+          for (const chunk of docChunks) {
+            if (docChars + chunk.content.length > MAX_CHARS_PER_DOC) {
+              console.log(
+                `[chat] Document ${result.fileName} truncated at ${docChars} chars (max ${MAX_CHARS_PER_DOC})`,
+              );
+              break;
+            }
+            truncatedDocChunks.push(chunk);
+            docChars += chunk.content.length;
+          }
+
+          const mappedChunks = truncatedDocChunks.map((chunk) => ({
+            fileName: result.fileName,
+            chunkIndex: chunk.chunkIndex,
+            totalChunks: result.chunks.length,
+            content: chunk.content,
+          }));
+          allChunks.push(...mappedChunks);
+          console.log(
+            `[chat] Fetched ${mappedChunks.length} chunks (${docChars} chars) from ${result.fileName}`,
+          );
+        } else {
+          console.warn(
+            `[chat] Failed to fetch chunks for ${doc.fileName}:`,
+            result.message,
+          );
+          failedDocNames.push(doc.fileName);
+        }
+      } catch (error) {
+        console.error(
+          `[chat] Error fetching chunks for ${doc.fileName}:`,
+          error,
+        );
+        failedDocNames.push(doc.fileName);
+      }
+    }
+
+    // Sort chunks by file name then chunk index
+    allChunks.sort((a, b) => {
+      if (a.fileName !== b.fileName) {
+        return a.fileName.localeCompare(b.fileName);
+      }
+      return a.chunkIndex - b.chunkIndex;
+    });
+
+    // Truncate if total chars exceed threshold
+    let totalChars = 0;
+    const truncatedChunks: typeof allChunks = [];
+
+    for (const chunk of allChunks) {
+      if (totalChars + chunk.content.length > MAX_CONTEXT_CHARS) {
+        console.log(
+          `[chat] Context truncated at ${totalChars} chars (max ${MAX_CONTEXT_CHARS})`,
+        );
+        break;
+      }
+      truncatedChunks.push(chunk);
+      totalChars += chunk.content.length;
+    }
+
+    // Build context string with clear headers
+    const groupedChunks = new Map<string, typeof allChunks>();
+    for (const chunk of truncatedChunks) {
+      if (!groupedChunks.has(chunk.fileName)) {
+        groupedChunks.set(chunk.fileName, []);
+      }
+      groupedChunks.get(chunk.fileName)!.push(chunk);
+    }
+
+    const contextParts: string[] = [];
+    const groupedEntries = Array.from(groupedChunks.entries());
+    for (const [fileName, chunks] of groupedEntries) {
+      const docTotalChars = chunks.reduce(
+        (sum, c) => sum + c.content.length,
+        0,
+      );
+      contextParts.push(`\n${"=".repeat(80)}`);
+      contextParts.push(
+        `DOCUMENT: ${fileName} (${chunks.length} chunks, ${docTotalChars} chars)`,
+      );
+      contextParts.push("=".repeat(80));
+      for (const chunk of chunks) {
+        contextParts.push(
+          `\n--- Chunk ${chunk.chunkIndex + 1} of ${chunk.totalChunks} ---`,
+        );
+        contextParts.push(chunk.content);
+      }
+    }
+
+    taggedDocsContext = contextParts.join("\n");
+    console.log(
+      `[chat] Built tagged docs context: ${totalChars} chars from ${groupedChunks.size} documents`,
+    );
+  }
+
   const coreMessages = await convertToModelMessages(messages);
   // for debugging: console.log(JSON.stringify(coreMessages, null, 2));
 
@@ -159,9 +302,22 @@ export async function POST(req: Request) {
 
     COURSES (${userCourses.length}): ${userCourses.map((c) => c.code).join(", ")}
 
+    ${
+      taggedDocsContext
+        ? `
+    TAGGED DOCUMENT CONTEXT (USE ONLY THIS):
+    ${taggedDocsContext}
+
+    ${failedDocNames.length > 0 ? `NOTE: The following tagged documents could not be loaded: ${failedDocNames.join(", ")}. Answer based on available context above.\n\n` : ""}
+    ${taggedDocsContext.length >= MAX_CONTEXT_CHARS ? `NOTE: Document context has been truncated to ${MAX_CONTEXT_CHARS} characters for performance. Some content may not be included.\n\n` : ""}
+
+    IMPORTANT RESTRICTION: You are provided with specific tagged document context above. Answer the user's question using ONLY the tagged document context provided. Do NOT use retrieve_course_context or any other document retrieval tools - rely solely on the tagged documents. If the answer cannot be found in the tagged documents, state that the information is not available in the provided documents.
+    `
+        : ""
+    }
     TOOL USAGE:
     - Each tool handles its own UI - call ONCE
-    - For course questions: Proactively use 'retrieve_course_context' when on course page
+    ${taggedDocsContext ? "" : "- For course questions: Proactively use 'retrieve_course_context' when on course page"}
     - For syllabi: 'parse_syllabus' (fast extraction)
     - For tasks: 'create_tasks_natural_language', 'search_tasks', 'update_task_score', 'bulk_update_tasks'
     - IMPORTANT: For updating tasks, ALWAYS call 'search_tasks' FIRST to find tasks, then use the task_ids from results with 'update_task_score' or 'bulk_update_tasks'. Do NOT search within update tools.
@@ -2415,6 +2571,18 @@ Extract tasks from: "${request}"
       }),
     },
   });
+
+  // Remove retrieve_course_context tool if tagged documents are provided (hard-filter semantics)
+  if (validTaggedDocs.length > 0) {
+    const tools = (result as unknown as { tools: Record<string, unknown> })
+      .tools;
+    if ("retrieve_course_context" in tools) {
+      console.log(
+        "[chat] Removing retrieve_course_context tool (hard-filter mode with tagged documents)",
+      );
+      delete tools.retrieve_course_context;
+    }
+  }
 
   return result.toUIMessageStreamResponse();
 }

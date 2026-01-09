@@ -16,6 +16,17 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Pencil, Check, X, Trash2, Plus } from "lucide-react";
 import {
   updateGradeWeight,
@@ -189,10 +200,7 @@ export function CourseStrategySidebar({ course }: CourseStrategySidebarProps) {
     }
   };
 
-  const handleDelete = async (gradeWeightId: string) => {
-    if (!confirm("Are you sure you want to delete this grade weight?")) {
-      return;
-    }
+  const confirmDelete = async (gradeWeightId: string) => {
     setIsSaving(true);
     try {
       await deleteGradeWeight(gradeWeightId);
@@ -366,15 +374,41 @@ export function CourseStrategySidebar({ course }: CourseStrategySidebarProps) {
                             >
                               <Pencil className="h-3 w-3" />
                             </Button>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="h-7 w-7 p-0"
-                              onClick={() => handleDelete(weight.id)}
-                              disabled={isSaving}
-                            >
-                              <Trash2 className="h-3 w-3" />
-                            </Button>
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-7 w-7 p-0"
+                                  disabled={isSaving}
+                                >
+                                  <Trash2 className="h-3 w-3" />
+                                </Button>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>
+                                    Delete Grade Weight?
+                                  </AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                    Are you sure you want to delete this grade
+                                    weight? This action cannot be undone.
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                  <AlertDialogAction
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      confirmDelete(weight.id);
+                                    }}
+                                    disabled={isSaving}
+                                  >
+                                    Delete
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
                           </div>
                         )}
                       </TableCell>
