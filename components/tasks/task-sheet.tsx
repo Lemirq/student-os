@@ -30,9 +30,9 @@ export function TaskSheet({ open, onOpenChange, taskId }: TaskSheetProps) {
     queryKey: queryKeys.tasks.detail(taskId || ""),
     queryFn: () => getTask(taskId!),
     enabled: open && !!taskId,
-    staleTime: 0, // Always refetch to get latest data
-    refetchOnWindowFocus: true,
-    refetchOnMount: true,
+    staleTime: 30000, // Keep data fresh for 30s to prevent excessive refetches
+    refetchOnWindowFocus: false, // Don't refetch on focus - we have manual refetch after saves
+    refetchOnMount: true, // Only refetch when component mounts
   });
 
   React.useEffect(() => {
@@ -55,29 +55,12 @@ export function TaskSheet({ open, onOpenChange, taskId }: TaskSheetProps) {
     }
   }, [open, taskId, refetch]);
 
-  // Watch for query invalidations and refetch
+  // Refetch when taskId changes (switching between tasks)
   React.useEffect(() => {
-    if (!open || !taskId) return;
-
-    const unsubscribe = queryClient.getQueryCache().subscribe((event) => {
-      // When queries are invalidated, refetch our task
-      if (event?.type === "removed" && event.query.queryKey[0] === "tasks") {
-        // Check if this affects our task
-        const queryKey = event.query.queryKey;
-        if (
-          queryKey[1] === taskId || // Direct task detail invalidation
-          queryKey[0] === "tasks" // Any task query invalidation
-        ) {
-          // Small delay to ensure mutation completes
-          setTimeout(() => {
-            refetch();
-          }, 200);
-        }
-      }
-    });
-
-    return unsubscribe;
-  }, [open, taskId, queryClient, refetch]);
+    if (open && taskId) {
+      refetch();
+    }
+  }, [taskId, open, refetch]);
 
   // Cast task to Task type for the command menu - ensure compatibility
   const taskForMenu = task
@@ -121,8 +104,8 @@ export function TaskSheet({ open, onOpenChange, taskId }: TaskSheetProps) {
                     saveOnCloseRef.current = saveFn;
                   }}
                   onTaskUpdate={() => {
-                    // Task updates will be handled by query refetch
-                    refetch();
+                    // Task updates will be handled by React Query cache automatically
+                    // No need to refetch - prevents infinite loops
                   }}
                 />
               </div>

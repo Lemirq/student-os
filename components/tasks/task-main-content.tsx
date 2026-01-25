@@ -36,11 +36,32 @@ export function TaskMainContent({
 
   // Update local state when task prop changes
   React.useEffect(() => {
-    setTask(initialTask);
-    setTitle(initialTask.title);
-    setDescription(initialTask.description || "");
-    setNotes(initialTask.notes || null);
-    lastSavedNotes.current = initialTask.notes;
+    // Only update if values have actually changed to prevent infinite loops
+    if (initialTask.id !== task.id) {
+      setTask(initialTask);
+      setTitle(initialTask.title);
+      setDescription(initialTask.description || "");
+      setNotes(initialTask.notes || null);
+      lastSavedNotes.current = initialTask.notes;
+    } else {
+      // For the same task, only update if the values are different
+      if (initialTask.title !== title) {
+        setTitle(initialTask.title);
+      }
+      if ((initialTask.description || "") !== description) {
+        setDescription(initialTask.description || "");
+      }
+      // Only update notes if they're different from what we last saved
+      // This prevents the refetch from overwriting local changes
+      if (
+        JSON.stringify(initialTask.notes) !==
+          JSON.stringify(lastSavedNotes.current) &&
+        JSON.stringify(initialTask.notes) !== JSON.stringify(notes)
+      ) {
+        setNotes(initialTask.notes || null);
+        lastSavedNotes.current = initialTask.notes;
+      }
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     initialTask.id,

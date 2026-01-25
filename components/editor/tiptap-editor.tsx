@@ -1,5 +1,6 @@
 "use client";
 
+import * as React from "react";
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import TaskList from "@tiptap/extension-task-list";
@@ -58,6 +59,9 @@ function ToolbarButton({
 const lowlight = createLowlight(common);
 
 export function TipTapEditor({ initialContent, onChange }: TipTapEditorProps) {
+  const isFirstRender = React.useRef(true);
+  const isInternalUpdate = React.useRef(false);
+
   const editor = useEditor({
     immediatelyRender: false,
     extensions: [
@@ -86,9 +90,33 @@ export function TipTapEditor({ initialContent, onChange }: TipTapEditorProps) {
       },
     },
     onUpdate: ({ editor }) => {
-      onChange(editor.getJSON());
+      // Prevent triggering onChange during programmatic updates
+      if (!isInternalUpdate.current) {
+        onChange(editor.getJSON());
+      }
     },
   });
+
+  // Only update editor content when initialContent changes externally (not from our own updates)
+  React.useEffect(() => {
+    if (!editor) return;
+
+    // Skip on first render (content already set in useEditor)
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
+
+    const currentContent = editor.getJSON();
+    const newContent = initialContent;
+
+    // Only update if content is actually different
+    if (JSON.stringify(currentContent) !== JSON.stringify(newContent)) {
+      isInternalUpdate.current = true;
+      editor.commands.setContent(newContent || "", false);
+      isInternalUpdate.current = false;
+    }
+  }, [editor, initialContent]);
 
   if (!editor) {
     return null;

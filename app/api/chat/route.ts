@@ -642,6 +642,54 @@ ${syllabusText}`,
       // -----------------------------------------------------------------------
       // 2. GRADE STRATEGIST TOOLS
       // -----------------------------------------------------------------------
+      spawn_browser_agent: tool({
+        description:
+          "Spawn a browser agent to perform web automation tasks. Use this when user wants to perform actions on a website. Returns a link to view the agent session.",
+        inputSchema: z.object({
+          prompt: z
+            .string()
+            .describe(
+              "The instruction for the browser agent (e.g., 'Log in to Canvas and check assignments')",
+            ),
+        }),
+        execute: async ({ prompt }: { prompt: string }) => {
+          const AGENT_SERVICE_URL =
+            process.env.AGENT_SERVICE_URL || "http://localhost:3001";
+          const AGENT_SERVICE_API_KEY = process.env.AGENT_SERVICE_API_KEY;
+
+          try {
+            const response = await fetch(`${AGENT_SERVICE_URL}/agents/spawn`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                ...(AGENT_SERVICE_API_KEY && {
+                  "x-api-key": AGENT_SERVICE_API_KEY,
+                }),
+              },
+              body: JSON.stringify({
+                userId: user.id,
+                prompt,
+              }),
+            });
+
+            if (!response.ok) {
+              const errorText = await response.text();
+              console.error("Failed to spawn agent:", errorText);
+              return "Failed to start browser agent. Please try again.";
+            }
+
+            const data = await response.json();
+            const sessionId = data.sessionId;
+
+            // Return a structured response that the UI can render nicely, or just text for now.
+            // The frontend chat component might not support custom components yet, so text with a link is safest.
+            return `Browser agent started! You can view the live session and control it here: [View Agent Session](/agents/${sessionId})`;
+          } catch (error) {
+            console.error("Error spawning agent:", error);
+            return "An error occurred while trying to spawn the agent.";
+          }
+        },
+      }),
       calculate_grade_requirements: tool({
         description:
           "Calculates required score on remaining tasks to hit a goal.",
@@ -2643,12 +2691,12 @@ Extract tasks from: "${request}"
 
           try {
             // Create browser agent task
-            const response = await fetch(`${AGENT_SERVICE_URL}/execute`, {
+            const response = await fetch(`${AGENT_SERVICE_URL}/agents/execute`, {
               method: "POST",
               headers: {
                 "Content-Type": "application/json",
                 ...(AGENT_SERVICE_API_KEY && {
-                  Authorization: `Bearer ${AGENT_SERVICE_API_KEY}`,
+                  "x-api-key": AGENT_SERVICE_API_KEY,
                 }),
               },
               body: JSON.stringify({
@@ -2656,7 +2704,7 @@ Extract tasks from: "${request}"
                 start_url,
                 max_steps,
                 timeout_seconds,
-                user_id: user.id,
+                userId: user.id,
               }),
             });
 

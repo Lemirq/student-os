@@ -6,8 +6,9 @@ const AGENT_SERVICE_URL = process.env.AGENT_SERVICE_URL ?? "";
 const AGENT_SERVICE_API_KEY = process.env.AGENT_SERVICE_API_KEY ?? "";
 
 export async function resumeAgent(
-  taskId: string,
-  userResponse: string,
+  sessionId: string,
+  pauseId: string,
+  actionType: "completed" | "cancelled",
 ): Promise<{ success: boolean; error?: string }> {
   try {
     const supabase = await createClient();
@@ -26,23 +27,28 @@ export async function resumeAgent(
       };
     }
 
-    if (!taskId) {
-      return { success: false, error: "Task ID is required" };
+    if (!sessionId) {
+      return { success: false, error: "Session ID is required" };
+    }
+    
+    if (!pauseId) {
+      return { success: false, error: "Pause ID is required" };
     }
 
     // Call the agent service to resume the task
-    const response = await fetch(`${AGENT_SERVICE_URL}/resume`, {
+    // POST /agents/:id/hitl
+    const response = await fetch(`${AGENT_SERVICE_URL}/agents/${sessionId}/hitl`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         ...(AGENT_SERVICE_API_KEY && {
-          Authorization: `Bearer ${AGENT_SERVICE_API_KEY}`,
+          "x-api-key": AGENT_SERVICE_API_KEY,
         }),
       },
       body: JSON.stringify({
-        task_id: taskId,
-        user_id: user.id,
-        user_response: userResponse,
+        pauseId,
+        action: actionType, // "completed" or "cancelled"
+        userResponse: actionType === "completed" ? "User manually completed action" : "User cancelled",
       }),
     });
 
@@ -56,15 +62,14 @@ export async function resumeAgent(
       return {
         success: false,
         error:
-          errorData.detail ||
-          errorData.error ||
+          errorData.message ||
           `Agent service error: ${response.status}`,
       };
     }
 
     const data = await response.json();
 
-    if (data.status === "resumed") {
+    if (data.resumed || data.cancelled) {
       return { success: true };
     } else {
       return {

@@ -58,15 +58,23 @@ export function useTaskMutations() {
     onMutate: async ({ taskId, updates }) => {
       // Cancel outgoing refetches to avoid overwriting optimistic update
       await queryClient.cancelQueries({ queryKey: queryKeys.tasks.all });
+      await queryClient.cancelQueries({ queryKey: queryKeys.tasks.detail(taskId) });
       await queryClient.cancelQueries({ queryKey: queryKeys.semesters.all });
       await queryClient.cancelQueries({ queryKey: queryKeys.courses.all });
 
       // Snapshot previous values
       const previousData = {
         tasks: queryClient.getQueryData(queryKeys.tasks.all),
+        taskDetail: queryClient.getQueryData(queryKeys.tasks.detail(taskId)),
         semesters: [] as CachedQuery[],
         courses: [] as CachedQuery[],
       };
+
+      // Optimistically update the task detail query
+      queryClient.setQueryData(queryKeys.tasks.detail(taskId), (old: unknown) => {
+        if (!old) return old;
+        return { ...old, ...updates };
+      });
 
       // Collect all semester and course queries to update
       const queryCache = queryClient.getQueryCache();
@@ -123,7 +131,12 @@ export function useTaskMutations() {
     onError: (err, variables, context) => {
       // Rollback on error
       if (context?.previousData) {
-        const { semesters, courses } = context.previousData;
+        const { taskDetail, semesters, courses } = context.previousData;
+
+        // Rollback task detail
+        if (taskDetail !== undefined) {
+          queryClient.setQueryData(queryKeys.tasks.detail(variables.taskId), taskDetail);
+        }
 
         semesters.forEach(({ key, data }) => {
           queryClient.setQueryData(key, data);
@@ -139,18 +152,30 @@ export function useTaskMutations() {
     },
 
     onSettled: (data, error, variables) => {
-      // Invalidate queries to refetch and ensure consistency
-      queryClient.invalidateQueries({ queryKey: queryKeys.tasks.all });
-      // Also invalidate the specific task detail query
-      if (variables.taskId) {
-        queryClient.invalidateQueries({
-          queryKey: queryKeys.tasks.detail(variables.taskId),
-        });
-      }
-      queryClient.invalidateQueries({ queryKey: queryKeys.semesters.all });
-      queryClient.invalidateQueries({ queryKey: queryKeys.courses.all });
-      queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.all });
-      queryClient.invalidateQueries({ queryKey: queryKeys.ai.context("user") });
+      // Mark queries as stale but don't refetch immediately (prevents infinite loops)
+      // They'll refetch when accessed next or when staleTime expires
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.tasks.all,
+        refetchType: 'none' // Don't trigger refetch immediately
+      });
+      // The task detail query has optimistic updates, so don't invalidate it
+      // This prevents the sheet from refetching while typing
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.semesters.all,
+        refetchType: 'none'
+      });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.courses.all,
+        refetchType: 'none'
+      });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.dashboard.all,
+        refetchType: 'none'
+      });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.ai.context("user"),
+        refetchType: 'none'
+      });
     },
   });
 
@@ -236,11 +261,27 @@ export function useTaskMutations() {
     },
 
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.tasks.all });
-      queryClient.invalidateQueries({ queryKey: queryKeys.semesters.all });
-      queryClient.invalidateQueries({ queryKey: queryKeys.courses.all });
-      queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.all });
-      queryClient.invalidateQueries({ queryKey: queryKeys.ai.context("user") });
+      // Mark queries as stale but don't refetch immediately
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.tasks.all,
+        refetchType: 'none'
+      });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.semesters.all,
+        refetchType: 'none'
+      });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.courses.all,
+        refetchType: 'none'
+      });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.dashboard.all,
+        refetchType: 'none'
+      });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.ai.context("user"),
+        refetchType: 'none'
+      });
     },
   });
 

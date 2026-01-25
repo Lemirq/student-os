@@ -9,6 +9,7 @@ import {
   LogOut,
   LayoutDashboard,
   Calendar,
+  Laptop,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -97,38 +98,34 @@ export function AppSidebar({
     return defaultSemesters;
   }, [semesters]);
 
-  // Expanded state for years - initialized from localStorage or defaults
+  // Expanded state for years
   const [expandedYears, setExpandedYears] = React.useState<
     Record<number, boolean>
-  >(() => {
-    // SSR safety - only access localStorage on client
-    if (typeof window === "undefined") return {};
-    try {
-      const saved = localStorage.getItem(SIDEBAR_YEARS_KEY);
-      if (saved) {
-        return JSON.parse(saved) as Record<number, boolean>;
-      }
-    } catch {
-      // Ignore errors
-    }
-    return {};
-  });
+  >({});
 
-  // Expanded state for semesters - initialized from localStorage or defaults
+  // Expanded state for semesters
   const [expandedSemesters, setExpandedSemesters] = React.useState<
     Record<string, boolean>
-  >(() => {
-    if (typeof window === "undefined") return {};
+  >({});
+
+  // Hydrate from localStorage on mount
+  React.useEffect(() => {
+    // Years
     try {
-      const saved = localStorage.getItem(SIDEBAR_SEMESTERS_KEY);
-      if (saved) {
-        return JSON.parse(saved) as Record<string, boolean>;
+      const savedYears = localStorage.getItem(SIDEBAR_YEARS_KEY);
+      if (savedYears) {
+        setExpandedYears(JSON.parse(savedYears));
       }
-    } catch {
-      // Ignore errors
-    }
-    return {};
-  });
+    } catch {}
+
+    // Semesters
+    try {
+      const savedSemesters = localStorage.getItem(SIDEBAR_SEMESTERS_KEY);
+      if (savedSemesters) {
+        setExpandedSemesters(JSON.parse(savedSemesters));
+      }
+    } catch {}
+  }, []);
 
   // Track if we've set defaults (only do this once on mount)
   const hasSetDefaults = React.useRef(false);
@@ -188,6 +185,7 @@ export function AppSidebar({
   useHotkeys("g+t", () => router.push("/dashboard"));
   useHotkeys("g+s", () => router.push("/settings"));
   useHotkeys("g+h", () => router.push("/schedule"));
+  useHotkeys("g+a", () => router.push("/agents"));
   useHotkeys("g+c", () => {
     if (semesters.length > 0) {
       router.push(`/semesters/${semesters[0].id}`);
@@ -296,6 +294,21 @@ export function AppSidebar({
                   <span>Schedule</span>
                   <Kbd className="ml-auto">
                     <span className="text-xs">G</span>H
+                  </Kbd>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                asChild
+                isActive={pathname.startsWith("/agents")}
+                tooltip="Agents"
+              >
+                <Link href="/agents">
+                  <Laptop />
+                  <span>Agents</span>
+                  <Kbd className="ml-auto">
+                    <span className="text-xs">G</span>A
                   </Kbd>
                 </Link>
               </SidebarMenuButton>

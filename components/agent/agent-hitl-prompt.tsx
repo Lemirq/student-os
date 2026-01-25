@@ -20,38 +20,33 @@ import {
 import { cn } from "@/lib/utils";
 
 interface AgentHITLPromptProps {
-  taskId: string;
-  question: string;
-  context?: string;
-  browserViewUrl?: string;
-  onResume?: () => void;
+  sessionId: string;
+  pauseId: string;
+  reason: string;
+  snapshot?: string | null;
+  onResolved?: () => void;
 }
 
 export function AgentHITLPrompt({
-  taskId,
-  question,
-  context,
-  browserViewUrl,
-  onResume,
+  sessionId,
+  pauseId,
+  reason,
+  snapshot,
+  onResolved,
 }: AgentHITLPromptProps) {
-  const [userResponse, setUserResponse] = React.useState("");
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [isDismissed, setIsDismissed] = React.useState(false);
 
-  const handleSubmit = async () => {
-    if (!userResponse.trim()) {
-      toast.error("Please provide a response");
-      return;
-    }
-
+  // Resume the agent (action: "completed")
+  const handleResume = async () => {
     setIsSubmitting(true);
     try {
-      const result = await resumeAgent(taskId, userResponse);
+      const result = await resumeAgent(sessionId, pauseId, "completed");
 
       if (result.success) {
         toast.success("Agent resumed successfully");
         setIsDismissed(true);
-        onResume?.();
+        onResolved?.();
       } else {
         toast.error(result.error || "Failed to resume agent");
       }
@@ -63,14 +58,16 @@ export function AgentHITLPrompt({
     }
   };
 
+  // Cancel the task (action: "cancelled")
   const handleCancel = async () => {
     setIsSubmitting(true);
     try {
-      const result = await resumeAgent(taskId, "CANCEL");
+      const result = await resumeAgent(sessionId, pauseId, "cancelled");
 
       if (result.success) {
         toast.success("Agent task cancelled");
         setIsDismissed(true);
+        onResolved?.();
       } else {
         toast.error(result.error || "Failed to cancel agent");
       }
@@ -87,86 +84,77 @@ export function AgentHITLPrompt({
   }
 
   return (
-    <Card className="border-primary/50 bg-primary/5 p-4 space-y-4 mb-4">
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex items-start gap-3 flex-1">
-          <div className="rounded-full bg-primary/10 p-2 mt-0.5">
-            <AlertCircle className="size-5 text-primary" />
+    <Card className="border-yellow-500/50 bg-yellow-500/5 shadow-sm p-4 space-y-4 mb-4">
+      <div className="flex items-start gap-4">
+        <div className="rounded-full bg-yellow-500/10 p-2 mt-0.5">
+          <AlertCircle className="size-5 text-yellow-600 dark:text-yellow-400" />
+        </div>
+        <div className="flex-1 space-y-1">
+          <div className="flex items-center gap-2">
+            <h3 className="font-semibold text-sm text-yellow-700 dark:text-yellow-400">
+              Agent Needs Help
+            </h3>
+            <Badge
+              variant="outline"
+              className="gap-1 border-yellow-500/20 text-yellow-700 dark:text-yellow-400"
+            >
+              <Clock className="size-3" />
+              Paused
+            </Badge>
           </div>
-          <div className="flex-1 space-y-1">
-            <div className="flex items-center gap-2">
-              <h3 className="font-semibold text-sm">Agent Needs Your Input</h3>
-              <Badge variant="outline" className="gap-1">
-                <Clock className="size-3" />
-                Paused
-              </Badge>
-            </div>
-            <p className="text-sm text-muted-foreground">{question}</p>
-          </div>
+          <p className="text-sm font-medium">{reason}</p>
         </div>
       </div>
 
-      {context && (
-        <div className="bg-muted/50 rounded-md p-3 space-y-1.5">
-          <p className="text-xs font-medium text-muted-foreground">
-            Additional Context
-          </p>
-          <ScrollArea className="max-h-32">
-            <p className="text-sm whitespace-pre-wrap">{context}</p>
-          </ScrollArea>
+      {snapshot && (
+        <div className="relative aspect-video w-full overflow-hidden rounded-md border bg-black/5 dark:bg-white/5">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={`data:image/jpeg;base64,${snapshot}`}
+            alt="Agent Snapshot"
+            className="object-contain w-full h-full"
+          />
         </div>
       )}
 
-      {browserViewUrl && (
+      <div className="flex flex-col gap-3 pt-2">
         <a
-          href={browserViewUrl}
+          href={`/agents/${sessionId}`}
           target="_blank"
           rel="noopener noreferrer"
-          className="inline-flex items-center gap-2 text-sm text-primary hover:underline"
+          className={cn(
+            "inline-flex items-center justify-center gap-2 text-sm font-medium h-9 rounded-md px-3",
+            "bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
+          )}
         >
           <ExternalLink className="size-4" />
-          View Live Browser Session
+          Open Live Control
         </a>
-      )}
 
-      <div className="space-y-3">
-        <Textarea
-          placeholder="Type your response here..."
-          value={userResponse}
-          onChange={(e) => setUserResponse(e.target.value)}
-          className="min-h-24 resize-none"
-          disabled={isSubmitting}
-        />
-
-        <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center justify-end gap-2 border-t pt-3 mt-1">
           <Button
             variant="ghost"
             size="sm"
             onClick={handleCancel}
             disabled={isSubmitting}
-            className="text-muted-foreground"
+            className="text-muted-foreground hover:text-red-600 hover:bg-red-500/10"
           >
-            <X className="size-4" />
+            <X className="size-4 mr-2" />
             Cancel Task
           </Button>
 
           <Button
-            onClick={handleSubmit}
-            disabled={isSubmitting || !userResponse.trim()}
+            onClick={handleResume}
+            disabled={isSubmitting}
             size="sm"
-            className="gap-2"
+            className="bg-yellow-600 hover:bg-yellow-700 text-white gap-2"
           >
             {isSubmitting ? (
-              <>
-                <Loader2 className="size-4 animate-spin" />
-                Resuming...
-              </>
+              <Loader2 className="size-4 animate-spin" />
             ) : (
-              <>
-                <Play className="size-4" />
-                Resume Agent
-              </>
+              <Play className="size-4" />
             )}
+            I've Resolved It - Resume
           </Button>
         </div>
       </div>
@@ -175,12 +163,33 @@ export function AgentHITLPrompt({
 }
 
 interface AgentStatusBadgeProps {
-  status: "running" | "paused" | "completed" | "failed";
+  status: "running" | "stopped" | "error" | "completed";
+  hitlStatus?: "none" | "pending" | "active" | "resolved";
   className?: string;
 }
 
-export function AgentStatusBadge({ status, className }: AgentStatusBadgeProps) {
-  const variants = {
+export function AgentStatusBadge({
+  status,
+  hitlStatus,
+  className,
+}: AgentStatusBadgeProps) {
+  // If HITL is pending/active, show Paused status
+  if (hitlStatus === "pending" || hitlStatus === "active") {
+    return (
+      <Badge
+        variant="outline"
+        className={cn(
+          "gap-1.5 bg-yellow-500/10 text-yellow-700 dark:text-yellow-300 border-yellow-500/20",
+          className
+        )}
+      >
+        <Clock className="size-3" />
+        Paused (Help Needed)
+      </Badge>
+    );
+  }
+
+  const variants: Record<string, any> = {
     running: {
       icon: Loader2,
       label: "Running",
@@ -188,11 +197,11 @@ export function AgentStatusBadge({ status, className }: AgentStatusBadgeProps) {
         "bg-blue-500/10 text-blue-700 dark:text-blue-300 border-blue-500/20",
       iconClassName: "animate-spin",
     },
-    paused: {
-      icon: Clock,
-      label: "Paused",
+    stopped: {
+      icon: CheckCircle2, // or stop icon
+      label: "Stopped",
       className:
-        "bg-yellow-500/10 text-yellow-700 dark:text-yellow-300 border-yellow-500/20",
+        "bg-muted text-muted-foreground border-border",
       iconClassName: "",
     },
     completed: {
@@ -202,16 +211,16 @@ export function AgentStatusBadge({ status, className }: AgentStatusBadgeProps) {
         "bg-green-500/10 text-green-700 dark:text-green-300 border-green-500/20",
       iconClassName: "",
     },
-    failed: {
+    error: {
       icon: AlertCircle,
-      label: "Failed",
+      label: "Error",
       className:
         "bg-red-500/10 text-red-700 dark:text-red-300 border-red-500/20",
       iconClassName: "",
     },
   };
 
-  const variant = variants[status];
+  const variant = variants[status] || variants.stopped;
   const Icon = variant.icon;
 
   return (

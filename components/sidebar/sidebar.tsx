@@ -11,6 +11,7 @@ import {
   Plus,
   GraduationCap,
   LayoutDashboard,
+  Laptop,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { Semester, Course } from "@/types";
@@ -118,6 +119,22 @@ export function Sidebar({ semesters }: SidebarProps) {
             Dashboard
             <Kbd className="ml-auto">
               <span className="text-xs">G</span>T
+            </Kbd>
+          </Link>
+
+          <Link
+            href="/agents"
+            className={cn(
+              "flex items-center gap-3 rounded-lg px-3 py-2 transition-all hover:text-primary",
+              pathname.startsWith("/agents")
+                ? "bg-muted text-primary"
+                : "text-muted-foreground",
+            )}
+          >
+            <Laptop className="h-4 w-4" />
+            Agents
+            <Kbd className="ml-auto">
+              <span className="text-xs">G</span>A
             </Kbd>
           </Link>
 
