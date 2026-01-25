@@ -2048,7 +2048,7 @@ export function AICopilotSidebar({ aiEnabled }: { aiEnabled: boolean }) {
                                                             .from
                                                         }
                                                       </span>
-                                                      <ArrowRight className="size-2.5 flex-shrink-0" />
+                                                      <ArrowRight className="size-2.5 shrink-0" />
                                                       <span className="text-blue-600 dark:text-blue-400 font-medium truncate max-w-[80px]">
                                                         {task.changes.title.to}
                                                       </span>

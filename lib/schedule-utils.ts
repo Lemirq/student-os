@@ -1,5 +1,5 @@
 import type { ScheduleData, ScheduleEvent } from "@/types";
-import { addDays, addWeeks, format, parse } from "date-fns";
+import { addDays, addWeeks, format, parse, startOfDay } from "date-fns";
 import { setTimeInTimezone } from "./utils";
 
 type Semester = {
@@ -108,30 +108,35 @@ export function scheduleToCalendarEvents(
 
   for (const scheduleEvent of course.schedule.events) {
     try {
-      const startDate = parse(
-        scheduleEvent.startDate,
-        "yyyy-MM-dd",
-        new Date(),
+      const dateRangeStart = startOfDay(
+        parse(scheduleEvent.startDate, "yyyy-MM-dd", new Date()),
       );
-      const endDate = parse(scheduleEvent.endDate, "yyyy-MM-dd", new Date());
+      const dateRangeEnd = startOfDay(
+        parse(scheduleEvent.endDate, "yyyy-MM-dd", new Date()),
+      );
 
-      // Parse times
+      if (dateRangeStart > dateRangeEnd) {
+        console.warn(
+          `[schedule-utils] Invalid date range: startDate (${dateRangeStart}) > endDate (${dateRangeEnd})`,
+        );
+        continue;
+      }
+
       const [startHour, startMinute] = scheduleEvent.startTime
         .split(":")
         .map(Number);
       const [endHour, endMinute] = scheduleEvent.endTime.split(":").map(Number);
 
-      // Find the first occurrence of the target day of week
-      let currentDate = startDate;
+      let currentDate = dateRangeStart;
       while (
         currentDate.getDay() !== scheduleEvent.dayOfWeek &&
-        currentDate <= endDate
+        currentDate <= dateRangeEnd
       ) {
         currentDate = addDays(currentDate, 1);
       }
 
       // Generate events for each week
-      while (currentDate <= endDate) {
+      while (currentDate <= dateRangeEnd) {
         const eventDateStr = format(currentDate, "yyyy-MM-dd");
 
         // Check if this date is an exception
@@ -275,7 +280,7 @@ export function validateScheduleEvent(event: ScheduleEvent): boolean {
 
     return true;
   } catch (error) {
-    console.error("[Service Worker] Error validating schedule event:", error);
+    console.error("Error validating schedule event:", error);
     return false;
   }
 }

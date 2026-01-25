@@ -95,7 +95,13 @@ export function rruleToSchedule(
         : undefined;
 
     // Determine end date from RRULE
-    let finalEndDate = format(startDate, "yyyy-MM-dd", { timeZone: timezone });
+    // Default to 4 months from start date if no RRULE.UNTIL is specified
+    const defaultEndDate = new Date(startDate);
+    defaultEndDate.setMonth(defaultEndDate.getMonth() + 4);
+
+    let finalEndDate = format(defaultEndDate, "yyyy-MM-dd", {
+      timeZone: timezone,
+    });
     if (event.rrule && typeof event.rrule === "object") {
       const rruleOptions = event.rrule as Record<string, unknown>;
       if (rruleOptions.until && rruleOptions.until instanceof Date) {
