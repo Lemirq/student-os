@@ -4,6 +4,7 @@ import * as React from "react";
 import { Brain, ChevronDown } from "lucide-react";
 import { cn, stripSystemReminders } from "@/lib/utils";
 import ReactMarkdown from "react-markdown";
+import { preprocessMarkdown } from "@/lib/markdown-preprocessor";
 
 interface ReasoningAccordionProps {
   content: string;
@@ -51,7 +52,9 @@ export function ReasoningAccordion({ content }: ReasoningAccordionProps) {
         <div className="overflow-hidden">
           <div className="mt-1 p-3 rounded-lg bg-purple-500/5 border border-purple-500/20 text-xs text-muted-foreground">
             <div className="prose prose-xs dark:prose-invert max-w-none prose-p:text-muted-foreground prose-p:text-xs prose-p:leading-relaxed wrap-anywhere prose:*:text-xs prose-ol:text-xs prose-ul:text-xs prose-li:text-xs">
-              <ReactMarkdown>{sanitizedContent}</ReactMarkdown>
+              <ReactMarkdown>
+                {preprocessMarkdown(sanitizedContent)}
+              </ReactMarkdown>
             </div>
           </div>
         </div>

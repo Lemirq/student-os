@@ -27,9 +27,13 @@ import {
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { useChat } from "@ai-sdk/react";
+import { preprocessMarkdown } from "@/lib/markdown-preprocessor";
 import { lastAssistantMessageIsCompleteWithToolCalls, UIMessagePart } from "ai";
 import { StudentOSTools, StudentOSDataTypes } from "@/types";
 import { getPageContext, PageContext } from "@/actions/page-context";
+import remarkMath from "remark-math";
+import rehypeKatex from "rehype-katex";
+import "katex/dist/katex.min.css";
 
 interface TaggedDocument {
   fileName: string;
@@ -679,8 +683,11 @@ export function AICopilotSidebar({ aiEnabled }: { aiEnabled: boolean }) {
                                       : "bg-muted"
                                   }`}
                                 >
-                                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                                    {sanitizedText}
+                                  <ReactMarkdown
+                                    rehypePlugins={[rehypeKatex]}
+                                    remarkPlugins={[remarkGfm, remarkMath]}
+                                  >
+                                    {preprocessMarkdown(sanitizedText)}
                                   </ReactMarkdown>
                                 </div>
                               );
@@ -1722,17 +1729,25 @@ export function AICopilotSidebar({ aiEnabled }: { aiEnabled: boolean }) {
                                                 </div>
                                                 <div className="prose prose-xs dark:prose-invert max-w-none text-xs">
                                                   <ReactMarkdown
-                                                    remarkPlugins={[remarkGfm]}
+                                                    rehypePlugins={[
+                                                      rehypeKatex,
+                                                    ]}
+                                                    remarkPlugins={[
+                                                      remarkGfm,
+                                                      remarkMath,
+                                                    ]}
                                                   >
-                                                    {stripSystemReminders(
-                                                      result.content &&
-                                                        result.content.length >
-                                                          500
-                                                        ? result.content.slice(
-                                                            0,
-                                                            500,
-                                                          ) + "..."
-                                                        : result.content,
+                                                    {preprocessMarkdown(
+                                                      stripSystemReminders(
+                                                        result.content &&
+                                                          result.content
+                                                            .length > 500
+                                                          ? result.content.slice(
+                                                              0,
+                                                              500,
+                                                            ) + "..."
+                                                          : result.content,
+                                                      ),
                                                     )}
                                                   </ReactMarkdown>
                                                 </div>

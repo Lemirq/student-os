@@ -11,7 +11,11 @@ import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { getDocumentChunks } from "@/actions/documents/get-document-chunks";
 import ReactMarkdown from "react-markdown";
+import { preprocessMarkdown } from "@/lib/markdown-preprocessor";
 import remarkGfm from "remark-gfm";
+import remarkMath from "remark-math";
+import rehypeKatex from "rehype-katex";
+import "katex/dist/katex.min.css";
 
 interface DocumentViewerDialogProps {
   open: boolean;
@@ -88,8 +92,11 @@ export function DocumentViewerDialog({
                   Chunk {chunk.chunkIndex + 1}
                 </div>
                 <div className="prose prose-sm dark:prose-invert max-w-none p-4">
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                    {chunk.content}
+                  <ReactMarkdown
+                    rehypePlugins={[rehypeKatex]}
+                    remarkPlugins={[remarkGfm, remarkMath]}
+                  >
+                    {preprocessMarkdown(chunk.content)}
                   </ReactMarkdown>
                 </div>
               </div>

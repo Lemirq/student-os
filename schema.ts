@@ -32,6 +32,7 @@ export const usersRelations = relations(users, ({ many }) => ({
   documents: many(documents),
   googleCalendarIntegrations: many(googleCalendarIntegrations),
   quizzes: many(quizzes),
+  agentSessions: many(agentSessions),
 }));
 
 /* SEMESTERS */
