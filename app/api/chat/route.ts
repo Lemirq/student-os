@@ -28,7 +28,12 @@ export type StudentOSToolCallsMessage = UIMessage;
 import { tasks, courses, gradeWeights, semesters } from "@/schema";
 import { eq, and, ilike, isNull, gte, lte, inArray, sql } from "drizzle-orm";
 import { createClient } from "@/utils/supabase/server";
-import { openRouterApiKey, tavilyApiKey } from "@/lib/env";
+import {
+  openRouterApiKey,
+  tavilyApiKey,
+  AGENT_SERVICE_URL,
+  AGENT_SERVICE_API_KEY,
+} from "@/lib/env";
 import { PageContext } from "@/actions/page-context";
 import { formatContextForAI, setTimeInTimezone } from "@/lib/utils";
 
@@ -324,6 +329,7 @@ export async function POST(req: Request) {
     - For grades: 'calculate_grade_requirements', 'manage_grade_weights'
     - For schedule: 'query_schedule', 'auto_schedule_tasks'
     - For research: 'web_search', 'extract_content', 'crawl_website'
+    - For browser automation: 'execute_browser_agent' for complex web tasks requiring JavaScript, form fills, or multi-step navigation
     - For memory: 'save_to_memory' ONLY when user explicitly requests it - do NOT auto-save AI content
     - For quizzes: 'generate_quiz' to create quizzes from course materials. IMPORTANT: Do NOT include or reveal quiz questions or answers in your chat response after calling this tool - the quiz will be displayed in the UI separately.
     - DO NOT chain tools. Do NOT display raw JSON.
@@ -2568,6 +2574,181 @@ Extract tasks from: "${request}"
         apiKey: tavilyApiKey,
         maxDepth: 1,
         limit: 50,
+      }),
+
+      // -----------------------------------------------------------------------
+      // 8. BROWSER AGENT TOOL (Optional - requires agent service)
+      // -----------------------------------------------------------------------
+      execute_browser_agent: tool({
+        description:
+          "Executes a browser automation task using a headless browser agent. Use this for complex web interactions like filling forms, navigating multi-step processes, or extracting dynamic content that requires JavaScript execution. The agent can handle authentication, clicks, form fills, and wait for dynamic content. Returns task results or prompts for human-in-the-loop (HITL) input when needed.",
+        inputSchema: z.object({
+          task_description: z
+            .string()
+            .describe(
+              "Clear, detailed description of what the browser agent should do. Include specific URLs, actions to perform (click, fill form, extract data), and expected outcomes.",
+            ),
+          start_url: z
+            .string()
+            .url()
+            .optional()
+            .describe(
+              "Optional starting URL for the browser session. If not provided, agent will determine from task description.",
+            ),
+          max_steps: z
+            .number()
+            .int()
+            .min(1)
+            .max(50)
+            .optional()
+            .default(20)
+            .describe(
+              "Maximum number of action steps the agent can take (default: 20, max: 50)",
+            ),
+          timeout_seconds: z
+            .number()
+            .int()
+            .min(30)
+            .max(600)
+            .optional()
+            .default(300)
+            .describe(
+              "Maximum execution time in seconds (default: 300, max: 600)",
+            ),
+        }),
+        execute: async ({
+          task_description,
+          start_url,
+          max_steps = 20,
+          timeout_seconds = 300,
+        }) => {
+          console.log(
+            "[execute_browser_agent] Starting browser task:",
+            task_description,
+          );
+
+          // Check if agent service is configured
+          if (!AGENT_SERVICE_URL) {
+            console.warn(
+              "[execute_browser_agent] Agent service not configured",
+            );
+            return {
+              success: false,
+              error:
+                "Browser agent service is not configured. Please set AGENT_SERVICE_URL environment variable to enable browser automation.",
+              suggestion:
+                "You can use web_search or extract_content tools for simpler web tasks.",
+            };
+          }
+
+          try {
+            // Create browser agent task
+            const response = await fetch(`${AGENT_SERVICE_URL}/execute`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                ...(AGENT_SERVICE_API_KEY && {
+                  Authorization: `Bearer ${AGENT_SERVICE_API_KEY}`,
+                }),
+              },
+              body: JSON.stringify({
+                task_description,
+                start_url,
+                max_steps,
+                timeout_seconds,
+                user_id: user.id,
+              }),
+            });
+
+            if (!response.ok) {
+              const errorData = await response.json().catch(() => ({}));
+              console.error(
+                "[execute_browser_agent] Agent service error:",
+                response.status,
+                errorData,
+              );
+              return {
+                success: false,
+                error:
+                  errorData.detail ||
+                  errorData.error ||
+                  `Agent service returned status ${response.status}`,
+              };
+            }
+
+            const data = await response.json();
+            console.log(
+              "[execute_browser_agent] Task created:",
+              data.task_id,
+              "status:",
+              data.status,
+            );
+
+            // Handle different response statuses
+            if (data.status === "completed") {
+              return {
+                success: true,
+                task_id: data.task_id,
+                result: data.result,
+                steps_taken: data.steps_taken,
+                message: `Browser task completed successfully in ${data.steps_taken} steps.`,
+                ui: {
+                  type: "success",
+                  title: "Browser Task Completed",
+                  icon: "check",
+                },
+              };
+            } else if (data.status === "paused") {
+              // Agent needs human input
+              return {
+                success: true,
+                status: "paused",
+                task_id: data.task_id,
+                hitl_question: data.question,
+                hitl_context: data.context,
+                browser_view_url: data.browser_view_url,
+                message: `Task paused - waiting for your input: ${data.question}`,
+                ui: {
+                  type: "hitl_prompt",
+                  title: "Agent Needs Your Input",
+                  task_id: data.task_id,
+                  question: data.question,
+                  context: data.context,
+                  browser_view_url: data.browser_view_url,
+                },
+              };
+            } else if (data.status === "failed") {
+              return {
+                success: false,
+                task_id: data.task_id,
+                error: data.error || "Browser task failed",
+                steps_taken: data.steps_taken,
+              };
+            } else {
+              // Running or unknown status
+              return {
+                success: true,
+                status: data.status,
+                task_id: data.task_id,
+                message: `Browser task started (ID: ${data.task_id}). Status: ${data.status}`,
+                ui: {
+                  type: "info",
+                  title: "Browser Task Started",
+                  icon: "info",
+                },
+              };
+            }
+          } catch (error) {
+            console.error("[execute_browser_agent] Error:", error);
+            return {
+              success: false,
+              error:
+                error instanceof Error
+                  ? error.message
+                  : "Failed to execute browser task",
+            };
+          }
+        },
       }),
     },
   });

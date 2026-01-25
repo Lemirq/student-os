@@ -41,6 +41,10 @@ export const NODE_ENV = process.env.NODE_ENV ?? "development";
 // Cron job secret for secure API access
 export const CRON_SECRET = process.env.CRON_SECRET ?? "";
 
+// Browser agent service configuration
+export const AGENT_SERVICE_URL = process.env.AGENT_SERVICE_URL ?? "";
+export const AGENT_SERVICE_API_KEY = process.env.AGENT_SERVICE_API_KEY ?? "";
+
 /**
  * Ensures required environment variables are present and throws if any are missing.
  *

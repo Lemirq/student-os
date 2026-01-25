@@ -32,6 +32,7 @@ export const usersRelations = relations(users, ({ many }) => ({
   documents: many(documents),
   googleCalendarIntegrations: many(googleCalendarIntegrations),
   quizzes: many(quizzes),
+  agentSessions: many(agentSessions),
 }));
 
 /* SEMESTERS */
@@ -474,3 +475,75 @@ export const googleCalendarEventsRelations = relations(
     }),
   }),
 );
+
+/* AGENT SESSIONS - Browser automation with HITL support */
+export const agentSessions = pgTable("agent_sessions", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: uuid("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  containerId: text("container_id").notNull(),
+  status: text("status")
+    .$type<"running" | "stopped" | "error">()
+    .default("running"),
+  prompt: text("prompt").notNull(),
+  result: jsonb("result"),
+  hitlStatus: text("hitl_status")
+    .$type<"none" | "pending" | "active" | "resolved">()
+    .default("none"),
+  hitlUserAction: jsonb("hitl_user_action").$type<{
+    type: string;
+    notes?: string;
+  }>(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+});
+
+export const agentSessionsRelations = relations(
+  agentSessions,
+  ({ one, many }) => ({
+    user: one(users, {
+      fields: [agentSessions.userId],
+      references: [users.id],
+    }),
+    actions: many(agentActions),
+    pauses: many(agentPauses),
+  }),
+);
+
+/* AGENT ACTIONS - Log of all actions performed by agents */
+export const agentActions = pgTable("agent_actions", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  sessionId: uuid("session_id")
+    .notNull()
+    .references(() => agentSessions.id, { onDelete: "cascade" }),
+  action: text("action").notNull(), // "click", "type", "navigate"
+  snapshot: text("snapshot"), // Screenshot base64 or result
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+});
+
+export const agentActionsRelations = relations(agentActions, ({ one }) => ({
+  session: one(agentSessions, {
+    fields: [agentActions.sessionId],
+    references: [agentSessions.id],
+  }),
+}));
+
+/* AGENT PAUSES - Track human intervention points */
+export const agentPauses = pgTable("agent_pauses", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  sessionId: uuid("session_id")
+    .notNull()
+    .references(() => agentSessions.id, { onDelete: "cascade" }),
+  reason: text("reason").notNull(), // "2FA required", "login needed"
+  snapshotBase64: text("snapshot_base64"),
+  resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+});
+
+export const agentPausesRelations = relations(agentPauses, ({ one }) => ({
+  session: one(agentSessions, {
+    fields: [agentPauses.sessionId],
+    references: [agentSessions.id],
+  }),
+}));
