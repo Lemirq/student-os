@@ -163,6 +163,16 @@ export const DocumentList = React.memo(function DocumentList({
           onOpenChange={(open) => !open && setSelectedDocument(null)}
           fileName={selectedDocument.fileName}
           courseId={courseId}
+          onRename={(newFileName) => {
+            setDocuments((prev) =>
+              prev.map((doc) =>
+                doc.fileName === selectedDocument.fileName
+                  ? { ...doc, fileName: newFileName }
+                  : doc,
+              ),
+            );
+            setSelectedDocument({ fileName: newFileName, courseId });
+          }}
         />
       )}
     </div>

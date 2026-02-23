@@ -7,10 +7,10 @@ import { Button } from "@/components/ui/button";
 import { GenerateQuizDialog } from "@/components/quiz/generate-quiz-dialog";
 import { QuizTakingModal } from "@/components/quiz/quiz-taking-modal";
 import { QuizHistoryDialog } from "@/components/quiz/quiz-history-dialog";
-import { HelpCircle, Plus } from "lucide-react";
+import { HelpCircle, Plus, Trash2, Loader2 } from "lucide-react";
 import { getCourseQuizzes, type QuizSummary } from "@/actions/quiz/get-quizzes";
+import { deleteQuiz } from "@/actions/quiz/delete-quiz";
 import { toast } from "sonner";
-import { Loader2 } from "lucide-react";
 
 interface QuizzesSectionProps {
   courseId: string;
@@ -26,6 +26,7 @@ export const QuizzesSection = React.memo(function QuizzesSection({
   const [isTakingQuiz, setIsTakingQuiz] = useState(false);
   const [isViewingHistory, setIsViewingHistory] = useState(false);
   const [refetchTrigger, setRefetchTrigger] = useState(0);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const fetchQuizzes = useCallback(async () => {
     setIsLoading(true);
@@ -63,6 +64,21 @@ export const QuizzesSection = React.memo(function QuizzesSection({
     setSelectedQuiz(quiz);
     setIsViewingHistory(true);
   };
+
+  const handleDelete = useCallback(async (quizId: string) => {
+    setDeletingId(quizId);
+    try {
+      const result = await deleteQuiz({ quizId });
+      if (result.success) {
+        toast.success(result.message);
+        setQuizzes((prev) => prev.filter((q) => q.id !== quizId));
+      } else {
+        toast.error(result.message || "Failed to delete quiz");
+      }
+    } finally {
+      setDeletingId(null);
+    }
+  }, []);
 
   const getDifficultyBadgeColor = (difficulty: string) => {
     switch (difficulty) {
@@ -115,6 +131,8 @@ export const QuizzesSection = React.memo(function QuizzesSection({
                 quiz={quiz}
                 onTakeQuiz={handleTakeQuiz}
                 onViewHistory={handleViewHistory}
+                onDelete={handleDelete}
+                isDeleting={deletingId === quiz.id}
                 getDifficultyBadgeColor={getDifficultyBadgeColor}
               />
             ))}
@@ -152,6 +170,8 @@ interface QuizItemProps {
   quiz: QuizSummary;
   onTakeQuiz: (quiz: QuizSummary) => void;
   onViewHistory: (quiz: QuizSummary) => void;
+  onDelete: (quizId: string) => void;
+  isDeleting: boolean;
   getDifficultyBadgeColor: (difficulty: string) => string;
 }
 
@@ -159,10 +179,22 @@ function QuizItem({
   quiz,
   onTakeQuiz,
   onViewHistory,
+  onDelete,
+  isDeleting,
   getDifficultyBadgeColor,
 }: QuizItemProps) {
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
   const improvement = quiz.improvement || 0;
   const lastAttemptScore = quiz.lastAttemptScore;
+
+  const handleDeleteClick = () => {
+    if (confirmingDelete) {
+      onDelete(quiz.id);
+      setConfirmingDelete(false);
+    } else {
+      setConfirmingDelete(true);
+    }
+  };
 
   return (
     <div className="rounded-lg border bg-card p-3 space-y-2">
@@ -180,17 +212,43 @@ function QuizItem({
             <p className="text-xs text-muted-foreground">{quiz.topic}</p>
           )}
         </div>
-        {lastAttemptScore !== null && (
-          <div className="text-right">
-            <div className="text-lg font-bold">
-              {lastAttemptScore.toFixed(0)}%
+        <div className="flex items-center gap-1 shrink-0">
+          {lastAttemptScore !== null && (
+            <div className="text-right mr-1">
+              <div className="text-lg font-bold">
+                {lastAttemptScore.toFixed(0)}%
+              </div>
+              <div className="text-xs text-muted-foreground">
+                {quiz.lastAttemptDate &&
+                  new Date(quiz.lastAttemptDate).toLocaleDateString()}
+              </div>
             </div>
-            <div className="text-xs text-muted-foreground">
-              {quiz.lastAttemptDate &&
-                new Date(quiz.lastAttemptDate).toLocaleDateString()}
-            </div>
-          </div>
-        )}
+          )}
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            onClick={handleDeleteClick}
+            onBlur={() => setConfirmingDelete(false)}
+            disabled={isDeleting}
+            className={
+              confirmingDelete
+                ? "text-destructive hover:text-destructive hover:bg-destructive/10"
+                : "text-muted-foreground hover:text-destructive"
+            }
+            title={
+              confirmingDelete ? "Click again to confirm delete" : "Delete quiz"
+            }
+          >
+            {isDeleting ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Trash2 className="h-4 w-4" />
+            )}
+            <span className="sr-only">
+              {confirmingDelete ? "Confirm delete" : "Delete quiz"}
+            </span>
+          </Button>
+        </div>
       </div>
 
       {improvement !== 0 && (
@@ -214,6 +272,7 @@ function QuizItem({
           size="sm"
           className="flex-1 h-8 text-xs"
           onClick={() => onTakeQuiz(quiz)}
+          disabled={isDeleting}
         >
           Take
         </Button>
@@ -223,11 +282,19 @@ function QuizItem({
             size="sm"
             className="h-8 text-xs"
             onClick={() => onViewHistory(quiz)}
+            disabled={isDeleting}
           >
             View History
           </Button>
         )}
       </div>
+
+      {confirmingDelete && (
+        <p className="text-xs text-destructive text-center">
+          Click the trash icon again to confirm — this will also delete all
+          attempts.
+        </p>
+      )}
     </div>
   );
 }
